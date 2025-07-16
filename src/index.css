@@ -1,3 +1,41 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities; 
+
+/* Add this to your main CSS file (e.g., index.css or global.css)
+   if you're using Tailwind CSS. If not, you'll need to define these
+   utility classes manually or add direct styles.
+*/
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom animation for typing indicator */
+@keyframes pulse-opacity {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse-opacity {
+  animation: pulse-opacity 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Ensure the root element covers the full screen */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden; /* Prevent body scroll */
+}
+
+/* Base styles for dark mode as default for canvas */
+body.dark {
+  background-color: #0a0a0a;
+  color: #fff;
+}
+
+/* Base styles for light mode */
+body.light {
+  background-color: #f0f0f0;
+  color: #000;
+}

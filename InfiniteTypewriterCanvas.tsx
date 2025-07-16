@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Type, Move, Download, Upload, Grid, FileText, Image, Code, RotateCcw, Trash2, Eye, EyeOff, ZoomIn, ZoomOut, FileDown, Sun, Moon } from 'lucide-react';
 
 // 텍스트 오브젝트 타입 정의
 interface TextObjectType {
@@ -9,56 +10,104 @@ interface TextObjectType {
   scale: number;
 }
 
+// 캔버스 정보 오버레이 컴포넌트
+const CanvasInfoOverlay = ({ canvasOffset, scale, textObjects, selectedObject, typewriterX, typewriterY, baseFontSize, getTextBoxWidth, screenToWorld, colorMode }: {
+  canvasOffset: { x: number; y: number; };
+  scale: number;
+  textObjects: TextObjectType[];
+  selectedObject: TextObjectType | null;
+  typewriterX: number;
+  typewriterY: number;
+  baseFontSize: number;
+  getTextBoxWidth: () => number;
+  screenToWorld: (screenX: number, screenY: number) => { x: number; y: number; };
+  colorMode: 'dark' | 'light';
+}) => {
+  const textBoxWidth = getTextBoxWidth();
+  const textBoxLeft = typewriterX - textBoxWidth / 2;
+  const textBoxTop = typewriterY - baseFontSize;
+  const worldPos = screenToWorld(textBoxLeft, textBoxTop);
+
+  return (
+    <div
+      className={`absolute top-20 left-4 backdrop-blur-sm p-4 rounded-xl shadow-xl text-xs font-mono
+        ${colorMode === 'dark' ? 'bg-black/80 text-white' : 'bg-white/90 text-gray-900 border border-gray-200'}`}
+    >
+      <div className="font-semibold mb-2 text-gray-300">Canvas Info</div>
+      <div className="space-y-1">
+        <div>Offset: ({Math.round(-canvasOffset.x)}, {Math.round(-canvasOffset.y)})</div>
+        <div>Scale: {scale.toFixed(2)}x</div>
+        <div>Objects: {textObjects.length}</div>
+        <div>Origin: ({Math.round(worldPos.x)}, {Math.round(worldPos.y)})</div>
+        {selectedObject && (
+          <div className="mt-2 pt-2 border-t border-gray-600 text-green-400">
+            Selected: "{selectedObject.content.substring(0, 20)}{selectedObject.content.length > 20 ? '...' : ''}"
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const InfiniteTypewriterCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [textObjects, setTextObjects] = useState<TextObjectType[]>([]);
-  const [currentText, setCurrentText] = useState('');
-  const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
+  const [currentTypingText, setCurrentTypingText] = useState('');
+  const [isComposing, setIsComposing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isDraggingText, setIsDraggingText] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(1);
   const [isTyping, setIsTyping] = useState(false);
   const [fontLoaded, setFontLoaded] = useState(false);
   const [selectedObject, setSelectedObject] = useState<TextObjectType | null>(null);
-  const [isDraggingText, setIsDraggingText] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [canvasWidth, setCanvasWidth] = useState(window.innerWidth);
-  const [canvasHeight, setCanvasHeight] = useState(window.innerHeight - 64); // 헤더 높이 고려
-  
+  const [canvasHeight, setCanvasHeight] = useState(window.innerHeight - 64);
+  const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const [showGrid, setShowGrid] = useState(true);
+  const [showA4Guide, setShowA4Guide] = useState(false);
+  const [a4GuideOriginWorld, setA4GuideOriginWorld] = useState<{ x: number; y: number } | null>(null);
+  const [showInfo, setShowInfo] = useState(true);
+  // 다크/라이트 모드 상태 추가
+  const [colorMode, setColorMode] = useState<'dark' | 'light'>('dark');
+
   // Typewriter settings
-  // typewriterX, typewriterY를 중앙에 위치하도록 동적으로 계산
   const typewriterX = canvasWidth / 2;
   const typewriterY = canvasHeight / 2;
   const typewriterLineHeight = 36;
-  const maxCharsPerLine = 40;
+  const maxCharsPerLine = 80;
   const baseFontSize = 20;
+
+  // Constants for A4 paper size
+  const A4_WIDTH_WORLD = 210 * 3.7795;
+  const A4_HEIGHT_WORLD = 297 * 3.7795;
+  const A4_LEFT_MARGIN_WORLD = 10;
+  const A4_TOP_MARGIN_WORLD = 10;
   
-  // Load Google Fonts - Added Nanum Gothic Coding font
+  // Load Google Fonts
   useEffect(() => {
     const link = document.createElement('link');
-    // Add Nanum Gothic Coding font
-    link.href = 'https://fonts.googleapis.com/css2?family=Nanum+Gothic+Coding&family=Noto+Sans+Mono:wght@400&family=JetBrains+Mono:wght@400&display=swap';
+    link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap';
     link.rel = 'stylesheet';
     document.head.appendChild(link);
     
     const checkFont = () => {
       if (document.fonts && document.fonts.ready) {
         document.fonts.ready.then(() => {
-          // Verify if "Nanum Gothic Coding" font is loaded
           const testCanvas = document.createElement('canvas');
           const testCtx = testCanvas.getContext('2d');
           if (testCtx) {
-            testCtx.font = '12px "Nanum Gothic Coding", monospace'; // Changed test font
-            testCtx.fillText('한글테스트', 0, 0);
+            testCtx.font = '12px "JetBrains Mono", monospace';
+            testCtx.fillText('Test', 0, 0);
           }
-          
           setTimeout(() => setFontLoaded(true), 100);
         });
       } else {
         setTimeout(() => setFontLoaded(true), 1500);
       }
     };
-    
     checkFont();
     
     return () => {
@@ -68,227 +117,164 @@ const InfiniteTypewriterCanvas = () => {
     };
   }, []);
   
-  // Measure text width - Prioritize Nanum Gothic Coding font
-  const measureTextWidth = useCallback((text, fontSize = baseFontSize) => {
+  const measureTextWidth = useCallback((text: string, fontSize: number = baseFontSize) => {
     const canvas = canvasRef.current;
-    if (!canvas || !fontLoaded) return text.length * 12; // Temporary value before font loads
+    if (!canvas || !fontLoaded) return text.length * 12;
     const ctx = canvas.getContext('2d');
     if (!ctx) return text.length * 12;
-    // Changed to prioritize "Nanum Gothic Coding" font
-    ctx.font = `${fontSize}px "Nanum Gothic Coding", "Noto Sans Mono", "JetBrains Mono", monospace`;
+    ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
     return ctx.measureText(text).width;
   }, [baseFontSize, fontLoaded]);
 
-  // Get base text box width
   const getTextBoxWidth = useCallback(() => {
     return measureTextWidth('A'.repeat(maxCharsPerLine));
-  }, [measureTextWidth]);
+  }, [measureTextWidth, maxCharsPerLine]);
 
-  // Convert world coordinates to screen coordinates
-  const worldToScreen = (worldX, worldY) => ({
+  const worldToScreen = useCallback((worldX: number, worldY: number) => ({
     x: worldX * scale + canvasOffset.x,
     y: worldY * scale + canvasOffset.y
-  });
+  }), [scale, canvasOffset]);
 
-  // Convert screen coordinates to world coordinates
-  const screenToWorld = (screenX, screenY) => ({
+  const screenToWorld = useCallback((screenX: number, screenY: number) => ({
     x: (screenX - canvasOffset.x) / scale,
     y: (screenY - canvasOffset.y) / scale
-  });
+  }), [scale, canvasOffset]);
 
-  // Fix typewriter text box top-left corner when zooming
-  const zoomToLevel = useCallback((newScale) => {
+  const zoomToLevel = useCallback((newScale: number) => {
     const textBoxWidth = getTextBoxWidth();
     const textBoxLeft = typewriterX - textBoxWidth / 2;
     const textBoxTop = typewriterY - baseFontSize;
     
-    // Current world coordinates of the text box top-left
     const currentWorldPos = screenToWorld(textBoxLeft, textBoxTop);
     
-    // Calculate new screen position for the same world coordinates at the new scale
     const newScreenX = currentWorldPos.x * newScale;
     const newScreenY = currentWorldPos.y * newScale;
     
-    // Adjust offset so the text box appears at its original screen position
     const newOffsetX = textBoxLeft - newScreenX;
     const newOffsetY = textBoxTop - newScreenY;
     
-    // Update scale and offset simultaneously
     setScale(newScale);
     setCanvasOffset({
       x: newOffsetX,
       y: newOffsetY
     });
-  }, [getTextBoxWidth, canvasOffset, scale]);
+  }, [getTextBoxWidth, screenToWorld, typewriterX, typewriterY, baseFontSize]);
 
-  // Get current typewriter position (world coordinates)
   const getCurrentWorldPosition = useCallback(() => {
     const textBoxWidth = getTextBoxWidth();
-    const textBoxLeft = typewriterX - textBoxWidth / 2; // Screen left position
-    
-    // Convert text baseline position to world coordinates
+    const textBoxLeft = typewriterX - textBoxWidth / 2;
     return screenToWorld(textBoxLeft, typewriterY);
-  }, [getTextBoxWidth, typewriterY, canvasOffset, scale]); // Added canvasOffset, scale to dependencies
+  }, [getTextBoxWidth, screenToWorld, typewriterX, typewriterY]);
 
-  // Check if a point is within a text object
-  const isPointInText = useCallback((textObj, screenX, screenY) => {
+  const isPointInText = useCallback((textObj: TextObjectType, screenX: number, screenY: number) => {
     const screenPos = worldToScreen(textObj.x, textObj.y);
-    // Vectorized text: size determined by current scale multiplied by stored scale
     const fontSize = baseFontSize * (textObj.scale || 1) * scale;
     const textWidth = measureTextWidth(textObj.content, fontSize);
     const textHeight = fontSize;
     
-    // Calculate click area based on text baseline
     return screenX >= screenPos.x && 
            screenX <= screenPos.x + textWidth &&
            screenY >= screenPos.y - textHeight &&
            screenY <= screenPos.y + 4;
-  }, [baseFontSize, scale, measureTextWidth, canvasOffset]); // Added canvasOffset to dependencies
+  }, [baseFontSize, scale, measureTextWidth, worldToScreen]);
 
-  // 윈도우 리사이즈/마운트 시 typewriter 박스가 항상 중앙에 오도록 보정
+  const centerTypewriter = useCallback(() => {
+    setCanvasOffset({
+      x: typewriterX,
+      y: typewriterY
+    });
+  }, [typewriterX, typewriterY]);
+
   useEffect(() => {
-    const centerTypewriter = () => {
-      // 현재 typewriter의 월드 좌표
-      const world = screenToWorld(canvasWidth / 2, canvasHeight / 2);
-      setCanvasOffset({
-        x: canvasWidth / 2 - world.x * scale,
-        y: canvasHeight / 2 - world.y * scale
-      });
-    };
     const handleResize = () => {
       const newWidth = window.innerWidth;
       const newHeight = window.innerHeight - 64;
       setCanvasWidth(newWidth);
       setCanvasHeight(newHeight);
-      setTimeout(centerTypewriter, 0);
+      setTimeout(centerTypewriter, 0); 
     };
     window.addEventListener('resize', handleResize);
-    // 마운트 시 1회만 중앙 보정
     setTimeout(centerTypewriter, 0);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [centerTypewriter]);
 
-  // Draw grid
-  const drawGrid = (ctx) => {
+  // 그리드 색상 분기
+  const drawGrid = useCallback((ctx: CanvasRenderingContext2D) => {
     const baseGridSize = 20;
     const gridSize = baseGridSize * scale;
     const offsetX = canvasOffset.x % gridSize;
     const offsetY = canvasOffset.y % gridSize;
-    
-    ctx.strokeStyle = '#e0e0e0';
-    ctx.lineWidth = 0.5;
-    
+    ctx.strokeStyle = colorMode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.07)';
+    ctx.lineWidth = 1;
     for (let x = offsetX; x < canvasWidth; x += gridSize) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, canvasHeight);
       ctx.stroke();
     }
-    
     for (let y = offsetY; y < canvasHeight; y += gridSize) {
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(canvasWidth, y);
       ctx.stroke();
     }
-  };
+  }, [canvasOffset, scale, canvasWidth, canvasHeight, colorMode]);
 
-  // Draw typewriter cursor
-  const drawTypewriterCursor = useCallback((ctx) => {
-    const textBoxWidth = getTextBoxWidth();
-    const textBoxLeft = typewriterX - textBoxWidth / 2;
-    const currentTextWidth = measureTextWidth(currentText);
-    const cursorX = textBoxLeft + currentTextWidth;
-    // Display typewriter area
-    ctx.fillStyle = 'rgba(100, 150, 255, 0.12)';
-    ctx.fillRect(textBoxLeft - 24, typewriterY - typewriterLineHeight + 8, textBoxWidth + 48, typewriterLineHeight * 1.5);
-    ctx.strokeStyle = 'rgba(100, 150, 255, 0.3)';
+  // A4 가이드 색상 분기
+  const drawA4Guide = useCallback((ctx: CanvasRenderingContext2D) => {
+    if (!a4GuideOriginWorld) return;
+    const screenPos = worldToScreen(a4GuideOriginWorld.x, a4GuideOriginWorld.y);
+    const screenWidth = A4_WIDTH_WORLD * scale;
+    const screenHeight = A4_HEIGHT_WORLD * scale;
+    ctx.strokeStyle = colorMode === 'dark' ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.18)';
     ctx.lineWidth = 2;
-    ctx.strokeRect(textBoxLeft - 24, typewriterY - typewriterLineHeight + 8, textBoxWidth + 48, typewriterLineHeight * 1.5);
-    // Cursor blinking
-    if (isTyping && Math.floor(Date.now() / 500) % 2 === 0) {
-      ctx.fillStyle = '#333';
-      ctx.fillRect(cursorX, typewriterY - typewriterLineHeight + 10, 3, typewriterLineHeight * 1.1);
-    }
-  }, [getTextBoxWidth, measureTextWidth, currentText, isTyping, typewriterX, typewriterY, typewriterLineHeight]);
+    ctx.setLineDash([10, 5]);
+    ctx.strokeRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
+    ctx.setLineDash([]);
+    ctx.fillStyle = colorMode === 'dark' ? 'rgba(59, 130, 246, 0.5)' : 'rgba(59, 130, 246, 0.35)';
+    ctx.font = `${14 * scale}px "Inter", sans-serif`;
+    ctx.fillText('A4', screenPos.x + 10 * scale, screenPos.y + 20 * scale);
+  }, [scale, worldToScreen, a4GuideOriginWorld, A4_WIDTH_WORLD, A4_HEIGHT_WORLD, colorMode]);
 
-  // Render text objects - Prioritize Nanum Gothic Coding font
-  const drawTextObjects = useCallback((ctx) => {
-    // Set text baseline to default
+  // 텍스트 색상 분기
+  const drawTextObjects = useCallback((ctx: CanvasRenderingContext2D) => {
     ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = '#333';
-    
     textObjects.forEach(textObj => {
       const screenPos = worldToScreen(textObj.x, textObj.y);
-      
-      // Draw only visible text on screen
       if (screenPos.x > -200 && screenPos.x < canvasWidth + 200 && screenPos.y > -50 && screenPos.y < canvasHeight + 50) {
-        // Vectorized text: size determined by current scale multiplied by stored scale
         const fontSize = baseFontSize * (textObj.scale || 1) * scale;
-        ctx.font = `${fontSize}px "Nanum Gothic Coding", "Noto Sans Mono", "JetBrains Mono", monospace`; // Font changed
-        
-        // Highlight selected object
+        ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
         if (selectedObject && selectedObject.id === textObj.id) {
-          ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+          ctx.fillStyle = colorMode === 'dark' ? 'rgba(59,130,246,0.2)' : 'rgba(59,130,246,0.08)';
           const textWidth = measureTextWidth(textObj.content, fontSize);
-          // Calculate highlight area based on baseline
-          ctx.fillRect(screenPos.x - 2, screenPos.y - fontSize + 2, textWidth + 4, fontSize + 4);
+          ctx.fillRect(screenPos.x - 4, screenPos.y - fontSize, textWidth + 8, fontSize + 8);
         }
-        
-        ctx.fillStyle = '#333';
-        // Render text (based on baseline)
-        ctx.fillText(textObj.content, screenPos.x, screenPos.y);
+        ctx.fillStyle = colorMode === 'dark' ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.85)';
+        ctx.fillText(textObj.content, screenPos.x + 8, screenPos.y);
       }
     });
-    
-    // Current typing text in typewriter (fixed screen size - not affected by zoom)
-    if (currentText) {
-      ctx.font = `${baseFontSize}px "Nanum Gothic Coding", "Noto Sans Mono", "JetBrains Mono", monospace`; // Font changed
-      ctx.fillStyle = '#333';
-      const textBoxWidth = getTextBoxWidth();
-      const textBoxLeft = typewriterX - textBoxWidth / 2;
-      ctx.fillText(currentText, textBoxLeft, typewriterY);
-    }
-  }, [textObjects, baseFontSize, scale, selectedObject, currentText, getTextBoxWidth, measureTextWidth, canvasOffset, canvasWidth, canvasHeight, typewriterX, typewriterY]); // Added canvasOffset to dependencies
+  }, [textObjects, baseFontSize, scale, selectedObject, canvasWidth, canvasHeight, worldToScreen, measureTextWidth, colorMode]);
 
-  // Canvas rendering
   const render = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-    
-    // Improve anti-aliasing (already well set)
+    // colorMode별 색상 변수
+    const bgColor = colorMode === 'dark' ? '#0a0a0a' : '#fff';
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    
-    drawGrid(ctx);
-    drawTextObjects(ctx);
-    drawTypewriterCursor(ctx);
-    
-    // Display coordinate information
-    ctx.fillStyle = '#666';
-    ctx.font = '12px "Nanum Gothic Coding", monospace'; // Font changed
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText(`Canvas: (${Math.round(-canvasOffset.x)}, ${Math.round(-canvasOffset.y)})`, 10, 20);
-    ctx.fillText(`Scale: ${scale.toFixed(2)}x`, 10, 35);
-    ctx.fillText(`Objects: ${textObjects.length}`, 10, 50);
-    
-    // Display typewriter text box top-left world coordinates
-    const textBoxWidth = getTextBoxWidth();
-    const textBoxLeft = typewriterX - textBoxWidth / 2;
-    const textBoxTop = typewriterY - baseFontSize;
-    const worldPos = screenToWorld(textBoxLeft, textBoxTop);
-    ctx.fillText(`TypeWriter Corner: (${Math.round(worldPos.x)}, ${Math.round(worldPos.y)})`, 10, 65);
-    
-    if (selectedObject) {
-      ctx.fillText(`Selected: "${selectedObject.content}"`, 10, 80);
+    if (showGrid) {
+      drawGrid(ctx);
     }
-  }, [canvasOffset, scale, textObjects, currentText, isTyping, fontLoaded, selectedObject, getTextBoxWidth, drawTextObjects, drawTypewriterCursor, canvasWidth, canvasHeight, typewriterX, typewriterY]);
+    if (showA4Guide) {
+      drawA4Guide(ctx);
+    }
+    drawTextObjects(ctx);
+  }, [canvasOffset, scale, textObjects, selectedObject, getTextBoxWidth, drawGrid, drawTextObjects, canvasWidth, canvasHeight, typewriterX, typewriterY, baseFontSize, screenToWorld, showGrid, showA4Guide, drawA4Guide, colorMode]);
 
-  // Rendering loop
   useEffect(() => {
     const animate = () => {
       render();
@@ -297,8 +283,158 @@ const InfiniteTypewriterCanvas = () => {
     animate();
   }, [render]);
 
-  // Export functions
-  const exportAsJSON = () => {
+  useEffect(() => {
+    if (showA4Guide && !a4GuideOriginWorld) {
+      const textBoxWorldTopLeft = screenToWorld(
+        typewriterX - getTextBoxWidth() / 2,
+        typewriterY - baseFontSize
+      );
+      const a4OriginX = textBoxWorldTopLeft.x - A4_LEFT_MARGIN_WORLD;
+      const a4OriginY = textBoxWorldTopLeft.y - A4_TOP_MARGIN_WORLD;
+      setA4GuideOriginWorld({ x: a4OriginX, y: a4OriginY });
+    } else if (!showA4Guide && a4GuideOriginWorld) {
+      setA4GuideOriginWorld(null);
+    }
+  }, [showA4Guide, a4GuideOriginWorld, screenToWorld, typewriterX, getTextBoxWidth, typewriterY, baseFontSize, A4_LEFT_MARGIN_WORLD, A4_TOP_MARGIN_WORLD]);
+
+  const calculateContentBoundingBox = useCallback(() => {
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    if (!tempCtx) {
+      console.error("Could not get 2D context for temporary canvas.");
+      return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    }
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    const measureTextWidthForExport = (text: string, fontSize: number) => {
+      tempCtx.font = `${fontSize}px "JetBrains Mono", monospace`;
+      return tempCtx.measureText(text).width;
+    };
+
+    textObjects.forEach(textObj => {
+      const textObjScale = textObj.scale || 1;
+      const effectiveFontSizeInWorld = baseFontSize * textObjScale;
+      const textWorldWidth = measureTextWidthForExport(textObj.content, effectiveFontSizeInWorld);
+      const textWorldHeight = effectiveFontSizeInWorld;
+
+      const worldLeft = textObj.x;
+      const worldTop = textObj.y - textWorldHeight;
+      const worldRight = textObj.x + textWorldWidth;
+      const worldBottom = textObj.y + 4;
+
+      minX = Math.min(minX, worldLeft);
+      minY = Math.min(minY, worldTop);
+      maxX = Math.max(maxX, worldRight);
+      maxY = Math.max(maxY, worldBottom);
+    });
+
+    if (currentTypingText.trim()) {
+      const worldPos = getCurrentWorldPosition();
+      const textBoxWidth = measureTextWidthForExport('A'.repeat(maxCharsPerLine), baseFontSize);
+      const textHeight = baseFontSize;
+
+      minX = Math.min(minX, worldPos.x);
+      minY = Math.min(minY, worldPos.y);
+      maxX = Math.max(maxX, worldPos.x + textBoxWidth);
+      maxY = Math.max(maxY, worldPos.y + textHeight);
+    }
+
+    if (showA4Guide && a4GuideOriginWorld) {
+      minX = Math.min(minX, a4GuideOriginWorld.x);
+      minY = Math.min(minY, a4GuideOriginWorld.y);
+      maxX = Math.max(maxX, a4GuideOriginWorld.x + A4_WIDTH_WORLD);
+      maxY = Math.max(maxY, a4GuideOriginWorld.y + A4_HEIGHT_WORLD);
+    }
+
+    if (textObjects.length === 0 && !currentTypingText.trim() && (!showA4Guide || !a4GuideOriginWorld)) {
+      return { minX: -10, minY: -10, maxX: 10, maxY: 10 };
+    }
+
+    return { minX, minY, maxX, maxY };
+  }, [textObjects, currentTypingText, baseFontSize, maxCharsPerLine, getCurrentWorldPosition, showA4Guide, a4GuideOriginWorld, A4_WIDTH_WORLD, A4_HEIGHT_WORLD]);
+
+  const exportAsPNG = useCallback(() => {
+    setIsExportMenuOpen(false);
+    const bbox = calculateContentBoundingBox();
+
+    const padding = 50; 
+    const contentWidth = bbox.maxX - bbox.minX;
+    const contentHeight = bbox.maxY - bbox.minY;
+
+    const exportScaleFactor = 2; 
+    const exportWidth = contentWidth * exportScaleFactor + padding * 2;
+    const exportHeight = contentHeight * exportScaleFactor + padding * 2;
+
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = exportWidth;
+    tempCanvas.height = exportHeight;
+    const tempCtx = tempCanvas.getContext('2d');
+
+    if (!tempCtx) {
+      console.error("Could not get 2D context for PNG export.");
+      return;
+    }
+
+    tempCtx.fillStyle = '#0a0a0a';
+    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+    const tempOffsetX = padding - bbox.minX * exportScaleFactor;
+    const tempOffsetY = padding - bbox.minY * exportScaleFactor;
+
+    const drawContentForExport = (ctx: CanvasRenderingContext2D, currentOffset: { x: number, y: number }, currentScale: number) => {
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+
+      textObjects.forEach(textObj => {
+        const screenX = textObj.x * currentScale + currentOffset.x;
+        const screenY = textObj.y * currentScale + currentOffset.y;
+
+        const fontSize = baseFontSize * (textObj.scale || 1) * currentScale;
+        ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
+        ctx.fillText(textObj.content, screenX, screenY);
+      });
+
+      if (currentTypingText.trim()) {
+        const worldPos = getCurrentWorldPosition();
+        const screenX = worldPos.x * currentScale + currentOffset.x;
+        const screenY = worldPos.y * currentScale + currentOffset.y;
+        const fontSize = baseFontSize * currentScale;
+        ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
+        ctx.fillText(currentTypingText, screenX, screenY);
+      }
+
+      if (showA4Guide && a4GuideOriginWorld) {
+        const a4ScreenX = a4GuideOriginWorld.x * currentScale + currentOffset.x;
+        const a4ScreenY = a4GuideOriginWorld.y * currentScale + currentOffset.y;
+        const a4ScreenWidth = A4_WIDTH_WORLD * currentScale;
+        const a4ScreenHeight = A4_HEIGHT_WORLD * currentScale;
+
+        ctx.strokeStyle = 'rgba(59, 130, 246, 0.3)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([10, 5]);
+        ctx.strokeRect(a4ScreenX, a4ScreenY, a4ScreenWidth, a4ScreenHeight);
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.5)';
+        ctx.font = `${14 * currentScale}px "Inter", sans-serif`;
+        ctx.fillText('A4', a4ScreenX + 10 * currentScale, a4ScreenY + 20 * currentScale);
+      }
+    };
+
+    drawContentForExport(tempCtx, { x: tempOffsetX, y: tempOffsetY }, exportScaleFactor);
+
+    const link = document.createElement('a');
+    link.download = `typewriter-canvas-${new Date().toISOString().slice(0, 10)}.png`;
+    link.href = tempCanvas.toDataURL();
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }, [textObjects, currentTypingText, baseFontSize, calculateContentBoundingBox, getCurrentWorldPosition, showA4Guide, a4GuideOriginWorld, A4_WIDTH_WORLD, A4_HEIGHT_WORLD]);
+
+  const exportAsJSON = useCallback(() => {
     setIsExportMenuOpen(false);
     const data = {
       version: "1.0",
@@ -317,7 +453,10 @@ const InfiniteTypewriterCanvas = () => {
         typewriterPosition: {
           x: typewriterX,
           y: typewriterY
-        }
+        },
+        showGrid: showGrid,
+        showA4Guide: showA4Guide,
+        a4GuideOriginWorld: a4GuideOriginWorld
       }
     };
     
@@ -328,107 +467,100 @@ const InfiniteTypewriterCanvas = () => {
     a.download = `typewriter-canvas-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  const exportAsPNG = () => {
-    setIsExportMenuOpen(false);
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    // Export current canvas content as PNG
-    const link = document.createElement('a');
-    link.download = `typewriter-canvas-${new Date().toISOString().slice(0, 10)}.png`;
-    link.href = canvas.toDataURL();
-    link.click();
-  };
+  }, [textObjects, canvasOffset, scale, typewriterX, typewriterY, showGrid, showA4Guide, a4GuideOriginWorld]);
 
   const exportAsSVG = useCallback(() => {
     setIsExportMenuOpen(false);
-    // Create SVG
+    const bbox = calculateContentBoundingBox();
+
+    const svgPaddingWorld = 20; 
+    const contentWidth = bbox.maxX - bbox.minX;
+    const contentHeight = bbox.maxY - bbox.minY;
+
+    const viewBoxMinX = bbox.minX - svgPaddingWorld;
+    const viewBoxMinY = bbox.minY - svgPaddingWorld;
+    const viewBoxWidth = contentWidth + 2 * svgPaddingWorld;
+    const viewBoxHeight = contentHeight + 2 * svgPaddingWorld;
+
     const svgNS = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(svgNS, "svg");
-    svg.setAttribute("width", String(canvasWidth));
-    svg.setAttribute("height", String(canvasHeight));
-    svg.setAttribute("viewBox", `0 0 ${canvasWidth} ${canvasHeight}`); // Fixed viewBox for consistent rendering
     
-    // Background
-    const bg = document.createElementNS(svgNS, "rect");
-    bg.setAttribute("width", String(canvasWidth));
-    bg.setAttribute("height", String(canvasHeight));
-    bg.setAttribute("fill", "white");
-    svg.appendChild(bg);
-    
-    // Grid (optional)
-    const gridGroup = document.createElementNS(svgNS, "g");
-    gridGroup.setAttribute("stroke", "#e0e0e0");
-    gridGroup.setAttribute("stroke-width", "0.5");
-    
-    const baseGridSize = 20;
-    const gridSize = baseGridSize * scale;
-    const offsetX = canvasOffset.x % gridSize;
-    const offsetY = canvasOffset.y % gridSize;
-    
-    // Vertical lines
-    for (let x = offsetX; x < canvasWidth; x += gridSize) {
-      const line = document.createElementNS(svgNS, "line");
-      line.setAttribute("x1", String(x));
-      line.setAttribute("y1", "0");
-      line.setAttribute("x2", String(x));
-      line.setAttribute("y2", String(canvasHeight));
-      gridGroup.appendChild(line);
-    }
-    
-    // Horizontal lines
-    for (let y = offsetY; y < canvasHeight; y += gridSize) {
-      const line = document.createElementNS(svgNS, "line");
-      line.setAttribute("x1", "0");
-      line.setAttribute("y1", String(y));
-      line.setAttribute("x2", String(canvasWidth));
-      line.setAttribute("y2", String(y));
-      gridGroup.appendChild(line);
-    }
-    
-    svg.appendChild(gridGroup);
-    
-    // Text objects
-    textObjects.forEach(textObj => {
-      const screenPos = worldToScreen(textObj.x, textObj.y);
-      
-      // Add only visible text to screen
-      if (screenPos.x > -200 && screenPos.x < canvasWidth + 200 && screenPos.y > -50 && screenPos.y < canvasHeight + 50) {
-        const fontSize = baseFontSize * (textObj.scale || 1) * scale;
-        
-        const text = document.createElementNS(svgNS, "text");
-        text.setAttribute("x", String(screenPos.x));
-        text.setAttribute("y", String(screenPos.y));
-        // Prioritize "Nanum Gothic Coding" font
-        text.setAttribute("font-family", '"Nanum Gothic Coding", "Noto Sans Mono", "JetBrains Mono", monospace');
-        text.setAttribute("font-size", String(fontSize));
-        text.setAttribute("fill", "#333");
-        text.textContent = textObj.content;
-        
-        svg.appendChild(text);
+    const maxSvgOutputSize = 1000; 
+    let outputWidth = viewBoxWidth;
+    let outputHeight = viewBoxHeight;
+
+    if (outputWidth > maxSvgOutputSize || outputHeight > maxSvgOutputSize) {
+      const aspectRatio = outputWidth / outputHeight;
+      if (aspectRatio > 1) {
+        outputWidth = maxSvgOutputSize;
+        outputHeight = maxSvgOutputSize / aspectRatio;
+      } else {
+        outputHeight = maxSvgOutputSize;
+        outputWidth = maxSvgOutputSize * aspectRatio;
       }
-    });
+    }
+
+    svg.setAttribute("width", String(outputWidth));
+    svg.setAttribute("height", String(outputHeight));
+    svg.setAttribute("viewBox", `${viewBoxMinX} ${viewBoxMinY} ${viewBoxWidth} ${viewBoxHeight}`);
     
-    // Current typing text
-    if (currentText) {
-      const textBoxWidth = getTextBoxWidth();
-      const textBoxLeft = typewriterX - textBoxWidth / 2;
+    const bg = document.createElementNS(svgNS, "rect");
+    bg.setAttribute("width", "100%");
+    bg.setAttribute("height", "100%");
+    bg.setAttribute("fill", "#0a0a0a");
+    svg.appendChild(bg);
+
+    textObjects.forEach(textObj => {
+      const fontSize = baseFontSize * (textObj.scale || 1);
       
       const text = document.createElementNS(svgNS, "text");
-      text.setAttribute("x", String(textBoxLeft));
-      text.setAttribute("y", String(typewriterY));
-      // Prioritize "Nanum Gothic Coding" font
-      text.setAttribute("font-family", '"Nanum Gothic Coding", "Noto Sans Mono", "JetBrains Mono", monospace');
-      text.setAttribute("font-size", String(baseFontSize));
-      text.setAttribute("fill", "#333");
-      text.textContent = currentText;
+      text.setAttribute("x", String(textObj.x));
+      text.setAttribute("y", String(textObj.y));
+      text.setAttribute("font-family", '"JetBrains Mono", monospace');
+      text.setAttribute("font-size", String(fontSize));
+      text.setAttribute("fill", "rgba(255, 255, 255, 0.9)");
+      text.textContent = textObj.content;
+      
+      svg.appendChild(text);
+    });
+
+    if (currentTypingText.trim()) {
+      const worldPos = getCurrentWorldPosition();
+      const fontSize = baseFontSize;
+      
+      const text = document.createElementNS(svgNS, "text");
+      text.setAttribute("x", String(worldPos.x));
+      text.setAttribute("y", String(worldPos.y));
+      text.setAttribute("font-family", '"JetBrains Mono", monospace');
+      text.setAttribute("font-size", String(fontSize));
+      text.setAttribute("fill", "rgba(255, 255, 255, 0.9)");
+      text.textContent = currentTypingText;
       
       svg.appendChild(text);
     }
+
+    if (showA4Guide && a4GuideOriginWorld) {
+      const a4Rect = document.createElementNS(svgNS, "rect");
+      a4Rect.setAttribute("x", String(a4GuideOriginWorld.x));
+      a4Rect.setAttribute("y", String(a4GuideOriginWorld.y));
+      a4Rect.setAttribute("width", String(A4_WIDTH_WORLD));
+      a4Rect.setAttribute("height", String(A4_HEIGHT_WORLD));
+      a4Rect.setAttribute("stroke", "rgba(59, 130, 246, 0.3)");
+      a4Rect.setAttribute("stroke-width", "2");
+      a4Rect.setAttribute("fill", "none");
+      a4Rect.setAttribute("stroke-dasharray", "10,5");
+      svg.appendChild(a4Rect);
+
+      const a4Text = document.createElementNS(svgNS, "text");
+      a4Text.setAttribute("x", String(a4GuideOriginWorld.x + 10));
+      a4Text.setAttribute("y", String(a4GuideOriginWorld.y + 20));
+      a4Text.setAttribute("font-family", '"Inter", sans-serif');
+      a4Text.setAttribute("font-size", "14");
+      a4Text.setAttribute("fill", "rgba(59, 130, 246, 0.5)");
+      a4Text.textContent = 'A4';
+      svg.appendChild(a4Text);
+    }
     
-    // Convert to SVG string and download
     const serializer = new XMLSerializer();
     const svgString = serializer.serializeToString(svg);
     const blob = new Blob([svgString], { type: 'image/svg+xml' });
@@ -438,12 +570,12 @@ const InfiniteTypewriterCanvas = () => {
     a.download = `typewriter-canvas-${new Date().toISOString().slice(0, 10)}.svg`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [canvasOffset, scale, textObjects, currentText, baseFontSize, getTextBoxWidth, canvasWidth, canvasHeight, typewriterX, typewriterY]);
+  }, [textObjects, currentTypingText, baseFontSize, calculateContentBoundingBox, getCurrentWorldPosition, showA4Guide, a4GuideOriginWorld, A4_WIDTH_WORLD, A4_HEIGHT_WORLD]);
 
-  // Import file
-  const importFile = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+  const importFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
     
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -453,13 +585,11 @@ const InfiniteTypewriterCanvas = () => {
         const data = JSON.parse(result);
         
         if (data.type === "infinite-typewriter-canvas" && data.elements) {
-          // Initialize existing data
           setTextObjects([]);
-          setCurrentText('');
+          setCurrentTypingText('');
           setSelectedObject(null);
           
-          // Restore text objects
-          const importedObjects = data.elements.map(elem => ({
+          const importedObjects = data.elements.map((elem: any) => ({
             id: elem.id || Date.now() + Math.random(),
             content: elem.content || '',
             x: elem.x || 0,
@@ -469,7 +599,6 @@ const InfiniteTypewriterCanvas = () => {
           
           setTextObjects(importedObjects);
           
-          // Restore app state
           if (data.appState) {
             if (data.appState.canvasOffset) {
               setCanvasOffset(data.appState.canvasOffset);
@@ -477,36 +606,62 @@ const InfiniteTypewriterCanvas = () => {
             if (data.appState.scale) {
               setScale(data.appState.scale);
             }
+            if (typeof data.appState.showGrid !== 'undefined') {
+              setShowGrid(data.appState.showGrid);
+            }
+            if (typeof data.appState.showA4Guide !== 'undefined') {
+              setShowA4Guide(data.appState.showA4Guide);
+            }
+            if (data.appState.a4GuideOriginWorld) {
+              setA4GuideOriginWorld(data.appState.a4GuideOriginWorld);
+            }
           }
         }
       } catch (error) {
-        // Using a custom message box instead of alert()
         console.error('Import error:', error);
-        // In a real app, you'd show a custom modal/toast here
-        alert('파일을 읽는 중 오류가 발생했습니다.'); 
       }
     };
     reader.readAsText(file);
     
-    // Reset file input
     event.target.value = '';
   };
 
+  // Keyboard event handlers for Spacebar
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === ' ') {
+        setIsSpacePressed(true);
+        e.preventDefault();
+      }
+    };
+
+    const handleGlobalKeyUp = (e: KeyboardEvent) => {
+      if (e.key === ' ') {
+        setIsSpacePressed(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    window.addEventListener('keyup', handleGlobalKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+      window.removeEventListener('keyup', handleGlobalKeyUp);
+    };
+  }, []);
+
   // Keyboard events
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Close dropdown with ESC key
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsExportMenuOpen(false);
       }
       
-      // Handle zoom shortcuts
+      const zoomLevels = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 5];
+      const currentIndex = zoomLevels.findIndex(level => Math.abs(level - scale) < 0.01);
+      
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
-        const zoomLevels = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
-        const currentIndex = zoomLevels.findIndex(level => Math.abs(level - scale) < 0.01);
-        
         if (e.key === '=' || e.key === '+') {
-          // Ctrl/Cmd + = or + : Zoom in
           e.preventDefault();
           const newIndex = Math.min(zoomLevels.length - 1, currentIndex + 1);
           if (newIndex !== currentIndex) {
@@ -514,7 +669,6 @@ const InfiniteTypewriterCanvas = () => {
           }
           return;
         } else if (e.key === '-') {
-          // Ctrl/Cmd + - : Zoom out
           e.preventDefault();
           const newIndex = Math.max(0, currentIndex - 1);
           if (newIndex !== currentIndex) {
@@ -522,7 +676,6 @@ const InfiniteTypewriterCanvas = () => {
           }
           return;
         } else if (e.key === '0') {
-          // Ctrl/Cmd + 0 : Reset to 100% zoom
           e.preventDefault();
           if (Math.abs(scale - 1) > 0.01) {
             zoomToLevel(1);
@@ -531,17 +684,15 @@ const InfiniteTypewriterCanvas = () => {
         }
       }
       
-      // Delete selected object with Delete key
       if (e.key === 'Delete' && selectedObject) {
         setTextObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
         setSelectedObject(null);
         return;
       }
       
-      // Move canvas with Shift + Arrow keys
       if (e.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
-        const moveDistance = baseFontSize * 1.5; // Same spacing as Enter key
+        const moveDistance = baseFontSize * 1.5;
         
         setCanvasOffset(prev => {
           switch (e.key) {
@@ -559,45 +710,16 @@ const InfiniteTypewriterCanvas = () => {
         });
         return;
       }
-      
-      if (e.key === 'Enter') {
-        if (currentText.trim()) {
-          const worldPos = getCurrentWorldPosition();
-          setTextObjects(prev => [...prev, {
-            content: currentText,
-            x: worldPos.x,
-            y: worldPos.y,
-            scale: 1 / scale, // Store scale inverse to maintain screen size
-            id: Date.now()
-          }]);
-          setCurrentText('');
-        }
-        // Move canvas up by typewriter line-height
-        setCanvasOffset(prev => ({
-          x: prev.x,
-          y: prev.y - typewriterLineHeight
-        }));
-      } else if (e.key === 'Backspace') {
-        setCurrentText(prev => prev.slice(0, -1));
-      } else if (e.key === 'Escape') {
-        setSelectedObject(null);
-        setIsExportMenuOpen(false);
-      } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-        const newText = currentText + e.key;
-        setCurrentText(newText);
-        setIsTyping(true);
-        setTimeout(() => setIsTyping(false), 100);
-      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentText, scale, selectedObject, baseFontSize, zoomToLevel, getCurrentWorldPosition]);
+  }, [scale, selectedObject, baseFontSize, zoomToLevel, setTextObjects, setSelectedObject, setCanvasOffset]);
 
   // Mouse events
-  const handleMouseDown = (e) => {
-    // Close dropdown on click outside
-    if (isExportMenuOpen && !e.target.closest('.export-dropdown')) {
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const target = e.target as HTMLElement;
+    if (isExportMenuOpen && (!target || !target.closest || !target.closest('.export-dropdown'))) {
       setIsExportMenuOpen(false);
     }
     
@@ -606,21 +728,24 @@ const InfiniteTypewriterCanvas = () => {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     
-    // Check for text object selection
     const clickedObject = textObjects.find(obj => isPointInText(obj, mouseX, mouseY));
     
     if (clickedObject) {
       setSelectedObject(clickedObject);
       setIsDraggingText(true);
       setDragStart({ x: mouseX, y: mouseY });
-    } else {
+    } else if (isSpacePressed) {
       setSelectedObject(null);
       setIsDragging(true);
       setDragStart({ x: e.clientX, y: e.clientY });
+    } else {
+      setSelectedObject(null);
+      setIsDragging(false);
+      setIsDraggingText(false);
     }
   };
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isDraggingText && selectedObject) {
       const rect = canvasRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -630,7 +755,6 @@ const InfiniteTypewriterCanvas = () => {
       const deltaX = mouseX - dragStart.x;
       const deltaY = mouseY - dragStart.y;
       
-      // Move text object (world coordinates)
       setTextObjects(prev => prev.map(obj => 
         obj.id === selectedObject.id 
           ? { ...obj, x: obj.x + deltaX / scale, y: obj.y + deltaY / scale }
@@ -661,18 +785,15 @@ const InfiniteTypewriterCanvas = () => {
     setIsDraggingText(false);
   };
 
-  // Wheel event (zoom) - based on typewriter text box top-left
-  const handleWheel = useCallback((e) => {
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    const zoomLevels = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+    const zoomLevels = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 5];
     const currentIndex = zoomLevels.findIndex(level => Math.abs(level - scale) < 0.01);
     
     let newIndex;
     if (e.deltaY > 0) {
-      // Zoom out
       newIndex = Math.max(0, currentIndex - 1);
     } else {
-      // Zoom in
       newIndex = Math.min(zoomLevels.length - 1, currentIndex + 1);
     }
     
@@ -681,94 +802,223 @@ const InfiniteTypewriterCanvas = () => {
     }
   }, [scale, zoomToLevel]);
 
-  // Reset function
   const resetCanvas = () => {
-    setCanvasOffset({ x: 0, y: 0 });
     setScale(1);
+    centerTypewriter();
     setSelectedObject(null);
+    if (showA4Guide) {
+      const textBoxWorldTopLeft = screenToWorld(
+        typewriterX - getTextBoxWidth() / 2,
+        typewriterY - baseFontSize
+      );
+      const a4OriginX = textBoxWorldTopLeft.x - A4_LEFT_MARGIN_WORLD;
+      const a4OriginY = textBoxWorldTopLeft.y - A4_TOP_MARGIN_WORLD;
+      setA4GuideOriginWorld({ x: a4OriginX, y: a4OriginY });
+    }
   };
 
   const clearAll = () => {
     setTextObjects([]);
-    setCurrentText('');
+    setCurrentTypingText('');
     setSelectedObject(null);
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCurrentTypingText(e.target.value);
+    setIsTyping(true);
+    setTimeout(() => setIsTyping(false), 100);
+  };
+
+  const handleCompositionStart = (e: React.CompositionEvent<HTMLInputElement>) => {
+    setIsComposing(true);
+  };
+
+  const handleCompositionEnd = (e: React.CompositionEvent<HTMLInputElement>) => {
+    setIsComposing(false);
+    setCurrentTypingText(e.currentTarget.value); 
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      if (!isComposing) {
+        const worldPos = getCurrentWorldPosition();
+        // 빈 문자열도 처리
+        setTextObjects(prev => [...prev, {
+          content: currentTypingText,
+          x: worldPos.x,
+          y: worldPos.y,
+          scale: 1 / scale,
+          id: Date.now()
+        }]);
+        setCurrentTypingText('');
+        setCanvasOffset(prev => ({
+          x: prev.x,
+          y: prev.y - typewriterLineHeight
+        }));
+      }
+      e.preventDefault();
+    } else if (e.key === 'Escape') {
+      setCurrentTypingText('');
+    }
+  };
+
+  useEffect(() => {
+    const input = document.getElementById('typewriter-input') as HTMLInputElement | null;
+    if (input) input.focus();
+  }, []);
+
+  // 모드 변경 시 body에 클래스 적용
+  useEffect(() => {
+    document.body.classList.remove('dark', 'light');
+    document.body.classList.add(colorMode);
+  }, [colorMode]);
+
   return (
-    <div className="w-full h-screen bg-gray-100 flex flex-col">
-      <div className="bg-white shadow-sm p-4 flex items-center gap-4 flex-wrap">
-        <h1 className="text-xl font-bold">무한 캔버스 타이프라이터</h1>
-        
-        <div className="flex items-center gap-2">
-          <button
-            onClick={resetCanvas}
-            className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+    <div className={`w-full h-screen flex flex-col ${colorMode === 'dark' ? 'bg-black' : 'bg-white'}`}> 
+      {/* Header */}
+      <div className={`backdrop-blur-sm border-b p-4 flex items-center justify-between transition-colors duration-200
+        ${colorMode === 'dark' ? 'bg-black/90 border-gray-800' : 'bg-white/90 border-gray-200'}`}
+      >
+        <div className="flex items-center gap-6">
+          <h1 className={`text-lg font-medium flex items-center gap-2 transition-colors duration-200
+            ${colorMode === 'dark' ? 'text-white' : 'text-gray-900'}`}
           >
-            중앙으로
-          </button>
-          <button
-            onClick={clearAll}
-            className="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
-          >
-            모두 지우기
-          </button>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <label className="px-3 py-2 bg-green-500 text-white rounded hover:bg-green-600 cursor-pointer text-sm">
-            불러오기
-            <input
-              type="file"
-              accept=".json"
-              onChange={importFile}
-              className="hidden"
-            />
-          </label>
+            <Type className="w-5 h-5" />
+            Infinite Canvas
+          </h1>
           
-          <div className="relative export-dropdown">
-            <button 
-              onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-              className="px-3 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 text-sm"
+          <div className="flex items-center gap-2">
+            <button
+              onClick={resetCanvas}
+              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+              title="Center"
             >
-              내보내기 ▼
+              <RotateCcw className="w-4 h-4" />
             </button>
-            {isExportMenuOpen && (
-              <div className="absolute top-full left-0 mt-1 bg-white border rounded shadow-lg z-10 min-w-32">
-                <button
-                  onClick={exportAsJSON}
-                  className="block w-full px-4 py-2 text-left hover:bg-gray-100 text-sm"
-                >
-                  JSON 파일
-                </button>
-                <button
-                  onClick={exportAsPNG}
-                  className="block w-full px-4 py-2 text-left hover:bg-gray-100 text-sm"
-                >
-                  PNG 이미지
-                </button>
-                <button
-                  onClick={exportAsSVG}
-                  className="block w-full px-4 py-2 text-left hover:bg-gray-100 text-sm"
-                >
-                  SVG 벡터
-                </button>
-              </div>
-            )}
+            <button
+              onClick={clearAll}
+              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+              title="Clear All"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+          
+          <div className="flex items-center gap-2 border-l border-gray-800 pl-6">
+            <label className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors cursor-pointer"
+                   title="Import">
+              <Upload className="w-4 h-4" />
+              <input
+                type="file"
+                accept=".json"
+                onChange={importFile}
+                className="hidden"
+              />
+            </label>
+            
+            <div className="relative export-dropdown">
+              <button 
+                onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                title="Export"
+              >
+                <Download className="w-4 h-4" />
+              </button>
+              {isExportMenuOpen && (
+                <div className="absolute top-full left-0 mt-2 bg-gray-900 border border-gray-800 rounded-lg shadow-xl z-10 overflow-hidden">
+                  <button
+                    onClick={exportAsJSON}
+                    className="flex items-center gap-3 w-full px-4 py-2.5 text-left text-gray-300 hover:bg-gray-800 hover:text-white transition-colors text-sm"
+                  >
+                    <FileText className="w-4 h-4" />
+                    JSON
+                  </button>
+                  <button
+                    onClick={exportAsPNG}
+                    className="flex items-center gap-3 w-full px-4 py-2.5 text-left text-gray-300 hover:bg-gray-800 hover:text-white transition-colors text-sm"
+                  >
+                    <Image className="w-4 h-4" />
+                    PNG
+                  </button>
+                  <button
+                    onClick={exportAsSVG}
+                    className="flex items-center gap-3 w-full px-4 py-2.5 text-left text-gray-300 hover:bg-gray-800 hover:text-white transition-colors text-sm"
+                  >
+                    <Code className="w-4 h-4" />
+                    SVG
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 border-l border-gray-800 pl-6">
+            <button
+              onClick={() => setShowGrid(prev => !prev)}
+              className={`p-2 rounded-lg transition-colors ${
+                showGrid 
+                  ? 'text-blue-400 bg-blue-400/10' 
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
+              }`}
+              title="Toggle Grid"
+            >
+              <Grid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setShowA4Guide(prev => !prev)}
+              className={`p-2 rounded-lg transition-colors ${
+                showA4Guide 
+                  ? 'text-blue-400 bg-blue-400/10' 
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
+              }`}
+              title="Toggle A4 Guide"
+            >
+              <FileDown className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setShowInfo(prev => !prev)}
+              className={`p-2 rounded-lg transition-colors ${
+                showInfo 
+                  ? 'text-blue-400 bg-blue-400/10' 
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
+              }`}
+              title="Toggle Info"
+            >
+              {showInfo ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+            </button>
           </div>
         </div>
         
-        <div className="text-sm text-gray-600 flex-1">
-          드래그로 이동 | 휠로 줌 | Ctrl/Cmd + +/- 줌 | Ctrl/Cmd + 0 리셋 | 텍스트 드래그 가능
+        {/* 우측 상단 모드 토글 버튼 */}
+        <div className="flex items-center gap-4 text-xs text-gray-500">
+          {/* 모드 토글 버튼: 안내문구 왼쪽에 위치 */}
+          <button
+            onClick={() => setColorMode(colorMode === 'dark' ? 'light' : 'dark')}
+            className={`p-2 rounded-lg border transition-colors duration-200 flex items-center justify-center mr-2
+              ${colorMode === 'dark' ? 'border-gray-700 bg-gray-900 hover:bg-gray-800 text-yellow-200' : 'border-gray-200 bg-white hover:bg-gray-100 text-gray-600'}`}
+            title="다크/라이트 모드 전환"
+            aria-label="Toggle color mode"
+            style={{ minWidth: 36, minHeight: 36 }}
+          >
+            {colorMode === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
+          <span className="flex items-center gap-2">
+            <kbd className={`px-2 py-1 rounded ${colorMode === 'dark' ? 'bg-gray-800 text-gray-400' : 'bg-gray-200 text-gray-600'}`}>Space</kbd>
+            <span>+ Drag to pan</span>
+          </span>
+          <span className="flex items-center gap-2">
+            <kbd className={`px-2 py-1 rounded ${colorMode === 'dark' ? 'bg-gray-800 text-gray-400' : 'bg-gray-200 text-gray-600'}`}>Ctrl</kbd>
+            <span>+ Scroll to zoom</span>
+          </span>
         </div>
       </div>
-      
-      <div className="flex-1 relative">
+      {/* Canvas */}
+      <div className={`flex-1 relative overflow-hidden transition-colors duration-200 ${colorMode === 'dark' ? 'bg-black' : 'bg-white'}`}> 
         <canvas
           ref={canvasRef}
           width={canvasWidth}
           height={canvasHeight}
-          className="border border-gray-300 cursor-move"
-          style={{ width: '100%', height: '100%' }}
+          className={`absolute inset-0 ${isSpacePressed ? 'cursor-grab' : 'cursor-crosshair'}`}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -776,37 +1026,138 @@ const InfiniteTypewriterCanvas = () => {
           onWheel={handleWheel}
           tabIndex={0}
         />
-        
-        <div className="absolute top-4 right-4 bg-white bg-opacity-90 p-3 rounded-lg shadow">
-          <div className="text-sm font-medium mb-2">벡터화 타이프라이터</div>
-          <div className="text-xs text-gray-600">
-            • <strong>작성중 텍스트:</strong> 화면 크기 고정 (줌 영향 없음)<br/>
-            • <strong>완성된 텍스트:</strong> 입력 시 화면 크기를 월드에서 유지<br/>
-            • 예: 200% 줌에서 입력 → 100% 줌으로 축소 시 텍스트도 축소<br/>
-            • 타이프라이터 텍스트박스 좌측 상단 기준 확대/축소<br/>
-            • 텍스트 클릭으로 선택 및 드래그 이동<br/>
-            • 줌 단축키: Ctrl/Cmd + (+/-) 확대/축소, Ctrl/Cmd + 0 리셋<br/>
-            • Delete 키로 선택된 텍스트 삭제, Escape로 선택 해제<br/>
-            • 월드 좌표계 기반 정확한 위치 관리<br/>
-            • Shift + 방향키로 정밀 이동<br/>
-            • 줌: 50% → 75% → 100% → 125% → 150% → 200% → 300%<br/>
-            • 파일 내보내기: JSON (작업 파일), PNG (이미지), SVG (벡터)<br/>
-            • 파일 불러오기: JSON 작업 파일 불러오기 지원<br/>
-            • 한글 monospace 폰트 지원 (**Nanum Gothic Coding**, Noto Sans Mono, JetBrains Mono)
-          </div>
+        {/* Input Field */}
+        <div
+          style={{
+            position: 'absolute',
+            left: typewriterX - getTextBoxWidth() / 2 - 4, // padding만큼 보정
+            top: typewriterY - baseFontSize - 4,
+            width: getTextBoxWidth() + 8,
+            height: typewriterLineHeight + 8,
+            border: colorMode === 'dark'
+              ? '2px solid rgba(59, 130, 246, 0.3)'
+              : '2px solid #cbd5e1',
+            borderRadius: '6px',
+            boxSizing: 'border-box',
+            background: 'transparent',
+            zIndex: 20,
+            pointerEvents: 'none', // input만 클릭 가능하게
+          }}
+        >
+          <input
+            id="typewriter-input"
+            type="text"
+            value={currentTypingText}
+            onChange={handleInputChange}
+            onKeyDown={handleInputKeyDown}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
+            style={{
+              width: getTextBoxWidth(),
+              height: typewriterLineHeight,
+              fontFamily: '"JetBrains Mono", monospace',
+              fontSize: baseFontSize,
+              background: colorMode === 'dark'
+                ? 'rgba(0,0,0,0.18)'
+                : 'rgba(255,255,255,0.18)',
+              border: 'none',
+              outline: 'none',
+              color: colorMode === 'dark'
+                ? 'rgba(255, 255, 255, 0.9)'
+                : '#222',
+              zIndex: 21,
+              position: 'absolute',
+              left: 4,
+              top: 4,
+              boxSizing: 'border-box',
+              padding: '0 8px',
+              borderRadius: '4px',
+              backdropFilter: 'blur(8px)',
+            }}
+          />
         </div>
-        
-        {currentText && (
-          <div className="absolute bottom-4 left-4 bg-black bg-opacity-80 text-white p-2 rounded">
-            입력 중: "{currentText}"
+        {/* Font Size Indicator */}
+        <div
+          style={{
+            position: 'absolute',
+            left: typewriterX - getTextBoxWidth() / 2 - 100,
+            top: typewriterY - baseFontSize,
+            fontSize: '11px',
+            color: colorMode === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)',
+            background: colorMode === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.8)',
+            padding: '6px 10px',
+            borderRadius: '4px',
+            zIndex: 20,
+            whiteSpace: 'nowrap',
+            backdropFilter: 'blur(8px)',
+            border: colorMode === 'dark' ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
+            boxShadow: colorMode === 'dark' ? undefined : '0 1px 4px 0 rgba(0,0,0,0.04)'
+          }}
+        >
+          {(baseFontSize / scale).toFixed(1)}pt
+        </div>
+        {/* Canvas Info Overlay */}
+        {showInfo && (
+          <CanvasInfoOverlay
+            canvasOffset={canvasOffset}
+            scale={scale}
+            textObjects={textObjects}
+            selectedObject={selectedObject}
+            typewriterX={typewriterX}
+            typewriterY={typewriterY}
+            baseFontSize={baseFontSize}
+            getTextBoxWidth={getTextBoxWidth}
+            screenToWorld={screenToWorld}
+            colorMode={colorMode}
+          />
+        )}
+        {/* Status Messages */}
+        {currentTypingText && (
+          <div className={`absolute bottom-4 left-4 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-mono
+            ${colorMode === 'dark' ? 'bg-black/80 text-white' : 'bg-white/90 text-gray-900 border border-gray-200'}`}
+          >
+            Typing: "{currentTypingText}"
           </div>
         )}
-        
         {selectedObject && (
-          <div className="absolute bottom-4 right-4 bg-green-600 bg-opacity-80 text-white p-2 rounded">
-            선택됨: "{selectedObject.content}"
+          <div className={`absolute bottom-4 right-4 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-mono border
+            ${colorMode === 'dark' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-blue-100 text-blue-700 border-blue-200'}`}
+          >
+            Selected: "{selectedObject.content.substring(0, 30)}{selectedObject.content.length > 30 ? '...' : ''}"
           </div>
         )}
+        {/* Zoom Indicator */}
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-2 bg-black/80 backdrop-blur-sm px-3 py-1.5 rounded-full">
+          <button
+            onClick={() => {
+              const zoomLevels = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 5];
+              const currentIndex = zoomLevels.findIndex(level => Math.abs(level - scale) < 0.01);
+              const newIndex = Math.max(0, currentIndex - 1);
+              if (newIndex !== currentIndex) {
+                zoomToLevel(zoomLevels[newIndex]);
+              }
+            }}
+            className="p-1 text-gray-400 hover:text-white transition-colors"
+          >
+            <ZoomOut className="w-3 h-3" />
+          </button>
+          <span className="text-xs text-gray-400 font-mono w-12 text-center">
+            {(scale * 100).toFixed(0)}%
+          </span>
+          <button
+            onClick={() => {
+              const zoomLevels = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 5];
+              const currentIndex = zoomLevels.findIndex(level => Math.abs(level - scale) < 0.01);
+              const newIndex = Math.min(zoomLevels.length - 1, currentIndex + 1);
+              if (newIndex !== currentIndex) {
+                zoomToLevel(zoomLevels[newIndex]);
+              }
+            }}
+            className="p-1 text-gray-400 hover:text-white transition-colors"
+          >
+            <ZoomIn className="w-3 h-3" />
+          </button>
+        </div>
       </div>
     </div>
   );
