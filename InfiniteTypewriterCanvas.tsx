@@ -334,24 +334,25 @@ const InfiniteTypewriterCanvas = () => {
   }), [scale, canvasOffset]);
 
   const zoomToLevel = useCallback((newScale: number) => {
+    // 1. 현재 입력창 LT의 월드 좌표 구하기
     const textBoxWidth = getTextBoxWidth();
     const textBoxLeft = typewriterX - textBoxWidth / 2;
     const textBoxTop = typewriterY - baseFontSize / 2;
-    
-    const currentWorldPos = screenToWorld(textBoxLeft, textBoxTop);
-    
-    const newScreenX = currentWorldPos.x * newScale;
-    const newScreenY = currentWorldPos.y * newScale;
-    
-    const newOffsetX = textBoxLeft - newScreenX;
-    const newOffsetY = textBoxTop - newScreenY;
-    
+    const currentLTWorld = screenToWorld(textBoxLeft, textBoxTop);
+
+    // 2. 새 scale에서 입력창 LT가 같은 화면 위치에 오도록 offset 계산
+    const newTextBoxWidth = measureTextWidth('A'.repeat(maxCharsPerLine), baseFontSize);
+    const newTextBoxLeft = typewriterX - newTextBoxWidth / 2;
+    const newTextBoxTop = typewriterY - baseFontSize / 2;
+    const newOffsetX = newTextBoxLeft - currentLTWorld.x * newScale;
+    const newOffsetY = newTextBoxTop - currentLTWorld.y * newScale;
+
     setScale(newScale);
     setCanvasOffset({
       x: newOffsetX,
       y: newOffsetY
     });
-  }, [getTextBoxWidth, screenToWorld, typewriterX, typewriterY, baseFontSize]);
+  }, [getTextBoxWidth, screenToWorld, typewriterX, typewriterY, baseFontSize, measureTextWidth, maxCharsPerLine]);
 
   const getCurrentWorldPosition = useCallback(() => {
     const textBoxWidth = getTextBoxWidth();
