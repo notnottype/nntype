@@ -129,9 +129,16 @@ const InfiniteTypewriterCanvas = () => {
   // Typewriter settings
   const typewriterX = canvasWidth / 2;
   const typewriterY = canvasHeight / 2;
-  const typewriterLineHeight = 36;
   const maxCharsPerLine = 52; // 한글 기준 52자로 조정
   const [baseFontSize, setBaseFontSize] = useState(20);
+
+  // 현재 활성 텍스트의 line-height 계산 (선택된 요소 우선, 없으면 현재 입력 폰트 사용)
+  const getCurrentLineHeight = useCallback(() => {
+    if (selectedObject) {
+      return selectedObject.fontSize * scale * 1.8; // 선택된 요소의 렌더링 크기 기반
+    }
+    return baseFontSize * 1.8; // 현재 입력 폰트 크기 기반
+  }, [selectedObject, baseFontSize, scale]);
 
   // Constants for A4 paper size
   const A4_WIDTH_WORLD = 210 * 3.7795;
@@ -276,9 +283,9 @@ const InfiniteTypewriterCanvas = () => {
   }, [centerTypewriter]);
 
   const drawGrid = useCallback((ctx: CanvasRenderingContext2D) => {
-    // shift 이동키와 동일한 단위로 그리드 그리기
-    const baseGridSize = typewriterLineHeight;
-    const gridSize = baseGridSize * scale;
+    // 현재 활성 텍스트의 line-height와 동일한 단위로 그리드 그리기
+    const baseGridSize = getCurrentLineHeight();
+    const gridSize = baseGridSize;
     const offsetX = canvasOffset.x % gridSize;
     const offsetY = canvasOffset.y % gridSize;
     
@@ -298,7 +305,7 @@ const InfiniteTypewriterCanvas = () => {
       ctx.lineTo(canvasWidth, y);
       ctx.stroke();
     }
-  }, [canvasOffset, scale, canvasWidth, canvasHeight, theme, typewriterLineHeight]);
+  }, [canvasOffset, scale, canvasWidth, canvasHeight, theme, getCurrentLineHeight]);
 
   const drawA4Guide = useCallback((ctx: CanvasRenderingContext2D) => {
     if (!a4GuideOriginWorld) return;
@@ -423,12 +430,12 @@ const InfiniteTypewriterCanvas = () => {
 
     if (currentTypingText.trim()) {
       const worldPos = getCurrentWorldPosition();
-      const textBoxWidth = measureTextWidthForExport('A'.repeat(maxCharsPerLine), baseFontSize);
+      const actualTextWidth = measureTextWidthForExport(currentTypingText, baseFontSize);
       const textHeight = baseFontSize;
 
       minX = Math.min(minX, worldPos.x);
       minY = Math.min(minY, worldPos.y);
-      maxX = Math.max(maxX, worldPos.x + textBoxWidth);
+      maxX = Math.max(maxX, worldPos.x + actualTextWidth);
       maxY = Math.max(maxY, worldPos.y + textHeight);
     }
 
@@ -598,7 +605,7 @@ const InfiniteTypewriterCanvas = () => {
     const bg = document.createElementNS(svgNS, "rect");
     bg.setAttribute("width", "100%");
     bg.setAttribute("height", "100%");
-    bg.setAttribute("fill", colors[theme].background);
+    bg.setAttribute("fill", "#ffffff");
     svg.appendChild(bg);
 
     textObjects.forEach(textObj => {
@@ -609,7 +616,8 @@ const InfiniteTypewriterCanvas = () => {
       text.setAttribute("y", String(textObj.y));
       text.setAttribute("font-family", '"JetBrains Mono", monospace');
       text.setAttribute("font-size", String(fontSize));
-      text.setAttribute("fill", colors[theme].text);
+      text.setAttribute("dominant-baseline", "alphabetic");
+      text.setAttribute("fill", "#000000");
       text.textContent = textObj.content;
       
       svg.appendChild(text);
@@ -624,7 +632,8 @@ const InfiniteTypewriterCanvas = () => {
       text.setAttribute("y", String(worldPos.y));
       text.setAttribute("font-family", '"JetBrains Mono", monospace');
       text.setAttribute("font-size", String(fontSize));
-      text.setAttribute("fill", colors[theme].text);
+      text.setAttribute("dominant-baseline", "alphabetic");
+      text.setAttribute("fill", "#000000");
       text.textContent = currentTypingText;
       
       svg.appendChild(text);
@@ -636,7 +645,7 @@ const InfiniteTypewriterCanvas = () => {
       a4Rect.setAttribute("y", String(a4GuideOriginWorld.y));
       a4Rect.setAttribute("width", String(A4_WIDTH_WORLD));
       a4Rect.setAttribute("height", String(A4_HEIGHT_WORLD));
-      a4Rect.setAttribute("stroke", colors[theme].a4Guide);
+      a4Rect.setAttribute("stroke", "#888888");
       a4Rect.setAttribute("stroke-width", "2");
       a4Rect.setAttribute("fill", "none");
       a4Rect.setAttribute("stroke-dasharray", "10,5");
@@ -647,7 +656,8 @@ const InfiniteTypewriterCanvas = () => {
       a4Text.setAttribute("y", String(a4GuideOriginWorld.y + 20));
       a4Text.setAttribute("font-family", '"Inter", sans-serif');
       a4Text.setAttribute("font-size", "14");
-      a4Text.setAttribute("fill", colors[theme].a4Guide);
+      a4Text.setAttribute("dominant-baseline", "alphabetic");
+      a4Text.setAttribute("fill", "#888888");
       a4Text.textContent = 'A4';
       svg.appendChild(a4Text);
     }
@@ -878,7 +888,7 @@ const InfiniteTypewriterCanvas = () => {
       
       if (e.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
-        const moveDistance = typewriterLineHeight; // line-height와 통일
+        const moveDistance = getCurrentLineHeight(); // 현재 활성 텍스트의 line-height와 통일
         
         setCanvasOffset(prev => {
           switch (e.key) {
@@ -900,7 +910,7 @@ const InfiniteTypewriterCanvas = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [scale, selectedObject, typewriterLineHeight, zoomToLevel, setTextObjects, setSelectedObject, setCanvasOffset, handleUISizeChange]);
+  }, [scale, selectedObject, getCurrentLineHeight, zoomToLevel, setTextObjects, setSelectedObject, setCanvasOffset, handleUISizeChange]);
 
   // Mouse events
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -949,7 +959,7 @@ const InfiniteTypewriterCanvas = () => {
       // 월드 단위로 변환한 이동 거리를 그리드 단위로 스냅
       const worldDeltaX = deltaX / scale;
       const worldDeltaY = deltaY / scale;
-      const worldGridSize = typewriterLineHeight / scale; // 월드 단위 그리드 크기
+      const worldGridSize = getCurrentLineHeight() / scale; // 월드 단위 그리드 크기
       
       const snappedWorldDeltaX = snapToGrid(worldDeltaX, worldGridSize);
       const snappedWorldDeltaY = snapToGrid(worldDeltaY, worldGridSize);
@@ -980,11 +990,12 @@ const InfiniteTypewriterCanvas = () => {
       const deltaY = e.clientY - dragStart.y;
       
       // 캔버스 패닝도 그리드 단위로 스냅
-      const snappedDeltaX = snapToGrid(deltaX, typewriterLineHeight);
-      const snappedDeltaY = snapToGrid(deltaY, typewriterLineHeight);
+      const currentLineHeight = getCurrentLineHeight();
+      const snappedDeltaX = snapToGrid(deltaX, currentLineHeight);
+      const snappedDeltaY = snapToGrid(deltaY, currentLineHeight);
       
       // 실제로 이동할 거리가 있을 때만 업데이트
-      if (Math.abs(snappedDeltaX) >= typewriterLineHeight || Math.abs(snappedDeltaY) >= typewriterLineHeight) {
+      if (Math.abs(snappedDeltaX) >= currentLineHeight || Math.abs(snappedDeltaY) >= currentLineHeight) {
         setCanvasOffset(prev => ({
           x: prev.x + snappedDeltaX,
           y: prev.y + snappedDeltaY
@@ -1084,7 +1095,7 @@ const InfiniteTypewriterCanvas = () => {
         setCurrentTypingText('');
         setCanvasOffset(prev => ({
           x: prev.x,
-          y: prev.y - typewriterLineHeight
+          y: prev.y - getCurrentLineHeight()
         }));
       }
       e.preventDefault();
@@ -1316,7 +1327,7 @@ const InfiniteTypewriterCanvas = () => {
             left: typewriterX - getTextBoxWidth() / 2,
             top: typewriterY - baseFontSize / 2,
             width: getTextBoxWidth(),
-            height: Math.max(typewriterLineHeight, baseFontSize + 16),
+            height: Math.max(getCurrentLineHeight(), baseFontSize + 16),
             fontFamily: '"JetBrains Mono", monospace',
             fontSize: baseFontSize,
             background: colors[theme].inputBg,
@@ -1327,7 +1338,7 @@ const InfiniteTypewriterCanvas = () => {
             backdropFilter: 'blur(8px)',
             borderRadius: '4px',
             padding: 0,
-            lineHeight: `${typewriterLineHeight}px`,
+            lineHeight: `${getCurrentLineHeight()}px`,
             boxSizing: 'border-box'
           }}
         />
