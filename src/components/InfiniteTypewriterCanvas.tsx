@@ -552,12 +552,17 @@ const InfiniteTypewriterCanvas = () => {
     
   }, [canvasOffset, scale, canvasObjects, selectedObject, hoveredObject, getTextBoxWidth, drawGrid, drawCanvasObjects, canvasWidth, canvasHeight, typewriterX, typewriterY, baseFontSize, screenToWorld, worldToScreen, showGrid, theme, measureTextWidth, colors]);
 
+  const animationRef = useRef<number | null>(null);
+
   useEffect(() => {
     const animate = () => {
       render();
-      requestAnimationFrame(animate);
+      animationRef.current = requestAnimationFrame(animate);
     };
-    animate();
+    animationRef.current = requestAnimationFrame(animate);
+    return () => {
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    };
   }, [render]);
 
   const SCREEN_MARGIN_PX = 25; // 원하는 화면 상단/좌측 여백
