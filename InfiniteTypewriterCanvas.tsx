@@ -1,5 +1,17 @@
+/**
+ * ExcaliType - Infinite Typewriter Canvas
+ * 
+ * © 2025 Hyeonsong Kim (@kimhxsong)
+ * Contact: kimhxsong@gmail.com
+ * 
+ * A modern, infinite typewriter canvas built with React.
+ * Supports Korean monospaced fonts, vector/image/JSON export, and infinite zoom & pan.
+ * 
+ * This code contains AI-generated content that has been further developed and customized.
+ */
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Type, Move, Download, Upload, Grid, FileText, Image, Code, RotateCcw, Trash2, Eye, EyeOff, ZoomIn, ZoomOut, FileDown, Sun, Moon } from 'lucide-react';
+import { Type, Move, Download, Upload, Import, Grid, FileText, Image, Code, RotateCcw, Trash2, Eye, EyeOff, ZoomIn, ZoomOut, FileDown, Sun, Moon, CornerUpLeft, CornerUpRight, Layers, Info, NotepadTextDashed, TextCursorInput } from 'lucide-react';
 
 // 오브젝트 타입들 정의
 interface TextObjectType {
@@ -29,32 +41,60 @@ type Theme = 'light' | 'dark';
 // 단축키 정보 오버레이 컴포넌트
 const ShortcutsOverlay = ({ theme }: { theme: Theme }) => {
   return (
-    <div className={`absolute top-4 right-4 ${
-      theme === 'dark' 
-        ? 'bg-black/80 text-white' 
-        : 'bg-white/90 text-gray-900'
-    } backdrop-blur-sm p-4 rounded-xl shadow-md text-xs font-mono`}>
-      <div className={`font-semibold mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-        Shortcuts
+    <div
+      className={`absolute top-4 right-4 ${
+        theme === 'dark'
+          ? 'bg-black/40 text-white'
+          : 'bg-white/50 text-gray-900'
+      } backdrop-blur-sm rounded-xl shadow-sm text-[11px] font-mono`}
+      style={{
+        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+        fontSize: '11px',
+        padding: '12px',
+        maxHeight: '45vh',
+        minWidth: '260px', // minWidth 확장 (중복 제거)
+        maxWidth: '340px',
+        backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.5)',
+        overflowY: 'auto',
+      }}
+    >
+      <div className={`font-semibold mb-2 text-sm flex items-center gap-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`} style={{whiteSpace: 'nowrap'}}>
+        <Layers className="w-4 h-4 opacity-80" />
+        Keyboard Shortcuts
       </div>
-      <div className="space-y-1">
-        <div>Pan canvas: Space + Drag</div>
-        <div>Move view: Shift + ↑↓←→</div>
-        <div>Zoom: Ctrl + Scroll</div>
-        <div>Zoom in/out: Ctrl + / -</div>
-        <div>UI Size: Alt + / -</div>
-        <div>Reset zoom: Ctrl + 0</div>
-        <div>Reset view: Cmd + R</div>
-        <div>Delete selected: Del / Button</div>
+      <div className="border-b border-gray-300/40 mb-2" />
+      <div className="space-y-2">
+        <div className="font-bold text-xs mt-1 mb-0.5" style={{whiteSpace: 'nowrap'}}>Undo/Redo</div>
+        <div className="flex flex-col gap-0.5 pl-2">
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Undo</span>: <span className="font-mono">Ctrl+Z</span></div>
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Redo</span>: <span className="font-mono">Ctrl+Shift+Z</span>, <span className="font-mono">Ctrl+Y</span></div>
+        </div>
+        <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>View & Navigation</div>
+        <div className="flex flex-col gap-0.5 pl-2">
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Pan Canvas</span>: <span className="font-mono">Space + Drag</span></div>
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Move View</span>: <span className="font-mono">Shift + Arrow Keys</span></div>
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Scale In/Out</span>: <span className="font-mono">Alt/Option + +/-</span></div>
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Reset Zoom</span>: <span className="font-mono">Ctrl + 0</span></div>
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Reset View</span>: <span className="font-mono">Cmd + R</span></div>
+        </div>
+        <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Editing</div>
+        <div className="flex flex-col gap-0.5 pl-2">
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">UI Size</span>: <span className="font-mono">Ctrl/Cmd + +/-</span></div>
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Delete Selected</span>: <span className="font-mono">Del</span></div>
+        </div>
       </div>
     </div>
   );
 };
-const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selectedObject, typewriterX, typewriterY, baseFontSize, initialFontSize, getTextBoxWidth, screenToWorld, theme }: {
+
+const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selectedObject, hoveredObject, mousePosition, isMouseInTextBox, typewriterX, typewriterY, baseFontSize, initialFontSize, getTextBoxWidth, screenToWorld, theme }: {
   canvasOffset: { x: number; y: number; };
   scale: number;
   canvasObjects: CanvasObjectType[];
   selectedObject: CanvasObjectType | null;
+  hoveredObject: CanvasObjectType | null;
+  mousePosition: { x: number; y: number };
+  isMouseInTextBox: boolean;
   typewriterX: number;
   typewriterY: number;
   baseFontSize: number;
@@ -69,12 +109,12 @@ const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selectedObject,
   const textBoxRight = textBoxLeft + textBoxWidth;
   const textBoxBottom = textBoxTop + baseFontSize;
 
-  // 4개 모서리 윈도우/월드 좌표
+  // 4 corners (window/world)
   const corners = [
-    { label: 'LT', sx: textBoxLeft, sy: textBoxTop }, // 좌상
-    { label: 'RT', sx: textBoxRight, sy: textBoxTop }, // 우상
-    { label: 'LB', sx: textBoxLeft, sy: textBoxBottom }, // 좌하
-    { label: 'RB', sx: textBoxRight, sy: textBoxBottom }, // 우하
+    { label: 'Top Left', sx: textBoxLeft, sy: textBoxTop },
+    { label: 'Top Right', sx: textBoxRight, sy: textBoxTop },
+    { label: 'Bottom Left', sx: textBoxLeft, sy: textBoxBottom },
+    { label: 'Bottom Right', sx: textBoxRight, sy: textBoxBottom },
   ].map(corner => ({
     ...corner,
     world: screenToWorld(corner.sx, corner.sy)
@@ -83,34 +123,65 @@ const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selectedObject,
   const worldPos = screenToWorld(textBoxLeft, textBoxTop);
 
   return (
-    <div className={`absolute top-4 left-4 ${
-      theme === 'dark' 
-        ? 'bg-black/80 text-white' 
-        : 'bg-white/90 text-gray-900'
-    } backdrop-blur-sm p-4 rounded-xl shadow-xl text-xs font-mono`}>
-      <div className={`font-semibold mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+    <div
+      className={`absolute top-4 left-4 ${
+        theme === 'dark'
+          ? 'bg-black/40 text-white'
+          : 'bg-white/50 text-gray-900'
+      } backdrop-blur-sm rounded-xl shadow-sm text-[11px] font-mono`}
+      style={{
+        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+        fontSize: '11px',
+        padding: '12px',
+        maxHeight: '32vh',
+        minWidth: '260px', // minWidth 확장 (중복 제거)
+        maxWidth: '340px',
+        backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.5)',
+        overflowY: 'auto',
+      }}
+    >
+      <div className={`font-semibold mb-2 text-sm flex items-center gap-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`} style={{whiteSpace: 'nowrap'}}>
+        <Info className="w-4 h-4 opacity-80" />
         Canvas Info
       </div>
-      <div className="space-y-1">
-        <div>Offset: ({Math.round(-canvasOffset.x)}, {Math.round(-canvasOffset.y)})</div>
-        <div>Scale: {scale.toFixed(2)}x</div>
-        <div>UI Size: {(baseFontSize / initialFontSize).toFixed(2)}x ({baseFontSize}px)</div>
-        <div>Objects: {canvasObjects.length}</div>
-        <div>Origin: ({Math.round(worldPos.x)}, {Math.round(worldPos.y)})</div>
-        {corners.map(c => (
-          <div key={c.label} className="mt-1">
-            <span className="font-bold">{c.label}</span>:
-            <span> win({Math.round(c.sx)}, {Math.round(c.sy)})</span>
-            <span> world({Math.round(c.world.x)}, {Math.round(c.world.y)})</span>
+      <div className="border-b border-gray-300/40 mb-2" />
+      <div className="space-y-2">
+        <div className="font-bold text-xs mt-1 mb-0.5" style={{whiteSpace: 'nowrap'}}>View State</div>
+        <div className="flex flex-col gap-0.5 pl-2">
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Offset</span>: <span className="font-mono">({Math.round(-canvasOffset.x)}, {Math.round(-canvasOffset.y)})</span></div>
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Zoom</span>: <span className="font-mono">{scale.toFixed(2)}x</span></div>
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">UI Size</span>: <span className="font-mono">{(baseFontSize / initialFontSize).toFixed(2)}x ({baseFontSize}px)</span></div>
+        </div>
+        <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Objects</div>
+        <div className="flex flex-col gap-0.5 pl-2">
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Object Count</span>: <span className="font-mono">{canvasObjects.length}</span></div>
+        </div>
+        <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Typewriter Box</div>
+        <div className="flex flex-col gap-0.5 pl-2">
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Origin (Top Left)</span>: <span className="font-mono">({Math.round(worldPos.x)}, {Math.round(worldPos.y)})</span></div>
+          {corners.map(c => (
+            <div key={c.label} style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">{c.label}</span>: <span className="font-mono">win({Math.round(c.sx)}, {Math.round(c.sy)}) / world({Math.round(c.world.x)}, {Math.round(c.world.y)})</span></div>
+          ))}
+        </div>
+        <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Mouse</div>
+        <div className="flex flex-col gap-0.5 pl-2">
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Screen</span>: <span className="font-mono">({mousePosition.x}, {mousePosition.y})</span></div>
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">World</span>: <span className="font-mono">({Math.round(screenToWorld(mousePosition.x, mousePosition.y).x)}, {Math.round(screenToWorld(mousePosition.x, mousePosition.y).y)})</span></div>
+        </div>
+        {hoveredObject && (
+          <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Hovered Object</div>
+        )}
+        {hoveredObject && (
+          <div className="pl-2 text-yellow-700 dark:text-yellow-300" style={{whiteSpace: 'nowrap'}}>
+            {hoveredObject.type === 'text' ? `Text: "${hoveredObject.content.substring(0, 15)}${hoveredObject.content.length > 15 ? '...' : ''}"` : 'A4 Guide'}
           </div>
-        ))}
+        )}
         {selectedObject && (
-          <div className={`mt-2 pt-2 border-t ${
-            theme === 'dark' ? 'border-gray-600 text-green-400' : 'border-gray-300 text-green-600'
-          }`}>
-            Selected: {selectedObject.type === 'text' 
-              ? `"${selectedObject.content.substring(0, 20)}${selectedObject.content.length > 20 ? '...' : ''}"` 
-              : 'A4 Guide'}
+          <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Selected Object</div>
+        )}
+        {selectedObject && (
+          <div className="pl-2 text-green-700 dark:text-green-300" style={{whiteSpace: 'nowrap'}}>
+            {selectedObject.type === 'text' ? `Text: "${selectedObject.content.substring(0, 20)}${selectedObject.content.length > 20 ? '...' : ''}"` : 'A4 Guide'}
           </div>
         )}
       </div>
@@ -130,6 +201,9 @@ const InfiniteTypewriterCanvas = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [fontLoaded, setFontLoaded] = useState(false);
   const [selectedObject, setSelectedObject] = useState<CanvasObjectType | null>(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [isMouseInTextBox, setIsMouseInTextBox] = useState(false);
+  const [hoveredObject, setHoveredObject] = useState<CanvasObjectType | null>(null);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [canvasWidth, setCanvasWidth] = useState(window.innerWidth);
   const [canvasHeight, setCanvasHeight] = useState(window.innerHeight - 64);
@@ -140,7 +214,7 @@ const InfiniteTypewriterCanvas = () => {
   // Dynamically measure CSS pixels per millimeter (accounts for DPI / zoom)
   const [pxPerMm, setPxPerMm] = useState(96 / 25.4); // fallback default
 
-  // A4 guide calculations based on 160mm textbox width
+  // A4 guide calculations based on 80-character textbox width
   const TEXT_BOX_WIDTH_MM = 160;
   const A4_MARGIN_LR_MM = 25;
   const A4_MARGIN_TOP_MM = 30;
@@ -150,12 +224,12 @@ const InfiniteTypewriterCanvas = () => {
   const [showInfo, setShowInfo] = useState(true);
   const [showShortcuts, setShowShortcuts] = useState(true);
   const [showTextBox, setShowTextBox] = useState(true);
-  const [theme, setTheme] = useState<Theme>('dark');
+  const [theme, setTheme] = useState<Theme>('light');
 
   // Typewriter settings
   const typewriterX = canvasWidth / 2;
   const typewriterY = canvasHeight / 2;
-  const maxCharsPerLine = 52; // 한글 기준 52자로 조정
+  const [maxCharsPerLine, setMaxCharsPerLine] = useState(80); // 한글 기준 80자, 동적 변경
   const INITIAL_FONT_SIZE = 20; // 20px = 10pt (논리적 표시용)
   const [baseFontSize, setBaseFontSize] = useState(INITIAL_FONT_SIZE);
 
@@ -191,8 +265,8 @@ const InfiniteTypewriterCanvas = () => {
       grid: 'rgba(255, 255, 255, 0.05)',
       selection: 'rgba(59, 130, 246, 0.2)',
       a4Guide: 'rgba(59, 130, 246, 0.3)',
-      inputBg: 'rgba(0, 0, 0, 0.3)',
-      inputBorder: 'rgba(59, 130, 246, 0.3)',
+          inputBg: 'rgba(0, 0, 0, 0.01)', // 99% 투명
+    inputBorder: 'rgba(59, 130, 246, 0.2)',
     },
     light: {
       background: '#ffffff',
@@ -200,8 +274,8 @@ const InfiniteTypewriterCanvas = () => {
       grid: 'rgba(0, 0, 0, 0.05)',
       selection: 'rgba(59, 130, 246, 0.2)',
       a4Guide: 'rgba(59, 130, 246, 0.4)',
-      inputBg: 'rgba(255, 255, 255, 0.4)',
-      inputBorder: 'rgba(59, 130, 246, 0.4)',
+          inputBg: 'rgba(255, 255, 255, 0.01)', // 99% 투명
+    inputBorder: 'rgba(59, 130, 246, 0.2)',
     }
   };
 
@@ -241,7 +315,7 @@ const InfiniteTypewriterCanvas = () => {
     if (!canvas || !fontLoaded) return text.length * 12;
     const ctx = canvas.getContext('2d');
     if (!ctx) return text.length * 12;
-    ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
+    ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
     return ctx.measureText(text).width;
   }, [baseFontSize, fontLoaded]);
 
@@ -292,13 +366,17 @@ const InfiniteTypewriterCanvas = () => {
       const textObj = obj as TextObjectType;
       const screenPos = worldToScreen(textObj.x, textObj.y);
       const fontSize = textObj.fontSize * scale;
+      
+      // measureTextWidth 함수에 정확한 폰트 크기 전달
       const textWidth = measureTextWidth(textObj.content, fontSize);
       const textHeight = fontSize;
       
-      return screenX >= screenPos.x && 
-             screenX <= screenPos.x + textWidth &&
-             screenY >= screenPos.y - textHeight &&
-             screenY <= screenPos.y + 4;
+      // 텍스트 베이스라인을 기준으로 위아래로 여유 공간 추가
+      const padding = 5; // 클릭 영역 확장을 위한 패딩
+      return screenX >= screenPos.x - padding && 
+             screenX <= screenPos.x + textWidth + padding &&
+             screenY >= screenPos.y - textHeight - padding &&
+             screenY <= screenPos.y + padding;
     } else if (obj.type === 'a4guide') {
       const a4Obj = obj as A4GuideObjectType;
       const screenPos = worldToScreen(a4Obj.x, a4Obj.y);
@@ -404,12 +482,13 @@ const InfiniteTypewriterCanvas = () => {
       
       if (screenPos.x > -200 && screenPos.x < canvasWidth + 200 && screenPos.y > -50 && screenPos.y < canvasHeight + 50) {
         const fontSize = textObj.fontSize * scale;
-        ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
+        ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
         
         if (selectedObject && selectedObject.id === textObj.id) {
           ctx.fillStyle = colors[theme].selection;
           const textWidth = measureTextWidth(textObj.content, fontSize);
-          ctx.fillRect(screenPos.x - 4, screenPos.y - fontSize, textWidth + 8, fontSize + 8);
+          const textHeight = fontSize;
+          ctx.fillRect(screenPos.x - 4, screenPos.y - textHeight, textWidth + 8, textHeight + 8);
         }
         
         ctx.fillStyle = colors[theme].text;
@@ -437,7 +516,40 @@ const InfiniteTypewriterCanvas = () => {
     }
     drawCanvasObjects(ctx);
     
-  }, [canvasOffset, scale, canvasObjects, selectedObject, getTextBoxWidth, drawGrid, drawCanvasObjects, canvasWidth, canvasHeight, typewriterX, typewriterY, baseFontSize, screenToWorld, showGrid, theme]);
+    // 호버된 오브젝트 하이라이트 표시
+    if (hoveredObject) {
+      ctx.strokeStyle = 'rgba(135, 206, 235, 0.8)'; // 연한 하늘색
+      ctx.lineWidth = 1; // 더 얇은 선
+      ctx.lineJoin = 'round'; // 둥근 모서리
+      ctx.lineCap = 'round'; // 둥근 끝점
+      ctx.setLineDash([]); // 실선
+      
+      if (hoveredObject.type === 'text') {
+        const textObj = hoveredObject as TextObjectType;
+        const screenPos = worldToScreen(textObj.x, textObj.y);
+        const fontSize = textObj.fontSize * scale;
+        const textWidth = measureTextWidth(textObj.content, fontSize);
+        const textHeight = fontSize;
+        // 텍스트 영역 주변에 하이라이트 박스
+        const padding = 4;
+        ctx.strokeRect(
+          screenPos.x - padding, 
+          screenPos.y - textHeight - padding, 
+          textWidth + padding * 2, 
+          textHeight + padding * 2
+        );
+      } else if (hoveredObject.type === 'a4guide') {
+        const a4Obj = hoveredObject as A4GuideObjectType;
+        const screenPos = worldToScreen(a4Obj.x, a4Obj.y);
+        const screenWidth = a4Obj.width * scale;
+        const screenHeight = a4Obj.height * scale;
+        
+        // A4 가이드 전체 영역에 하이라이트
+        ctx.strokeRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
+      }
+    }
+    
+  }, [canvasOffset, scale, canvasObjects, selectedObject, hoveredObject, getTextBoxWidth, drawGrid, drawCanvasObjects, canvasWidth, canvasHeight, typewriterX, typewriterY, baseFontSize, screenToWorld, worldToScreen, showGrid, theme, measureTextWidth, colors]);
 
   useEffect(() => {
     const animate = () => {
@@ -465,7 +577,7 @@ const InfiniteTypewriterCanvas = () => {
     let maxY = -Infinity;
 
     const measureTextWidthForExport = (text: string, fontSize: number) => {
-      tempCtx.font = `${fontSize}px "JetBrains Mono", monospace`;
+      tempCtx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
       return tempCtx.measureText(text).width;
     };
 
@@ -543,7 +655,7 @@ const InfiniteTypewriterCanvas = () => {
         const screenY = textObj.y * currentScale + currentOffset.y;
 
         const fontSize = textObj.fontSize * currentScale; // 저장된 폰트 크기를 사용
-        ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
+        ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
         ctx.fillText(textObj.content, screenX, screenY);
       });
 
@@ -552,7 +664,7 @@ const InfiniteTypewriterCanvas = () => {
         const screenX = worldPos.x * currentScale + currentOffset.x;
         const screenY = worldPos.y * currentScale + currentOffset.y;
         const fontSize = baseFontSize * currentScale; // 입력창 폰트 크기를 사용
-        ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
+        ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
         ctx.fillText(currentTypingText, screenX, screenY);
       }
 
@@ -857,7 +969,7 @@ const InfiniteTypewriterCanvas = () => {
         if (!canvas || !fontLoaded) return text.length * 12;
         const ctx = canvas.getContext('2d');
         if (!ctx) return text.length * 12;
-        ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
+        ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
         return ctx.measureText(text).width;
       };
       
@@ -893,21 +1005,46 @@ const InfiniteTypewriterCanvas = () => {
     }
   };
 
+  const resetCanvas = useCallback(() => {
+    setScale(1);
+    centerTypewriter();
+    setSelectedObject(null);
+  }, [setScale, centerTypewriter, setSelectedObject]);
+  
   // Keyboard events
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 텍스트 입력 필드에 포커스가 있을 때는 Delete 키 처리를 하지 않음
       const input = document.getElementById('typewriter-input') as HTMLInputElement;
       const isInputFocused = document.activeElement === input;
-      
       if (e.key === 'Escape') {
         setIsExportMenuOpen(false);
       }
-      
       const zoomLevels = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 5];
       const currentIndex = zoomLevels.findIndex(level => Math.abs(level - scale) < 0.01);
-      
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
+      // UI Size: Ctrl/Cmd + +/-
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault();
+          handleUISizeChange(true); // up
+          return;
+        } else if (e.key === '-') {
+          e.preventDefault();
+          handleUISizeChange(false); // down
+          return;
+        } else if (e.key === '0') {
+          e.preventDefault();
+          if (Math.abs(scale - 1) > 0.01) {
+            zoomToLevel(1);
+          }
+          return;
+        } else if (e.key === 'Home' || e.key === 'r' || e.key === 'R') {
+          e.preventDefault();
+          resetCanvas();
+          return;
+        }
+      }
+      // Scale: Alt/Option + +/-
+      if (e.altKey && !e.ctrlKey && !e.metaKey) {
         if (e.key === '=' || e.key === '+') {
           e.preventDefault();
           const newIndex = Math.min(zoomLevels.length - 1, currentIndex + 1);
@@ -922,44 +1059,18 @@ const InfiniteTypewriterCanvas = () => {
             zoomToLevel(zoomLevels[newIndex]);
           }
           return;
-        } else if (e.key === '0') {
-          e.preventDefault();
-          if (Math.abs(scale - 1) > 0.01) {
-            zoomToLevel(1);
-          }
-          return;
-        } else if (e.key === 'Home' || e.key === 'r' || e.key === 'R') {
-          e.preventDefault();
-          resetCanvas();
-          return;
         }
       }
-
-      // Alt 키와 함께 폰트 크기 조정
-      if (e.altKey && !e.ctrlKey && !e.metaKey) {
-        if (e.key === '=' || e.key === '+') {
-          e.preventDefault();
-          handleUISizeChange(true); // up
-          return;
-        } else if (e.key === '-') {
-          e.preventDefault();
-          handleUISizeChange(false); // down
-          return;
-        }
-      }
-      
-      // Delete 키 처리 - 텍스트 입력 필드에 포커스가 없을 때만
+      // Delete key
       if (e.key === 'Delete' && selectedObject && !isInputFocused) {
         e.preventDefault();
         setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
         setSelectedObject(null);
         return;
       }
-      
       if (e.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
-        const moveDistance = getCurrentLineHeight(); // 현재 활성 텍스트의 line-height와 통일
-        
+        const moveDistance = getCurrentLineHeight();
         setCanvasOffset(prev => {
           switch (e.key) {
             case 'ArrowUp':
@@ -977,10 +1088,9 @@ const InfiniteTypewriterCanvas = () => {
         return;
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [scale, selectedObject, getCurrentLineHeight, zoomToLevel, setCanvasObjects, setSelectedObject, setCanvasOffset, handleUISizeChange]);
+  }, [scale, selectedObject, getCurrentLineHeight, zoomToLevel, setCanvasObjects, setSelectedObject, setCanvasOffset, handleUISizeChange, resetCanvas, setIsExportMenuOpen]);
 
   // Mouse events
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1016,12 +1126,43 @@ const InfiniteTypewriterCanvas = () => {
     return Math.round(value / gridSize) * gridSize;
   };
 
+  // 마우스가 텍스트박스 영역에 있는지 확인하는 함수
+  const isPointInTextBox = useCallback((mouseX: number, mouseY: number) => {
+    // 텍스트박스의 월드 좌표 계산
+    const textBoxWorldCenter = screenToWorld(typewriterX, typewriterY);
+    const textBoxWidth = getTextBoxWidth();
+    const textBoxHeight = baseFontSize;
+    
+    // 마우스 위치를 월드 좌표로 변환
+    const mouseWorldPos = screenToWorld(mouseX, mouseY);
+    
+    // 월드 좌표에서 텍스트박스 영역 계산
+    const textBoxWorldLeft = textBoxWorldCenter.x - (textBoxWidth / scale) / 2;
+    const textBoxWorldRight = textBoxWorldLeft + (textBoxWidth / scale);
+    const textBoxWorldTop = textBoxWorldCenter.y - (textBoxHeight / scale) / 2;
+    const textBoxWorldBottom = textBoxWorldTop + (textBoxHeight / scale);
+    
+    return mouseWorldPos.x >= textBoxWorldLeft && mouseWorldPos.x <= textBoxWorldRight && 
+           mouseWorldPos.y >= textBoxWorldTop && mouseWorldPos.y <= textBoxWorldBottom;
+  }, [getTextBoxWidth, typewriterX, typewriterY, baseFontSize, screenToWorld, scale]);
+
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    // 마우스 위치 업데이트 및 텍스트박스 영역 확인
+    setMousePosition({ x: mouseX, y: mouseY });
+    setIsMouseInTextBox(isPointInTextBox(mouseX, mouseY));
+    
+    // 마우스가 오브젝트 위에 있는지 확인 (드래그 중이 아닐 때만)
+    if (!isDraggingText) {
+      const objectUnderMouse = canvasObjects.find(obj => isPointInObject(obj, mouseX, mouseY));
+      setHoveredObject(objectUnderMouse || null);
+    }
+    
     if (isDraggingText && selectedObject) {
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
       
       const deltaX = mouseX - dragStart.x;
       const deltaY = mouseY - dragStart.y;
@@ -1112,17 +1253,12 @@ const InfiniteTypewriterCanvas = () => {
     }
   }, [scale, zoomToLevel]);
 
-  const resetCanvas = () => {
-    setScale(1);
-    centerTypewriter();
-    setSelectedObject(null);
-  };
+  // const resetCanvas = useCallback(() => {
+  //   setScale(1);
+  //   centerTypewriter();
+  //   setSelectedObject(null);
+  // }, [setScale, centerTypewriter, setSelectedObject]);
 
-  const clearAll = () => {
-    setCanvasObjects([]);
-    setCurrentTypingText('');
-    setSelectedObject(null);
-  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setCurrentTypingText(e.target.value);
@@ -1139,24 +1275,96 @@ const InfiniteTypewriterCanvas = () => {
     setCurrentTypingText(e.currentTarget.value); 
   };
 
+
+  useEffect(() => {
+    if (showTextBox) {
+      const input = document.getElementById('typewriter-input') as HTMLInputElement | null;
+      if (input) input.focus();
+    }
+  }, [showTextBox]);
+
+  // [UNDO/REDO] 상태 스냅샷 타입 정의
+  interface CanvasSnapshot {
+    canvasObjects: CanvasObjectType[];
+    canvasOffset: { x: number; y: number };
+    scale: number;
+    currentTypingText: string;
+    baseFontSize: number;
+  }
+
+  const [undoStack, setUndoStack] = useState<CanvasSnapshot[]>([]);
+  const [redoStack, setRedoStack] = useState<CanvasSnapshot[]>([]);
+
+  // [UNDO/REDO] 현재 상태를 스냅샷으로 반환하는 함수
+  const getSnapshot = useCallback((): CanvasSnapshot => ({
+    canvasObjects: JSON.parse(JSON.stringify(canvasObjects)),
+    canvasOffset: { ...canvasOffset },
+    scale,
+    currentTypingText,
+    baseFontSize,
+  }), [canvasObjects, canvasOffset, scale, currentTypingText, baseFontSize]);
+
+  // [UNDO/REDO] 스냅샷을 상태에 적용하는 함수
+  const applySnapshot = useCallback((snap: CanvasSnapshot) => {
+    setCanvasObjects(snap.canvasObjects);
+    setCanvasOffset(snap.canvasOffset);
+    setScale(snap.scale);
+    setCurrentTypingText(snap.currentTypingText);
+    setBaseFontSize(snap.baseFontSize);
+  }, [setCanvasObjects, setCanvasOffset, setScale, setCurrentTypingText, setBaseFontSize]);
+
+  // [UNDO/REDO] 상태 변경 시 undoStack에 push
+  const pushUndo = useCallback(() => {
+    setUndoStack(prev => [...prev, getSnapshot()]);
+    setRedoStack([]); // 새로운 작업이 발생하면 redo 스택 초기화
+  }, [getSnapshot]);
+
+  // [UNDO/REDO] undo 함수
+  const handleUndo = useCallback(() => {
+    setUndoStack(prev => {
+      if (prev.length === 0) return prev;
+      const last = prev[prev.length - 1];
+      setRedoStack(r => [...r, getSnapshot()]);
+      applySnapshot(last);
+      return prev.slice(0, -1);
+    });
+  }, [applySnapshot, getSnapshot]);
+
+  // [UNDO/REDO] redo 함수
+  const handleRedo = useCallback(() => {
+    setRedoStack(prev => {
+      if (prev.length === 0) return prev;
+      const last = prev[prev.length - 1];
+      setUndoStack(u => [...u, getSnapshot()]);
+      applySnapshot(last);
+      return prev.slice(0, -1);
+    });
+  }, [applySnapshot, getSnapshot]);
+
+  // [UNDO/REDO] 상태 변경이 일어나는 주요 지점에 pushUndo() 호출
+  // 예시: 텍스트 추가, 오브젝트 이동/삭제, 패닝, 줌, 전체 삭제 등
+  // 텍스트 추가
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       if (!isComposing) {
-        const worldPos = getCurrentWorldPosition();
-        // 빈 문자열도 처리
-        setCanvasObjects(prev => [
-          ...prev,
-          {
-            type: 'text',
-            content: currentTypingText,
-            x: worldPos.x,
-            y: worldPos.y,
-            scale: 1,
-            fontSize: baseFontSize / scale, // 월드 px로 변환해서 저장!
-            id: Date.now()
-          }
-        ]);
-        setCurrentTypingText('');
+        if (currentTypingText.trim() !== '') {
+          pushUndo(); // 상태 변경 전 스냅샷 저장
+          const worldPos = getCurrentWorldPosition();
+          setCanvasObjects(prev => [
+            ...prev,
+            {
+              type: 'text',
+              content: currentTypingText,
+              x: worldPos.x,
+              y: worldPos.y,
+              scale: 1,
+              fontSize: baseFontSize / scale, // 월드 px로 변환해서 저장!
+              id: Date.now()
+            }
+          ]);
+          setCurrentTypingText('');
+        }
+        // 오브젝트 생성 여부와 상관없이 줄바꿈(캔버스 오프셋 이동)은 항상 실행
         setCanvasOffset(prev => ({
           x: prev.x,
           y: prev.y - getCurrentLineHeight()
@@ -1168,12 +1376,251 @@ const InfiniteTypewriterCanvas = () => {
     }
   };
 
-  useEffect(() => {
-    if (showTextBox) {
-      const input = document.getElementById('typewriter-input') as HTMLInputElement | null;
-      if (input) input.focus();
+  // 오브젝트 이동/삭제, 패닝, 줌, 전체 삭제 등에도 pushUndo() 추가
+  // 예시: 오브젝트 삭제
+  const handleDeleteSelected = () => {
+    if (selectedObject) {
+      pushUndo();
+      setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
+      setSelectedObject(null);
     }
-  }, [showTextBox]);
+  };
+
+  // 전체 삭제
+  const clearAll = () => {
+    setCanvasObjects([]);
+    setCurrentTypingText('');
+    setSelectedObject(null);
+  };
+
+  // 패닝, 줌 등에도 pushUndo() 추가 필요(핸들러 내부에 삽입)
+  // ... existing code ...
+  // [UNDO/REDO] 단축키 핸들러 추가 (Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y)
+  useEffect(() => {
+    const handleUndoRedoKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        if (e.key === 'z' || e.key === 'Z') {
+          if (e.shiftKey) {
+            handleRedo();
+          } else {
+            handleUndo();
+          }
+          e.preventDefault();
+        } else if (e.key === 'y' || e.key === 'Y') {
+          handleRedo();
+          e.preventDefault();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleUndoRedoKey);
+    return () => window.removeEventListener('keydown', handleUndoRedoKey);
+  }, [handleUndo, handleRedo]);
+
+  // ... existing code ...
+  // [UNDO/REDO] UI 버튼 추가 (헤더 또는 우측 하단 등)
+  // 예시: 헤더에 Undo/Redo 버튼 추가
+  // ... 기존 헤더 코드 위에 추가 ...
+  <div className="flex items-center gap-2">
+    {/* Reset 단독 그룹 */}
+    <div className="flex items-center gap-2">
+      <button
+        onClick={resetCanvas}
+        className={`p-2 rounded-lg border-2 transition-colors ${
+          theme === 'dark'
+            ? 'bg-blue-900/70 border-blue-600 text-blue-300 hover:bg-blue-800 hover:text-white'
+            : 'bg-blue-100/80 border-blue-400 text-blue-700 hover:bg-blue-200 hover:text-blue-900'
+        }`}
+        style={{fontWeight: 600, boxShadow: '0 2px 8px rgba(0,0,0,0.06)'}}
+        title="초기화"
+      >
+        <RotateCcw className="w-5 h-5" color={theme === 'dark' ? '#60a5fa' : '#2563eb'} />
+      </button>
+    </div>
+    <div className="border-l h-6 mx-2" />
+    {/* 파일 관련 */}
+    <label className={`p-2 rounded-lg transition-colors cursor-pointer ${
+      theme === 'dark'
+        ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+    }`} title="Import">
+      <Import className="w-4 h-4" />
+      <input type="file" accept=".json" onChange={importFile} className="hidden" />
+    </label>
+    <button
+      onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+      className={`p-2 rounded-lg transition-colors ${
+        theme === 'dark'
+          ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+      }`}
+      title="Export"
+    >
+      <Upload className="w-4 h-4" />
+    </button>
+    <div className="border-l h-6 mx-2" />
+    {/* 보기/설정 관련 */}
+    <button
+      onClick={() => setShowTextBox(prev => !prev)}
+      className={`p-2 rounded-lg transition-colors ${
+        showTextBox 
+          ? 'text-blue-500 bg-blue-500/10' 
+          : theme === 'dark'
+            ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+      }`}
+      title="텍스트 입력창 토글"
+    >
+      <TextCursorInput className="w-4 h-4" />
+    </button>
+    <button
+      onClick={() => setShowInfo(prev => !prev)}
+      className={`p-2 rounded-lg transition-colors ${
+        showInfo 
+          ? 'text-blue-500 bg-blue-500/10' 
+          : theme === 'dark'
+            ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+      }`}
+      title="캔버스 정보 토글"
+    >
+      <Info className="w-4 h-4" />
+    </button>
+    <button
+      onClick={() => setShowShortcuts(prev => !prev)}
+      className={`p-2 rounded-lg transition-colors ${
+        showShortcuts 
+          ? 'text-blue-500 bg-blue-500/10' 
+          : theme === 'dark'
+            ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+      }`}
+      title="단축키 안내 토글"
+    >
+      <Layers className="w-4 h-4" />
+    </button>
+    <button
+      onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+      className={`p-2 rounded-lg transition-colors ${
+        theme === 'dark'
+          ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+      }`}
+      title="Toggle Theme"
+    >
+      {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+    </button>
+    <button
+      onClick={clearAll}
+      className={`p-2 rounded-lg transition-colors ${
+        theme === 'dark'
+          ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+      }`}
+      title="Reset"
+    >
+      <Trash2 className="w-4 h-4" />
+    </button>
+    <div className="border-l h-6 mx-2" />
+    {/* 편집/도구 관련 */}
+    <button
+      onClick={() => setShowGrid(prev => !prev)}
+      className={`p-2 rounded-lg transition-colors ${
+        showGrid 
+          ? 'text-blue-500 bg-blue-500/10' 
+          : theme === 'dark'
+            ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+      }`}
+      title="Toggle Grid"
+    >
+      <Grid className="w-4 h-4" />
+    </button>
+    <button
+      onClick={() => {
+        if (maxCharsPerLine !== 80) return; // 80자 모드에서만 동작
+        // A4Guide 생성
+        const textBoxWorldCenter = screenToWorld(typewriterX, typewriterY);
+        const textBoxWorldTopLeft = screenToWorld(
+          typewriterX - getTextBoxWidth() / 2,
+          typewriterY - baseFontSize / 2
+        );
+        // 실제 텍스트박스 픽셀 폭을 160mm로 가정하고 A4 가이드 계산
+        const actualTextBoxWidth = getTextBoxWidth(); // 현재 80자 기준 픽셀 폭
+        const mmPerPixel = TEXT_BOX_WIDTH_MM / actualTextBoxWidth; // 160mm / 실제픽셀폭
+        const a4MarginLRPixels = A4_MARGIN_LR_MM / mmPerPixel; // 25mm를 픽셀로 변환
+        const a4WidthWorld = actualTextBoxWidth + (a4MarginLRPixels * 2); // 텍스트박스 + 좌우 여백
+        const a4HeightWorld = a4WidthWorld * (A4_HEIGHT_MM / A4_WIDTH_MM); // A4 비율 유지
+        const a4MarginTopPixels = A4_MARGIN_TOP_MM / mmPerPixel; // 30mm를 픽셀로 변환
+        const a4OriginX = textBoxWorldCenter.x - a4WidthWorld / 2;
+        const a4OriginY = textBoxWorldTopLeft.y - a4MarginTopPixels;
+        setCanvasObjects(prev => [
+          ...prev,
+          {
+            id: Date.now(),
+            type: 'a4guide',
+            x: a4OriginX,
+            y: a4OriginY,
+            width: a4WidthWorld,
+            height: a4HeightWorld
+          }
+        ]);
+      }}
+      disabled={maxCharsPerLine !== 80}
+      className={`p-2 rounded-lg transition-colors ${
+        maxCharsPerLine !== 80
+          ? (theme === 'dark'
+              ? 'text-gray-600 bg-gray-800/40 cursor-not-allowed opacity-50'
+              : 'text-gray-400 bg-gray-100/60 cursor-not-allowed opacity-50')
+          : (theme === 'dark'
+              ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
+      }`}
+      title="Add A4 Guide"
+    >
+      <NotepadTextDashed className="w-4 h-4" />
+    </button>
+  </div>
+  // ... 기존 헤더 코드 ...
+
+  // 폭 변경 시에도 입력창 LT 월드 좌표 고정
+  const handleMaxCharsChange = (newMaxChars: number) => {
+    if (newMaxChars === maxCharsPerLine) return;
+
+    // 1. 현재 입력창의 LT 월드 좌표 구하기
+    const prevTextBoxWidth = getTextBoxWidth();
+    const prevLTScreen = {
+      x: typewriterX - prevTextBoxWidth / 2,
+      y: typewriterY - baseFontSize / 2,
+    };
+    const prevLTWorld = screenToWorld(prevLTScreen.x, prevLTScreen.y);
+
+    // 2. 새 폭에 맞는 입력창 폭 계산
+    const tempTextBoxWidth = measureTextWidth('A'.repeat(newMaxChars));
+    const newLTScreen = {
+      x: typewriterX - tempTextBoxWidth / 2,
+      y: typewriterY - baseFontSize / 2,
+    };
+
+    // 3. 새 offset 계산 (LT 월드 좌표가 동일한 위치에 오도록)
+    const newOffsetX = newLTScreen.x - prevLTWorld.x * scale;
+    const newOffsetY = newLTScreen.y - prevLTWorld.y * scale;
+
+    setMaxCharsPerLine(newMaxChars);
+    setCanvasOffset({ x: newOffsetX, y: newOffsetY });
+  };
+
+  useEffect(() => {
+    // HiDPI(레티나) 대응: 캔버스 해상도 업스케일
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = canvasWidth * dpr;
+    canvas.height = canvasHeight * dpr;
+    canvas.style.width = `${canvasWidth}px`;
+    canvas.style.height = `${canvasHeight}px`;
+    const ctx = canvas.getContext('2d');
+    if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }, [canvasWidth, canvasHeight]);
 
   return (
     <div className={`w-full h-screen flex flex-col ${theme === 'dark' ? 'bg-black' : 'bg-gray-50'}`}>
@@ -1183,231 +1630,182 @@ const InfiniteTypewriterCanvas = () => {
           ? 'bg-black/90 border-gray-800' 
           : 'bg-white/90 border-gray-200'
       } backdrop-blur-sm border-b p-4 flex items-center justify-between relative z-50`}>
-        <div className="flex items-center gap-6">
+        {/* 좌측: 타이틀 */}
+        <div className="flex items-center gap-6 min-w-[180px]">
           <h1 className={`text-lg font-medium flex items-center gap-2 ${
             theme === 'dark' ? 'text-white' : 'text-gray-900'
           }`}>
             <Type className="w-5 h-5" />
             Infinite Canvas
           </h1>
-          
-          <div className="flex items-center gap-2">
-            <button
-              onClick={resetCanvas}
-              className={`p-2 rounded-lg transition-colors ${
-                theme === 'dark'
-                  ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-              title="Center"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-            <button
-              onClick={clearAll}
-              className={`p-2 rounded-lg transition-colors ${
-                theme === 'dark'
-                  ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-              title="Clear All"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-          
-          <div className={`flex items-center gap-2 border-l pl-6 ${
-            theme === 'dark' ? 'border-gray-800' : 'border-gray-200'
-          }`}>
-            <label className={`p-2 rounded-lg transition-colors cursor-pointer ${
+        </div>
+        {/* 중앙: 파일/도구/삭제 */}
+        <div className="flex items-center gap-2 justify-center flex-1">
+          {/* 파일 관련 */}
+          <label className={`p-2 rounded-lg transition-colors cursor-pointer ${
+            theme === 'dark'
+              ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+          }`} title="Import">
+            <Import className="w-4 h-4" />
+            <input type="file" accept=".json" onChange={importFile} className="hidden" />
+          </label>
+          <button
+            onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+            className={`p-2 rounded-lg transition-colors ${
               theme === 'dark'
                 ? 'text-gray-400 hover:text-white hover:bg-gray-800'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
             }`}
-                   title="Import">
-              <Upload className="w-4 h-4" />
-              <input
-                type="file"
-                accept=".json"
-                onChange={importFile}
-                className="hidden"
-              />
-            </label>
-            
-            <div className="relative export-dropdown z-[10000]">
-              <button 
-                onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                className={`p-2 rounded-lg transition-colors ${
-                  theme === 'dark'
-                    ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                }`}
-                title="Export"
-              >
-                <Download className="w-4 h-4" />
-              </button>
-              {isExportMenuOpen && (
-                <div className={`absolute top-full left-0 mt-2 rounded-lg shadow-2xl z-[10001] overflow-hidden border-2 ${
-                  theme === 'dark'
-                    ? 'bg-gray-900 border-gray-700'
-                    : 'bg-white border-gray-300'
-                }`}>
-                  <button
-                    onClick={exportAsJSON}
-                    className={`flex items-center gap-3 w-full px-4 py-2.5 text-left transition-colors text-sm ${
-                      theme === 'dark'
-                        ? 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                    }`}
-                  >
-                    <FileText className="w-4 h-4" />
-                    JSON
-                  </button>
-                  <button
-                    onClick={exportAsPNG}
-                    className={`flex items-center gap-3 w-full px-4 py-2.5 text-left transition-colors text-sm ${
-                      theme === 'dark'
-                        ? 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                    }`}
-                  >
-                    <Image className="w-4 h-4" />
-                    PNG
-                  </button>
-                  <button
-                    onClick={exportAsSVG}
-                    className={`flex items-center gap-3 w-full px-4 py-2.5 text-left transition-colors text-sm ${
-                      theme === 'dark'
-                        ? 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                    }`}
-                  >
-                    <Code className="w-4 h-4" />
-                    SVG
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className={`flex items-center gap-2 border-l pl-6 ${
-            theme === 'dark' ? 'border-gray-800' : 'border-gray-200'
-          }`}>
-            <button
-              onClick={() => setShowGrid(prev => !prev)}
-              className={`p-2 rounded-lg transition-colors ${
-                showGrid 
-                  ? 'text-blue-500 bg-blue-500/10' 
-                  : theme === 'dark'
-                    ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-              title="Toggle Grid"
-            >
-              <Grid className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => {
-                // A4Guide 생성
-                const textBoxWorldCenter = screenToWorld(typewriterX, typewriterY);
-                const textBoxWorldTopLeft = screenToWorld(
-                  typewriterX - getTextBoxWidth() / 2,
-                  typewriterY - baseFontSize / 2
-                );
-                
-                const a4WidthWorld = A4_WIDTH_MM * pxPerMm;
-                const a4HeightWorld = A4_HEIGHT_MM * pxPerMm;
-                const a4MarginTopWorld = A4_MARGIN_TOP_MM * pxPerMm;
-                
-                const a4OriginX = textBoxWorldCenter.x - a4WidthWorld / 2;
-                const a4OriginY = textBoxWorldTopLeft.y - a4MarginTopWorld;
-                
-                setCanvasObjects(prev => [
-                  ...prev,
-                  {
-                    id: Date.now(),
-                    type: 'a4guide',
-                    x: a4OriginX,
-                    y: a4OriginY,
-                    width: a4WidthWorld,
-                    height: a4HeightWorld
-                  }
-                ]);
-              }}
-              className={`p-2 rounded-lg transition-colors ${
-                theme === 'dark'
+            title="Export"
+          >
+            <Upload className="w-4 h-4" />
+          </button>
+          {/* 구분선 */}
+          <span className="mx-2 text-gray-400 select-none">|</span>
+          {/* 도구 관련 */}
+          <button
+            onClick={() => setShowGrid(prev => !prev)}
+            className={`p-2 rounded-lg transition-colors ${
+              showGrid 
+                ? 'text-blue-500 bg-blue-500/10' 
+                : theme === 'dark'
                   ? 'text-gray-400 hover:text-white hover:bg-gray-800'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-              title="Add A4 Guide"
-            >
-              <FileDown className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setShowInfo(prev => !prev)}
-              className={`p-2 rounded-lg transition-colors ${
-                showInfo 
-                  ? 'text-blue-500 bg-blue-500/10' 
-                  : theme === 'dark'
+            }`}
+            title="Toggle Grid"
+          >
+            <Grid className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => {
+              if (maxCharsPerLine !== 80) return; // 80자 모드에서만 동작
+              // A4Guide 생성
+              const textBoxWorldCenter = screenToWorld(typewriterX, typewriterY);
+              const textBoxWorldTopLeft = screenToWorld(
+                typewriterX - getTextBoxWidth() / 2,
+                typewriterY - baseFontSize / 2
+              );
+              // 실제 텍스트박스 픽셀 폭을 160mm로 가정하고 A4 가이드 계산
+              const actualTextBoxWidth = getTextBoxWidth(); // 현재 80자 기준 픽셀 폭
+              const mmPerPixel = TEXT_BOX_WIDTH_MM / actualTextBoxWidth; // 160mm / 실제픽셀폭
+              const a4MarginLRPixels = A4_MARGIN_LR_MM / mmPerPixel; // 25mm를 픽셀로 변환
+              const a4WidthWorld = actualTextBoxWidth + (a4MarginLRPixels * 2); // 텍스트박스 + 좌우 여백
+              const a4HeightWorld = a4WidthWorld * (A4_HEIGHT_MM / A4_WIDTH_MM); // A4 비율 유지
+              const a4MarginTopPixels = A4_MARGIN_TOP_MM / mmPerPixel; // 30mm를 픽셀로 변환
+              const a4OriginX = textBoxWorldCenter.x - a4WidthWorld / 2;
+              const a4OriginY = textBoxWorldTopLeft.y - a4MarginTopPixels;
+              setCanvasObjects(prev => [
+                ...prev,
+                {
+                  id: Date.now(),
+                  type: 'a4guide',
+                  x: a4OriginX,
+                  y: a4OriginY,
+                  width: a4WidthWorld,
+                  height: a4HeightWorld
+                }
+              ]);
+            }}
+            disabled={maxCharsPerLine !== 80}
+            className={`p-2 rounded-lg transition-colors ${
+              maxCharsPerLine !== 80
+                ? (theme === 'dark'
+                    ? 'text-gray-600 bg-gray-800/40 cursor-not-allowed opacity-50'
+                    : 'text-gray-400 bg-gray-100/60 cursor-not-allowed opacity-50')
+                : (theme === 'dark'
                     ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-              title="Toggle Canvas Info"
-            >
-              {showInfo ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-            </button>
-            <button
-              onClick={() => setShowShortcuts(prev => !prev)}
-              className={`p-2 rounded-lg transition-colors ${
-                showShortcuts 
-                  ? 'text-blue-500 bg-blue-500/10' 
-                  : theme === 'dark'
-                    ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-              title="Toggle Shortcuts"
-            >
-              <Code className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setShowTextBox(prev => !prev)}
-              className={`p-2 rounded-lg transition-colors ${
-                showTextBox 
-                  ? 'text-blue-500 bg-blue-500/10' 
-                  : theme === 'dark'
-                    ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-              title="Toggle Text Box"
-            >
-              {showTextBox ? <Type className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-            </button>
-            <button
-              onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
-              className={`p-2 rounded-lg transition-colors ${
-                theme === 'dark'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
+            }`}
+            title="Add A4 Guide"
+          >
+            <NotepadTextDashed className="w-4 h-4" />
+          </button>
+          {/* 구분선 */}
+          <span className="mx-2 text-gray-400 select-none">|</span>
+          {/* 삭제(Reset) 버튼 */}
+          <button
+            onClick={clearAll}
+            className={`p-2 rounded-lg transition-colors ${
+              theme === 'dark'
+                ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+            title="Reset"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+        {/* 우측: 다크모드, info, shortcuts */}
+        <div className="flex items-center gap-2 min-w-[180px] justify-end">
+          <button
+            onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+            className={`p-2 rounded-lg transition-colors ${
+              theme === 'dark'
+                ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+            title="Toggle Theme"
+          >
+            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={() => setShowInfo(prev => !prev)}
+            className={`p-2 rounded-lg transition-colors ${
+              showInfo 
+                ? 'text-blue-500 bg-blue-500/10' 
+                : theme === 'dark'
                   ? 'text-gray-400 hover:text-white hover:bg-gray-800'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-              title="Toggle Theme"
-            >
-              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
-          </div>
+            }`}
+            title="캔버스 정보 토글"
+          >
+            <Info className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setShowShortcuts(prev => !prev)}
+            className={`p-2 rounded-lg transition-colors ${
+              showShortcuts 
+                ? 'text-blue-500 bg-blue-500/10' 
+                : theme === 'dark'
+                  ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+            title="단축키 안내 토글"
+          >
+            <Layers className="w-4 h-4" />
+          </button>
         </div>
       </div>
-      
+
       {/* Canvas */}
       <div className="flex-1 relative overflow-hidden">
         <canvas
           ref={canvasRef}
           width={canvasWidth}
           height={canvasHeight}
-          className={`absolute inset-0 ${isSpacePressed ? 'cursor-grab' : 'cursor-crosshair'}`}
+          className={`absolute inset-0 ${
+            (() => {
+              if (isSpacePressed) {
+                return isMouseInTextBox ? 'cursor-grab' : 'cursor-default';
+              }
+              if (hoveredObject && isMouseInTextBox) {
+                return 'cursor-move'; // 오브젝트 이동 가능을 명확히 표시
+              }
+              if (isMouseInTextBox) {
+                return 'cursor-text';
+              }
+              return 'cursor-default';
+            })()
+          }`}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
+          onMouseLeave={() => {
+            handleMouseUp();
+            setHoveredObject(null);
+            setIsMouseInTextBox(false);
+          }}
           onWheel={handleWheel}
           tabIndex={0}
         />
@@ -1467,24 +1865,70 @@ const InfiniteTypewriterCanvas = () => {
             >
               {baseFontSize}px ({((baseFontSize / scale) / 2).toFixed(1)}pt)
             </div>
+            {/* 폭 선택 버튼: 입력창 아래 중앙 */}
+            <div
+              style={{
+                position: 'absolute',
+                left: typewriterX - getTextBoxWidth() / 2,
+                top: typewriterY + baseFontSize / 2 + 24,
+                width: getTextBoxWidth(),
+                display: 'flex',
+                justifyContent: 'center',
+                zIndex: 30,
+                pointerEvents: 'auto',
+              }}
+            >
+              {[40, 60, 80].map((chars, idx, arr) => (
+                <React.Fragment key={chars}>
+                  <button
+                    onClick={() => handleMaxCharsChange(chars)}
+                    disabled={maxCharsPerLine === chars}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      outline: 'none',
+                      color: maxCharsPerLine === chars
+                        ? '#60a5fa' // 하이라이트 하늘색
+                        : (theme === 'dark' ? '#bfc9d1' : '#bfc9d1'), // 연한 회색
+                      fontWeight: maxCharsPerLine === chars ? 500 : 400, // 더 얇게
+                      fontFamily: 'JetBrains Mono, monospace',
+                      fontSize: 13,
+                      padding: '1px 8px',
+                      cursor: maxCharsPerLine === chars ? 'default' : 'pointer',
+                      opacity: maxCharsPerLine === chars ? 1 : 0.7,
+                      transition: 'color 0.15s, opacity 0.15s',
+                    }}
+                    title={`${chars}자 폭으로 변경`}
+                  >
+                    {chars}
+                  </button>
+                  {idx < arr.length - 1 && (
+                    <span style={{ color: theme === 'dark' ? '#bfc9d1' : '#bfc9d1', fontSize: 13, margin: '0 2px' }}>-</span>
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
           </>
         )}
 
         {/* Canvas Info Overlay */}
         {showInfo && (
-          <CanvasInfoOverlay
-            canvasOffset={canvasOffset}
-            scale={scale}
-            canvasObjects={canvasObjects}
-            selectedObject={selectedObject}
-            typewriterX={typewriterX}
-            typewriterY={typewriterY}
-            baseFontSize={baseFontSize}
-            initialFontSize={INITIAL_FONT_SIZE}
-            getTextBoxWidth={getTextBoxWidth}
-            screenToWorld={screenToWorld}
-            theme={theme}
-          />
+                  <CanvasInfoOverlay
+          canvasOffset={canvasOffset}
+          scale={scale}
+          canvasObjects={canvasObjects}
+          selectedObject={selectedObject}
+          hoveredObject={hoveredObject}
+          mousePosition={mousePosition}
+          isMouseInTextBox={isMouseInTextBox}
+          typewriterX={typewriterX}
+          typewriterY={typewriterY}
+          baseFontSize={baseFontSize}
+          initialFontSize={INITIAL_FONT_SIZE}
+          getTextBoxWidth={getTextBoxWidth}
+          screenToWorld={screenToWorld}
+          theme={theme}
+        />
         )}
 
         {/* Shortcuts Overlay */}
@@ -1573,6 +2017,67 @@ const InfiniteTypewriterCanvas = () => {
             }`}
           >
             <ZoomIn className="w-3 h-3" />
+          </button>
+        </div>
+
+        {/* Undo/Redo 버튼 */}
+        <div
+          style={{
+            position: 'absolute',
+            left: typewriterX + getTextBoxWidth() / 2 - 68, // 기존 -48에서 -76으로 더 왼쪽으로 이동
+            top: typewriterY + baseFontSize / 2 + 12,
+            display: 'flex',
+            flexDirection: 'row',
+            gap: '8px',
+            zIndex: 30,
+            padding: '4px 20px 4px 4px',
+            borderRadius: '10px',
+            background: 'transparent',
+          }}
+        >
+          <button
+            onClick={handleUndo}
+            disabled={undoStack.length === 0}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              borderRadius: '50%',
+              width: 28,
+              height: 28,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#aaa',
+              cursor: undoStack.length === 0 ? 'not-allowed' : 'pointer',
+              transition: 'background 0.2s',
+            }}
+            title="실행 취소 (Undo)"
+            onMouseOver={e => e.currentTarget.style.background = theme === 'dark' ? 'rgba(200,200,200,0.08)' : 'rgba(200,200,200,0.15)'}
+            onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+          >
+            <CornerUpLeft className="w-4 h-4" color="#aaa" />
+          </button>
+          <button
+            onClick={handleRedo}
+            disabled={redoStack.length === 0}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              borderRadius: '50%',
+              width: 28,
+              height: 28,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#aaa',
+              cursor: redoStack.length === 0 ? 'not-allowed' : 'pointer',
+              transition: 'background 0.2s',
+            }}
+            title="다시 실행 (Redo)"
+            onMouseOver={e => e.currentTarget.style.background = theme === 'dark' ? 'rgba(200,200,200,0.08)' : 'rgba(200,200,200,0.15)'}
+            onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+          >
+            <CornerUpRight className="w-4 h-4" color="#aaa" />
           </button>
         </div>
       </div>

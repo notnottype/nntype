@@ -28,8 +28,8 @@ A modern, infinite typewriter canvas built with React. Supports Korean monospace
 | Pan canvas | `Space + Drag` |
 | Move view | `Shift + ↑↓←→` |
 | Zoom | `Ctrl/Cmd + Scroll` |
-| Zoom in/out | `Ctrl/Cmd + / -` |
-| **UI Size adjustment** | `Alt + / -` |
+| **UI Size adjustment** | `Ctrl/Cmd + / -` |
+| Zoom in/out | `Alt + / -` |
 | Reset zoom | `Ctrl/Cmd + 0` |
 | Reset view | `Cmd + R` |
 | Delete selected text | `Del` |
@@ -54,9 +54,6 @@ npm run build
 ## Folder Structure
 - `InfiniteTypewriterCanvas.tsx`: Main component
 - `src/`: Entry point (main.tsx), styles (index.css)
-
-## License
-MIT
 
 ---
 
@@ -84,8 +81,8 @@ MIT
 | 캔버스 이동 | `Space + 드래그` |
 | 뷰 이동 | `Shift + ↑↓←→` |
 | 확대/축소 | `Ctrl/Cmd + 스크롤` |
-| 확대/축소 | `Ctrl/Cmd + / -` |
-| **UI 크기 조절** | `Alt + / -` |
+| **UI 크기 조절** | `Ctrl/Cmd + / -` |
+| 확대/축소 | `Alt + / -` |
 | 확대 초기화 | `Ctrl/Cmd + 0` |
 | 뷰 초기화 | `Cmd + R` |
 | 선택된 텍스트 삭제 | `Del` |
@@ -111,5 +108,12 @@ npm run build
 - `InfiniteTypewriterCanvas.tsx`: 메인 컴포넌트
 - `src/`: 진입점(main.tsx), 스타일(index.css)
 
-## 라이선스
-MIT 
+---
+
+## Copyright
+
+© 2025 Hyeonsong Kim ([@kimhxsong](https://github.com/kimhxsong))
+
+**Contact:** kimhxsong@gmail.com
+
+All rights reserved. This project contains code generated with AI assistance and further developed and customized by the author.

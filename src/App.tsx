@@ -1,4 +1,4 @@
-import InfiniteTypewriterCanvas from '../InfiniteTypewriterCanvas';
+import { InfiniteTypewriterCanvas } from './components';
 
 export default function App() {
   return <InfiniteTypewriterCanvas />;

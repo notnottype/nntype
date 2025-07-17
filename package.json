@@ -2,7 +2,12 @@
   "name": "excalitype-1",
   "version": "1.0.0",
   "private": true,
-  "description": "무한 캔버스 타이프라이터",
+  "description": "Infinite Canvas Typewriter", 
+  "author": {
+    "name": "Hyeonsong Kim",
+    "email": "kimhxsong@gmail.com",
+    "url": "https://github.com/kimhxsong"
+  },
   "main": "dist/index.js",
   "scripts": {
     "dev": "vite",
