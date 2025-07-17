@@ -8,6 +8,7 @@ interface TextObjectType {
   x: number;
   y: number;
   scale: number;
+  fontSize: number; // 월드 단위 폰트 크기
 }
 
 // 테마 타입
@@ -52,6 +53,20 @@ const CanvasInfoOverlay = ({ canvasOffset, scale, textObjects, selectedObject, t
   const textBoxWidth = getTextBoxWidth();
   const textBoxLeft = typewriterX - textBoxWidth / 2;
   const textBoxTop = typewriterY - baseFontSize / 2;
+  const textBoxRight = textBoxLeft + textBoxWidth;
+  const textBoxBottom = textBoxTop + baseFontSize;
+
+  // 4개 모서리 윈도우/월드 좌표
+  const corners = [
+    { label: 'LT', sx: textBoxLeft, sy: textBoxTop }, // 좌상
+    { label: 'RT', sx: textBoxRight, sy: textBoxTop }, // 우상
+    { label: 'LB', sx: textBoxLeft, sy: textBoxBottom }, // 좌하
+    { label: 'RB', sx: textBoxRight, sy: textBoxBottom }, // 우하
+  ].map(corner => ({
+    ...corner,
+    world: screenToWorld(corner.sx, corner.sy)
+  }));
+
   const worldPos = screenToWorld(textBoxLeft, textBoxTop);
 
   return (
@@ -68,6 +83,13 @@ const CanvasInfoOverlay = ({ canvasOffset, scale, textObjects, selectedObject, t
         <div>Scale: {scale.toFixed(2)}x</div>
         <div>Objects: {textObjects.length}</div>
         <div>Origin: ({Math.round(worldPos.x)}, {Math.round(worldPos.y)})</div>
+        {corners.map(c => (
+          <div key={c.label} className="mt-1">
+            <span className="font-bold">{c.label}</span>:
+            <span> win({Math.round(c.sx)}, {Math.round(c.sy)})</span>
+            <span> world({Math.round(c.world.x)}, {Math.round(c.world.y)})</span>
+          </div>
+        ))}
         {selectedObject && (
           <div className={`mt-2 pt-2 border-t ${
             theme === 'dark' ? 'border-gray-600 text-green-400' : 'border-gray-300 text-green-600'
@@ -215,7 +237,7 @@ const InfiniteTypewriterCanvas = () => {
 
   const getCurrentWorldPosition = useCallback(() => {
     const textBoxWidth = getTextBoxWidth();
-    const textBoxLeft = typewriterX - textBoxWidth / 2 + 8; // 8px 패딩 추가
+    const textBoxLeft = typewriterX - textBoxWidth / 2;
     // 텍스트 베이스라인을 고려한 Y 위치 계산
     const textBoxBaseline = typewriterY + baseFontSize / 2 - 4;
     return screenToWorld(textBoxLeft, textBoxBaseline);
@@ -223,7 +245,7 @@ const InfiniteTypewriterCanvas = () => {
 
   const isPointInText = useCallback((textObj: TextObjectType, screenX: number, screenY: number) => {
     const screenPos = worldToScreen(textObj.x, textObj.y);
-    const fontSize = baseFontSize * (textObj.scale || 1) * scale;
+    const fontSize = textObj.fontSize * scale; // 저장된 폰트 크기를 사용
     const textWidth = measureTextWidth(textObj.content, fontSize);
     const textHeight = fontSize;
     
@@ -231,7 +253,7 @@ const InfiniteTypewriterCanvas = () => {
            screenX <= screenPos.x + textWidth &&
            screenY >= screenPos.y - textHeight &&
            screenY <= screenPos.y + 4;
-  }, [baseFontSize, scale, measureTextWidth, worldToScreen]);
+  }, [scale, measureTextWidth, worldToScreen]);
 
   const centerTypewriter = useCallback(() => {
     setCanvasOffset({
@@ -302,7 +324,7 @@ const InfiniteTypewriterCanvas = () => {
       const screenPos = worldToScreen(textObj.x, textObj.y);
       
       if (screenPos.x > -200 && screenPos.x < canvasWidth + 200 && screenPos.y > -50 && screenPos.y < canvasHeight + 50) {
-        const fontSize = baseFontSize * (textObj.scale || 1) * scale;
+        const fontSize = textObj.fontSize * scale; // 저장된 폰트 크기를 사용
         ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
         
         if (selectedObject && selectedObject.id === textObj.id) {
@@ -315,7 +337,7 @@ const InfiniteTypewriterCanvas = () => {
         ctx.fillText(textObj.content, screenPos.x, screenPos.y);
       }
     });
-  }, [textObjects, baseFontSize, scale, selectedObject, canvasWidth, canvasHeight, worldToScreen, measureTextWidth, theme]);
+  }, [textObjects, scale, selectedObject, canvasWidth, canvasHeight, worldToScreen, measureTextWidth, theme]);
 
   const render = useCallback(() => {
     const canvas = canvasRef.current;
@@ -383,7 +405,7 @@ const InfiniteTypewriterCanvas = () => {
 
     textObjects.forEach(textObj => {
       const textObjScale = textObj.scale || 1;
-      const effectiveFontSizeInWorld = baseFontSize * textObjScale;
+      const effectiveFontSizeInWorld = textObj.fontSize; // 저장된 폰트 크기를 사용
       const textWorldWidth = measureTextWidthForExport(textObj.content, effectiveFontSizeInWorld);
       const textWorldHeight = effectiveFontSizeInWorld;
 
@@ -459,7 +481,7 @@ const InfiniteTypewriterCanvas = () => {
         const screenX = textObj.x * currentScale + currentOffset.x;
         const screenY = textObj.y * currentScale + currentOffset.y;
 
-        const fontSize = baseFontSize * (textObj.scale || 1) * currentScale;
+        const fontSize = textObj.fontSize * currentScale; // 저장된 폰트 크기를 사용
         ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
         ctx.fillText(textObj.content, screenX, screenY);
       });
@@ -468,7 +490,7 @@ const InfiniteTypewriterCanvas = () => {
         const worldPos = getCurrentWorldPosition();
         const screenX = worldPos.x * currentScale + currentOffset.x;
         const screenY = worldPos.y * currentScale + currentOffset.y;
-        const fontSize = baseFontSize * currentScale;
+        const fontSize = baseFontSize * currentScale; // 입력창 폰트 크기를 사용
         ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
         ctx.fillText(currentTypingText, screenX, screenY);
       }
@@ -511,6 +533,7 @@ const InfiniteTypewriterCanvas = () => {
         x: obj.x,
         y: obj.y,
         scale: obj.scale,
+        fontSize: obj.fontSize, // 저장된 폰트 크기 추가
         type: "text"
       })),
       appState: {
@@ -578,7 +601,7 @@ const InfiniteTypewriterCanvas = () => {
     svg.appendChild(bg);
 
     textObjects.forEach(textObj => {
-      const fontSize = baseFontSize * (textObj.scale || 1);
+      const fontSize = textObj.fontSize; // 저장된 폰트 크기를 사용
       
       const text = document.createElementNS(svgNS, "text");
       text.setAttribute("x", String(textObj.x));
@@ -593,7 +616,7 @@ const InfiniteTypewriterCanvas = () => {
 
     if (currentTypingText.trim()) {
       const worldPos = getCurrentWorldPosition();
-      const fontSize = baseFontSize;
+      const fontSize = baseFontSize; // 입력창 폰트 크기를 사용
       
       const text = document.createElementNS(svgNS, "text");
       text.setAttribute("x", String(worldPos.x));
@@ -661,7 +684,8 @@ const InfiniteTypewriterCanvas = () => {
             content: elem.content || '',
             x: elem.x || 0,
             y: elem.y || 0,
-            scale: elem.scale || 1
+            scale: elem.scale || 1,
+            fontSize: elem.fontSize || 20, // 저장된 폰트 크기 로드
           }));
           
           setTextObjects(importedObjects);
@@ -720,6 +744,74 @@ const InfiniteTypewriterCanvas = () => {
     };
   }, []);
 
+  // UI Size 조절 함수
+  const handleUISizeChange = (up: boolean) => {
+    // UI 폰트 크기 레벨들과 대응되는 scale 레벨들 정의 (기본 20px = 1.0 scale)
+    const fontSizeLevels = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 42, 48, 56, 64];
+    const scaleLevels = [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2, 1.4, 1.6, 1.8, 2.1, 2.4, 2.8, 3.2];
+    
+    const currentIndex = fontSizeLevels.findIndex(level => Math.abs(level - baseFontSize) < 0.01);
+    
+    let newIndex = up
+      ? Math.min(fontSizeLevels.length - 1, currentIndex + 1)
+      : Math.max(0, currentIndex - 1);
+    
+    if (newIndex !== currentIndex) {
+      const currentFontSize = baseFontSize;
+      const currentScale = scale;
+      const currentOffset = canvasOffset;
+      
+      const newFontSize = fontSizeLevels[newIndex];
+      const newScale = scaleLevels[newIndex];
+      
+      // 현재 상태 값들로 screenToWorld 함수 생성
+      const currentScreenToWorld = (screenX: number, screenY: number) => ({
+        x: (screenX - currentOffset.x) / currentScale,
+        y: (screenY - currentOffset.y) / currentScale
+      });
+      
+      // 현재 상태 값들로 measureTextWidth 함수 생성
+      const measureTextWidthWithFont = (text: string, fontSize: number) => {
+        const canvas = canvasRef.current;
+        if (!canvas || !fontLoaded) return text.length * 12;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return text.length * 12;
+        ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
+        return ctx.measureText(text).width;
+      };
+      
+      // 1. 현재 텍스트박스의 LT 월드 좌표 계산 (변경 전)
+      const currentTextBoxWidth = measureTextWidthWithFont('A'.repeat(maxCharsPerLine), currentFontSize);
+      const currentLTScreen = {
+        x: typewriterX - currentTextBoxWidth / 2,
+        y: typewriterY - currentFontSize / 2
+      };
+      const currentLTWorld = currentScreenToWorld(currentLTScreen.x, currentLTScreen.y);
+      
+      // 2. 새로운 텍스트박스의 LT 화면 좌표 계산 (변경 후)
+      const newTextBoxWidth = measureTextWidthWithFont('A'.repeat(maxCharsPerLine), newFontSize);
+      const newLTScreen = {
+        x: typewriterX - newTextBoxWidth / 2,
+        y: typewriterY - newFontSize / 2
+      };
+      
+      // 3. 같은 월드 좌표가 새로운 LT 화면 위치에 오도록 offset 조정
+      const targetScreenX = currentLTWorld.x * newScale;
+      const targetScreenY = currentLTWorld.y * newScale;
+      
+      const newOffsetX = newLTScreen.x - targetScreenX;
+      const newOffsetY = newLTScreen.y - targetScreenY;
+      
+      // 4. 상태 업데이트
+      setBaseFontSize(newFontSize);
+      setScale(newScale);
+      setCanvasOffset({
+        x: newOffsetX,
+        y: newOffsetY
+      });
+    }
+  };
+
   // Keyboard events
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -766,11 +858,11 @@ const InfiniteTypewriterCanvas = () => {
       if (e.altKey && !e.ctrlKey && !e.metaKey) {
         if (e.key === '=' || e.key === '+') {
           e.preventDefault();
-          setBaseFontSize(prev => Math.min(40, prev + 2)); // 최대 40px
+          handleUISizeChange(true); // up
           return;
         } else if (e.key === '-') {
           e.preventDefault();
-          setBaseFontSize(prev => Math.max(12, prev - 2)); // 최소 12px
+          handleUISizeChange(false); // down
           return;
         }
       }
@@ -807,7 +899,7 @@ const InfiniteTypewriterCanvas = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [scale, selectedObject, typewriterLineHeight, zoomToLevel, setTextObjects, setSelectedObject, setCanvasOffset]);
+  }, [scale, selectedObject, typewriterLineHeight, zoomToLevel, setTextObjects, setSelectedObject, setCanvasOffset, handleUISizeChange]);
 
   // Mouse events
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -945,13 +1037,17 @@ const InfiniteTypewriterCanvas = () => {
       if (!isComposing) {
         const worldPos = getCurrentWorldPosition();
         // 빈 문자열도 처리
-        setTextObjects(prev => [...prev, {
-          content: currentTypingText,
-          x: worldPos.x,
-          y: worldPos.y,
-          scale: 1 / scale,
-          id: Date.now()
-        }]);
+        setTextObjects(prev => [
+          ...prev,
+          {
+            content: currentTypingText,
+            x: worldPos.x,
+            y: worldPos.y,
+            scale: 1,
+            fontSize: baseFontSize / scale, // 월드 px로 변환해서 저장!
+            id: Date.now()
+          }
+        ]);
         setCurrentTypingText('');
         setCanvasOffset(prev => ({
           x: prev.x,
@@ -968,35 +1064,6 @@ const InfiniteTypewriterCanvas = () => {
     const input = document.getElementById('typewriter-input') as HTMLInputElement | null;
     if (input) input.focus();
   }, []);
-
-  const DEFAULT_FONT_SIZE = 20;
-
-  // UI Size 조절 함수
-  const handleUISizeChange = (newFontSize: number) => {
-    // 1. 변경 전 입력 박스 좌측 상단의 월드 좌표
-    const textBoxWidth = getTextBoxWidth();
-    const textBoxLeft = typewriterX - textBoxWidth / 2;
-    const textBoxTop = typewriterY - baseFontSize / 2;
-    const worldBefore = screenToWorld(textBoxLeft, textBoxTop);
-
-    // 2. scale 변경
-    const newScale = DEFAULT_FONT_SIZE / newFontSize;
-    setBaseFontSize(newFontSize);
-    setScale(newScale);
-
-    // 3. 변경 후 입력 박스 좌측 상단이 같은 월드 좌표를 가리키도록 offset 보정
-    // (이 코드는 setState 비동기이므로, useEffect로 scale/baseFontSize가 바뀐 후에 실행해야 할 수도 있음)
-    setTimeout(() => {
-      const newTextBoxWidth = getTextBoxWidth();
-      const newTextBoxLeft = typewriterX - newTextBoxWidth / 2;
-      const newTextBoxTop = typewriterY - newFontSize / 2;
-      // 새로운 offset = 화면상의 입력박스 좌측상단 - (변경 전 월드좌표 * 새로운 scale)
-      setCanvasOffset({
-        x: newTextBoxLeft - worldBefore.x * newScale,
-        y: newTextBoxTop - worldBefore.y * newScale,
-      });
-    }, 0);
-  };
 
   return (
     <div className={`w-full h-screen flex flex-col ${theme === 'dark' ? 'bg-black' : 'bg-gray-50'}`}>
@@ -1216,7 +1283,7 @@ const InfiniteTypewriterCanvas = () => {
             left: typewriterX - getTextBoxWidth() / 2,
             top: typewriterY - baseFontSize / 2,
             width: getTextBoxWidth(),
-            height: Math.max(typewriterLineHeight, baseFontSize + 16), // baseFontSize에 따라 높이 조정
+            height: Math.max(typewriterLineHeight, baseFontSize + 16),
             fontFamily: '"JetBrains Mono", monospace',
             fontSize: baseFontSize,
             background: colors[theme].inputBg,
@@ -1226,7 +1293,7 @@ const InfiniteTypewriterCanvas = () => {
             zIndex: 20,
             backdropFilter: 'blur(8px)',
             borderRadius: '4px',
-            padding: '0 8px',
+            padding: 0,
             lineHeight: `${typewriterLineHeight}px`,
             boxSizing: 'border-box'
           }}
