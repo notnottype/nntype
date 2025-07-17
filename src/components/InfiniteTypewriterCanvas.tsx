@@ -1466,17 +1466,26 @@ const InfiniteTypewriterCanvas = () => {
       <Import className="w-4 h-4" />
       <input type="file" accept=".json" onChange={importFile} className="hidden" />
     </label>
-    <button
-      onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-      className={`p-2 rounded-lg transition-colors ${
-        theme === 'dark'
-          ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-      }`}
-      title="Export"
-    >
-      <Upload className="w-4 h-4" />
-    </button>
+    <div className="relative">
+      <button
+        onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+        className={`p-2 rounded-lg transition-colors ${
+          theme === 'dark'
+            ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+        }`}
+        title="Export"
+      >
+        <Upload className="w-4 h-4" />
+      </button>
+      {isExportMenuOpen && (
+        <div className={`export-dropdown absolute right-0 mt-2 min-w-[140px] rounded shadow-lg z-50 p-1 ${theme === 'dark' ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200'}`}>
+          <button onClick={exportAsPNG} className={`block w-full text-left px-3 py-1 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-sm ${theme === 'dark' ? 'text-gray-100' : 'text-gray-800'}`}>Export as PNG</button>
+          <button onClick={exportAsSVG} className={`block w-full text-left px-3 py-1 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-sm ${theme === 'dark' ? 'text-gray-100' : 'text-gray-800'}`}>Export as SVG</button>
+          <button onClick={exportAsJSON} className={`block w-full text-left px-3 py-1 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-sm ${theme === 'dark' ? 'text-gray-100' : 'text-gray-800'}`}>Export as JSON</button>
+        </div>
+      )}
+    </div>
     <div className="border-l h-6 mx-2" />
     {/* 보기/설정 관련 */}
     <button
@@ -1662,7 +1671,7 @@ const InfiniteTypewriterCanvas = () => {
           </h1>
         </div>
         {/* 중앙: 파일/도구/삭제 */}
-        <div className="flex items-center gap-2 justify-center flex-1">
+        <div className="flex items-center gap-2 justify-center flex-1 relative">
           {/* 파일 관련 */}
           <label className={`p-2 rounded-lg transition-colors cursor-pointer ${
             theme === 'dark'
@@ -1672,17 +1681,26 @@ const InfiniteTypewriterCanvas = () => {
             <Import className="w-4 h-4" />
             <input type="file" accept=".json" onChange={importFile} className="hidden" />
           </label>
-          <button
-            onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-            className={`p-2 rounded-lg transition-colors ${
-              theme === 'dark'
-                ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}
-            title="Export"
-          >
-            <Upload className="w-4 h-4" />
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+              className={`p-2 rounded-lg transition-colors ${
+                theme === 'dark'
+                  ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+              title="Export"
+            >
+              <Upload className="w-4 h-4" />
+            </button>
+            {isExportMenuOpen && (
+              <div className={`export-dropdown absolute right-0 mt-2 min-w-[140px] rounded shadow-lg z-50 p-1 ${theme === 'dark' ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200'}`}>
+                <button onClick={exportAsPNG} className={`block w-full text-left px-3 py-1 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-sm ${theme === 'dark' ? 'text-gray-100' : 'text-gray-800'}`}>Export as PNG</button>
+                <button onClick={exportAsSVG} className={`block w-full text-left px-3 py-1 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-sm ${theme === 'dark' ? 'text-gray-100' : 'text-gray-800'}`}>Export as SVG</button>
+                <button onClick={exportAsJSON} className={`block w-full text-left px-3 py-1 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-sm ${theme === 'dark' ? 'text-gray-100' : 'text-gray-800'}`}>Export as JSON</button>
+              </div>
+            )}
+          </div>
           {/* 구분선 */}
           <span className="mx-2 text-gray-400 select-none">|</span>
           {/* 도구 관련 */}
