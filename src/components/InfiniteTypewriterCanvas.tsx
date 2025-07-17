@@ -943,7 +943,7 @@ const InfiniteTypewriterCanvas = () => {
 
   // UI Size 조절 함수 (논리적 폰트 크기는 유지, 화면 표시 px만 변경, 월드 좌표 유지)
   const handleUISizeChange = (up: boolean) => {
-    const fontSizeLevels = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 42, 48, 56, 64];
+    const fontSizeLevels = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24, 26, 28, 32, 36, 42, 48, 56, 64];
     
     const currentIndex = fontSizeLevels.findIndex(level => Math.abs(level - baseFontSize) < 0.01);
     
@@ -1024,7 +1024,9 @@ const InfiniteTypewriterCanvas = () => {
       if (e.key === 'Escape') {
         setIsExportMenuOpen(false);
       }
-      const zoomLevels = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 5];
+      const zoomLevels = [
+        0.1, 0.15, 0.2, 0.25, 0.33, 0.4, 0.5, 0.6, 0.75, 0.85, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5, 6, 8, 10
+      ];
       let currentIndex = zoomLevels.findIndex(level => Math.abs(level - scale) < 0.01);
       // If exact match not found, find closest level
       if (currentIndex === -1) {
@@ -1252,7 +1254,9 @@ const InfiniteTypewriterCanvas = () => {
     if (!(e.ctrlKey || e.metaKey)) return;
     
     e.preventDefault();
-    const zoomLevels = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 5];
+    const zoomLevels = [
+      0.1, 0.15, 0.2, 0.25, 0.33, 0.4, 0.5, 0.6, 0.75, 0.85, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5, 6, 8, 10
+    ];
     const currentIndex = zoomLevels.findIndex(level => Math.abs(level - scale) < 0.01);
     
     let newIndex;
@@ -1999,7 +2003,9 @@ const InfiniteTypewriterCanvas = () => {
         }`}>
           <button
             onClick={() => {
-              const zoomLevels = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 5];
+              const zoomLevels = [
+                0.1, 0.15, 0.2, 0.25, 0.33, 0.4, 0.5, 0.6, 0.75, 0.85, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5, 6, 8, 10
+              ];
               const currentIndex = zoomLevels.findIndex(level => Math.abs(level - scale) < 0.01);
               const newIndex = Math.max(0, currentIndex - 1);
               if (newIndex !== currentIndex) {
@@ -2021,7 +2027,9 @@ const InfiniteTypewriterCanvas = () => {
           </span>
           <button
             onClick={() => {
-              const zoomLevels = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 5];
+              const zoomLevels = [
+                0.1, 0.15, 0.2, 0.25, 0.33, 0.4, 0.5, 0.6, 0.75, 0.85, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5, 6, 8, 10
+              ];
               const currentIndex = zoomLevels.findIndex(level => Math.abs(level - scale) < 0.01);
               const newIndex = Math.min(zoomLevels.length - 1, currentIndex + 1);
               if (newIndex !== currentIndex) {
