@@ -10,8 +10,34 @@ interface TextObjectType {
   scale: number;
 }
 
-// 캔버스 정보 오버레이 컴포넌트
-const CanvasInfoOverlay = ({ canvasOffset, scale, textObjects, selectedObject, typewriterX, typewriterY, baseFontSize, getTextBoxWidth, screenToWorld, colorMode }: {
+// 테마 타입
+type Theme = 'light' | 'dark';
+
+// 단축키 정보 오버레이 컴포넌트
+const ShortcutsOverlay = ({ theme }: { theme: Theme }) => {
+  return (
+    <div className={`absolute top-20 right-4 ${
+      theme === 'dark' 
+        ? 'bg-black/80 text-white' 
+        : 'bg-white/90 text-gray-900'
+    } backdrop-blur-sm p-4 rounded-xl shadow-xl text-xs font-mono`}>
+      <div className={`font-semibold mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+        Shortcuts
+      </div>
+      <div className="space-y-1">
+        <div>Pan canvas: Space + Drag</div>
+        <div>Move view: Shift + ↑↓←→</div>
+        <div>Zoom: Ctrl + Scroll</div>
+        <div>Zoom in/out: Ctrl + / -</div>
+        <div>UI Size: Alt + / -</div>
+        <div>Reset zoom: Ctrl + 0</div>
+        <div>Reset view: Cmd + R</div>
+        <div>Delete selected: Del</div>
+      </div>
+    </div>
+  );
+};
+const CanvasInfoOverlay = ({ canvasOffset, scale, textObjects, selectedObject, typewriterX, typewriterY, baseFontSize, getTextBoxWidth, screenToWorld, theme }: {
   canvasOffset: { x: number; y: number; };
   scale: number;
   textObjects: TextObjectType[];
@@ -21,26 +47,31 @@ const CanvasInfoOverlay = ({ canvasOffset, scale, textObjects, selectedObject, t
   baseFontSize: number;
   getTextBoxWidth: () => number;
   screenToWorld: (screenX: number, screenY: number) => { x: number; y: number; };
-  colorMode: 'dark' | 'light';
+  theme: Theme;
 }) => {
   const textBoxWidth = getTextBoxWidth();
   const textBoxLeft = typewriterX - textBoxWidth / 2;
-  const textBoxTop = typewriterY - baseFontSize;
+  const textBoxTop = typewriterY - baseFontSize / 2;
   const worldPos = screenToWorld(textBoxLeft, textBoxTop);
 
   return (
-    <div
-      className={`absolute top-20 left-4 backdrop-blur-sm p-4 rounded-xl shadow-xl text-xs font-mono
-        ${colorMode === 'dark' ? 'bg-black/80 text-white' : 'bg-white/90 text-gray-900 border border-gray-200'}`}
-    >
-      <div className="font-semibold mb-2 text-gray-300">Canvas Info</div>
+    <div className={`absolute top-20 left-4 ${
+      theme === 'dark' 
+        ? 'bg-black/80 text-white' 
+        : 'bg-white/90 text-gray-900'
+    } backdrop-blur-sm p-4 rounded-xl shadow-xl text-xs font-mono`}>
+      <div className={`font-semibold mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+        Canvas Info
+      </div>
       <div className="space-y-1">
         <div>Offset: ({Math.round(-canvasOffset.x)}, {Math.round(-canvasOffset.y)})</div>
         <div>Scale: {scale.toFixed(2)}x</div>
         <div>Objects: {textObjects.length}</div>
         <div>Origin: ({Math.round(worldPos.x)}, {Math.round(worldPos.y)})</div>
         {selectedObject && (
-          <div className="mt-2 pt-2 border-t border-gray-600 text-green-400">
+          <div className={`mt-2 pt-2 border-t ${
+            theme === 'dark' ? 'border-gray-600 text-green-400' : 'border-gray-300 text-green-600'
+          }`}>
             Selected: "{selectedObject.content.substring(0, 20)}{selectedObject.content.length > 20 ? '...' : ''}"
           </div>
         )}
@@ -70,15 +101,15 @@ const InfiniteTypewriterCanvas = () => {
   const [showA4Guide, setShowA4Guide] = useState(false);
   const [a4GuideOriginWorld, setA4GuideOriginWorld] = useState<{ x: number; y: number } | null>(null);
   const [showInfo, setShowInfo] = useState(true);
-  // 다크/라이트 모드 상태 추가
-  const [colorMode, setColorMode] = useState<'dark' | 'light'>('dark');
+  const [showShortcuts, setShowShortcuts] = useState(true);
+  const [theme, setTheme] = useState<Theme>('dark');
 
   // Typewriter settings
   const typewriterX = canvasWidth / 2;
   const typewriterY = canvasHeight / 2;
   const typewriterLineHeight = 36;
-  const maxCharsPerLine = 80;
-  const baseFontSize = 20;
+  const maxCharsPerLine = 52; // 한글 기준 52자로 조정
+  const [baseFontSize, setBaseFontSize] = useState(20);
 
   // Constants for A4 paper size
   const A4_WIDTH_WORLD = 210 * 3.7795;
@@ -86,6 +117,28 @@ const InfiniteTypewriterCanvas = () => {
   const A4_LEFT_MARGIN_WORLD = 10;
   const A4_TOP_MARGIN_WORLD = 10;
   
+  // Theme colors
+  const colors = {
+    dark: {
+      background: '#0a0a0a',
+      text: 'rgba(255, 255, 255, 0.9)',
+      grid: 'rgba(255, 255, 255, 0.05)',
+      selection: 'rgba(59, 130, 246, 0.2)',
+      a4Guide: 'rgba(59, 130, 246, 0.3)',
+      inputBg: 'rgba(0, 0, 0, 0.6)',
+      inputBorder: 'rgba(59, 130, 246, 0.3)',
+    },
+    light: {
+      background: '#ffffff',
+      text: 'rgba(0, 0, 0, 0.9)',
+      grid: 'rgba(0, 0, 0, 0.05)',
+      selection: 'rgba(59, 130, 246, 0.2)',
+      a4Guide: 'rgba(59, 130, 246, 0.4)',
+      inputBg: 'rgba(255, 255, 255, 0.8)',
+      inputBorder: 'rgba(59, 130, 246, 0.4)',
+    }
+  };
+
   // Load Google Fonts
   useEffect(() => {
     const link = document.createElement('link');
@@ -143,7 +196,7 @@ const InfiniteTypewriterCanvas = () => {
   const zoomToLevel = useCallback((newScale: number) => {
     const textBoxWidth = getTextBoxWidth();
     const textBoxLeft = typewriterX - textBoxWidth / 2;
-    const textBoxTop = typewriterY - baseFontSize;
+    const textBoxTop = typewriterY - baseFontSize / 2;
     
     const currentWorldPos = screenToWorld(textBoxLeft, textBoxTop);
     
@@ -162,9 +215,11 @@ const InfiniteTypewriterCanvas = () => {
 
   const getCurrentWorldPosition = useCallback(() => {
     const textBoxWidth = getTextBoxWidth();
-    const textBoxLeft = typewriterX - textBoxWidth / 2;
-    return screenToWorld(textBoxLeft, typewriterY);
-  }, [getTextBoxWidth, screenToWorld, typewriterX, typewriterY]);
+    const textBoxLeft = typewriterX - textBoxWidth / 2 + 8; // 8px 패딩 추가
+    // 텍스트 베이스라인을 고려한 Y 위치 계산
+    const textBoxBaseline = typewriterY + baseFontSize / 2 - 4;
+    return screenToWorld(textBoxLeft, textBoxBaseline);
+  }, [getTextBoxWidth, screenToWorld, typewriterX, typewriterY, baseFontSize]);
 
   const isPointInText = useCallback((textObj: TextObjectType, screenX: number, screenY: number) => {
     const screenPos = worldToScreen(textObj.x, textObj.y);
@@ -198,74 +253,84 @@ const InfiniteTypewriterCanvas = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, [centerTypewriter]);
 
-  // 그리드 색상 분기
   const drawGrid = useCallback((ctx: CanvasRenderingContext2D) => {
     const baseGridSize = 20;
     const gridSize = baseGridSize * scale;
     const offsetX = canvasOffset.x % gridSize;
     const offsetY = canvasOffset.y % gridSize;
-    ctx.strokeStyle = colorMode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.07)';
+    
+    ctx.strokeStyle = colors[theme].grid;
     ctx.lineWidth = 1;
+    
     for (let x = offsetX; x < canvasWidth; x += gridSize) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, canvasHeight);
       ctx.stroke();
     }
+    
     for (let y = offsetY; y < canvasHeight; y += gridSize) {
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(canvasWidth, y);
       ctx.stroke();
     }
-  }, [canvasOffset, scale, canvasWidth, canvasHeight, colorMode]);
+  }, [canvasOffset, scale, canvasWidth, canvasHeight, theme]);
 
-  // A4 가이드 색상 분기
   const drawA4Guide = useCallback((ctx: CanvasRenderingContext2D) => {
     if (!a4GuideOriginWorld) return;
+
     const screenPos = worldToScreen(a4GuideOriginWorld.x, a4GuideOriginWorld.y);
     const screenWidth = A4_WIDTH_WORLD * scale;
     const screenHeight = A4_HEIGHT_WORLD * scale;
-    ctx.strokeStyle = colorMode === 'dark' ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.18)';
+
+    ctx.strokeStyle = colors[theme].a4Guide;
     ctx.lineWidth = 2;
     ctx.setLineDash([10, 5]);
     ctx.strokeRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
     ctx.setLineDash([]);
-    ctx.fillStyle = colorMode === 'dark' ? 'rgba(59, 130, 246, 0.5)' : 'rgba(59, 130, 246, 0.35)';
+
+    ctx.fillStyle = colors[theme].a4Guide;
     ctx.font = `${14 * scale}px "Inter", sans-serif`;
     ctx.fillText('A4', screenPos.x + 10 * scale, screenPos.y + 20 * scale);
-  }, [scale, worldToScreen, a4GuideOriginWorld, A4_WIDTH_WORLD, A4_HEIGHT_WORLD, colorMode]);
+  }, [scale, worldToScreen, a4GuideOriginWorld, A4_WIDTH_WORLD, A4_HEIGHT_WORLD, theme]);
 
-  // 텍스트 색상 분기
   const drawTextObjects = useCallback((ctx: CanvasRenderingContext2D) => {
     ctx.textBaseline = 'alphabetic';
+    
     textObjects.forEach(textObj => {
       const screenPos = worldToScreen(textObj.x, textObj.y);
+      
       if (screenPos.x > -200 && screenPos.x < canvasWidth + 200 && screenPos.y > -50 && screenPos.y < canvasHeight + 50) {
         const fontSize = baseFontSize * (textObj.scale || 1) * scale;
         ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
+        
         if (selectedObject && selectedObject.id === textObj.id) {
-          ctx.fillStyle = colorMode === 'dark' ? 'rgba(59,130,246,0.2)' : 'rgba(59,130,246,0.08)';
+          ctx.fillStyle = colors[theme].selection;
           const textWidth = measureTextWidth(textObj.content, fontSize);
           ctx.fillRect(screenPos.x - 4, screenPos.y - fontSize, textWidth + 8, fontSize + 8);
         }
-        ctx.fillStyle = colorMode === 'dark' ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.85)';
-        ctx.fillText(textObj.content, screenPos.x + 8, screenPos.y);
+        
+        ctx.fillStyle = colors[theme].text;
+        ctx.fillText(textObj.content, screenPos.x, screenPos.y);
       }
     });
-  }, [textObjects, baseFontSize, scale, selectedObject, canvasWidth, canvasHeight, worldToScreen, measureTextWidth, colorMode]);
+  }, [textObjects, baseFontSize, scale, selectedObject, canvasWidth, canvasHeight, worldToScreen, measureTextWidth, theme]);
 
   const render = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    // colorMode별 색상 변수
-    const bgColor = colorMode === 'dark' ? '#0a0a0a' : '#fff';
-    ctx.fillStyle = bgColor;
+    
+    // Background
+    ctx.fillStyle = colors[theme].background;
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
+    
     if (showGrid) {
       drawGrid(ctx);
     }
@@ -273,7 +338,8 @@ const InfiniteTypewriterCanvas = () => {
       drawA4Guide(ctx);
     }
     drawTextObjects(ctx);
-  }, [canvasOffset, scale, textObjects, selectedObject, getTextBoxWidth, drawGrid, drawTextObjects, canvasWidth, canvasHeight, typewriterX, typewriterY, baseFontSize, screenToWorld, showGrid, showA4Guide, drawA4Guide, colorMode]);
+    
+  }, [canvasOffset, scale, textObjects, selectedObject, getTextBoxWidth, drawGrid, drawTextObjects, canvasWidth, canvasHeight, typewriterX, typewriterY, baseFontSize, screenToWorld, showGrid, showA4Guide, drawA4Guide, theme]);
 
   useEffect(() => {
     const animate = () => {
@@ -287,7 +353,7 @@ const InfiniteTypewriterCanvas = () => {
     if (showA4Guide && !a4GuideOriginWorld) {
       const textBoxWorldTopLeft = screenToWorld(
         typewriterX - getTextBoxWidth() / 2,
-        typewriterY - baseFontSize
+        typewriterY - baseFontSize / 2
       );
       const a4OriginX = textBoxWorldTopLeft.x - A4_LEFT_MARGIN_WORLD;
       const a4OriginY = textBoxWorldTopLeft.y - A4_TOP_MARGIN_WORLD;
@@ -379,7 +445,7 @@ const InfiniteTypewriterCanvas = () => {
       return;
     }
 
-    tempCtx.fillStyle = '#0a0a0a';
+    tempCtx.fillStyle = colors[theme].background;
     tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
     const tempOffsetX = padding - bbox.minX * exportScaleFactor;
@@ -387,7 +453,7 @@ const InfiniteTypewriterCanvas = () => {
 
     const drawContentForExport = (ctx: CanvasRenderingContext2D, currentOffset: { x: number, y: number }, currentScale: number) => {
       ctx.textBaseline = 'alphabetic';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.fillStyle = colors[theme].text;
 
       textObjects.forEach(textObj => {
         const screenX = textObj.x * currentScale + currentOffset.x;
@@ -413,13 +479,13 @@ const InfiniteTypewriterCanvas = () => {
         const a4ScreenWidth = A4_WIDTH_WORLD * currentScale;
         const a4ScreenHeight = A4_HEIGHT_WORLD * currentScale;
 
-        ctx.strokeStyle = 'rgba(59, 130, 246, 0.3)';
+        ctx.strokeStyle = colors[theme].a4Guide;
         ctx.lineWidth = 2;
         ctx.setLineDash([10, 5]);
         ctx.strokeRect(a4ScreenX, a4ScreenY, a4ScreenWidth, a4ScreenHeight);
         ctx.setLineDash([]);
 
-        ctx.fillStyle = 'rgba(59, 130, 246, 0.5)';
+        ctx.fillStyle = colors[theme].a4Guide;
         ctx.font = `${14 * currentScale}px "Inter", sans-serif`;
         ctx.fillText('A4', a4ScreenX + 10 * currentScale, a4ScreenY + 20 * currentScale);
       }
@@ -432,7 +498,7 @@ const InfiniteTypewriterCanvas = () => {
     link.href = tempCanvas.toDataURL();
     link.click();
     URL.revokeObjectURL(link.href);
-  }, [textObjects, currentTypingText, baseFontSize, calculateContentBoundingBox, getCurrentWorldPosition, showA4Guide, a4GuideOriginWorld, A4_WIDTH_WORLD, A4_HEIGHT_WORLD]);
+  }, [textObjects, currentTypingText, baseFontSize, calculateContentBoundingBox, getCurrentWorldPosition, showA4Guide, a4GuideOriginWorld, A4_WIDTH_WORLD, A4_HEIGHT_WORLD, theme]);
 
   const exportAsJSON = useCallback(() => {
     setIsExportMenuOpen(false);
@@ -456,7 +522,8 @@ const InfiniteTypewriterCanvas = () => {
         },
         showGrid: showGrid,
         showA4Guide: showA4Guide,
-        a4GuideOriginWorld: a4GuideOriginWorld
+        a4GuideOriginWorld: a4GuideOriginWorld,
+        theme: theme
       }
     };
     
@@ -467,7 +534,7 @@ const InfiniteTypewriterCanvas = () => {
     a.download = `typewriter-canvas-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [textObjects, canvasOffset, scale, typewriterX, typewriterY, showGrid, showA4Guide, a4GuideOriginWorld]);
+  }, [textObjects, canvasOffset, scale, typewriterX, typewriterY, showGrid, showA4Guide, a4GuideOriginWorld, theme]);
 
   const exportAsSVG = useCallback(() => {
     setIsExportMenuOpen(false);
@@ -507,7 +574,7 @@ const InfiniteTypewriterCanvas = () => {
     const bg = document.createElementNS(svgNS, "rect");
     bg.setAttribute("width", "100%");
     bg.setAttribute("height", "100%");
-    bg.setAttribute("fill", "#0a0a0a");
+    bg.setAttribute("fill", colors[theme].background);
     svg.appendChild(bg);
 
     textObjects.forEach(textObj => {
@@ -518,7 +585,7 @@ const InfiniteTypewriterCanvas = () => {
       text.setAttribute("y", String(textObj.y));
       text.setAttribute("font-family", '"JetBrains Mono", monospace');
       text.setAttribute("font-size", String(fontSize));
-      text.setAttribute("fill", "rgba(255, 255, 255, 0.9)");
+      text.setAttribute("fill", colors[theme].text);
       text.textContent = textObj.content;
       
       svg.appendChild(text);
@@ -533,7 +600,7 @@ const InfiniteTypewriterCanvas = () => {
       text.setAttribute("y", String(worldPos.y));
       text.setAttribute("font-family", '"JetBrains Mono", monospace');
       text.setAttribute("font-size", String(fontSize));
-      text.setAttribute("fill", "rgba(255, 255, 255, 0.9)");
+      text.setAttribute("fill", colors[theme].text);
       text.textContent = currentTypingText;
       
       svg.appendChild(text);
@@ -545,7 +612,7 @@ const InfiniteTypewriterCanvas = () => {
       a4Rect.setAttribute("y", String(a4GuideOriginWorld.y));
       a4Rect.setAttribute("width", String(A4_WIDTH_WORLD));
       a4Rect.setAttribute("height", String(A4_HEIGHT_WORLD));
-      a4Rect.setAttribute("stroke", "rgba(59, 130, 246, 0.3)");
+      a4Rect.setAttribute("stroke", colors[theme].a4Guide);
       a4Rect.setAttribute("stroke-width", "2");
       a4Rect.setAttribute("fill", "none");
       a4Rect.setAttribute("stroke-dasharray", "10,5");
@@ -556,7 +623,7 @@ const InfiniteTypewriterCanvas = () => {
       a4Text.setAttribute("y", String(a4GuideOriginWorld.y + 20));
       a4Text.setAttribute("font-family", '"Inter", sans-serif');
       a4Text.setAttribute("font-size", "14");
-      a4Text.setAttribute("fill", "rgba(59, 130, 246, 0.5)");
+      a4Text.setAttribute("fill", colors[theme].a4Guide);
       a4Text.textContent = 'A4';
       svg.appendChild(a4Text);
     }
@@ -570,7 +637,7 @@ const InfiniteTypewriterCanvas = () => {
     a.download = `typewriter-canvas-${new Date().toISOString().slice(0, 10)}.svg`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [textObjects, currentTypingText, baseFontSize, calculateContentBoundingBox, getCurrentWorldPosition, showA4Guide, a4GuideOriginWorld, A4_WIDTH_WORLD, A4_HEIGHT_WORLD]);
+  }, [textObjects, currentTypingText, baseFontSize, calculateContentBoundingBox, getCurrentWorldPosition, showA4Guide, a4GuideOriginWorld, A4_WIDTH_WORLD, A4_HEIGHT_WORLD, theme]);
 
   const importFile = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -615,6 +682,9 @@ const InfiniteTypewriterCanvas = () => {
             if (data.appState.a4GuideOriginWorld) {
               setA4GuideOriginWorld(data.appState.a4GuideOriginWorld);
             }
+            if (data.appState.theme) {
+              setTheme(data.appState.theme);
+            }
           }
         }
       } catch (error) {
@@ -653,6 +723,10 @@ const InfiniteTypewriterCanvas = () => {
   // Keyboard events
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // 텍스트 입력 필드에 포커스가 있을 때는 Delete 키 처리를 하지 않음
+      const input = document.getElementById('typewriter-input') as HTMLInputElement;
+      const isInputFocused = document.activeElement === input;
+      
       if (e.key === 'Escape') {
         setIsExportMenuOpen(false);
       }
@@ -681,10 +755,29 @@ const InfiniteTypewriterCanvas = () => {
             zoomToLevel(1);
           }
           return;
+        } else if (e.key === 'Home' || e.key === 'r' || e.key === 'R') {
+          e.preventDefault();
+          resetCanvas();
+          return;
+        }
+      }
+
+      // Alt 키와 함께 폰트 크기 조정
+      if (e.altKey && !e.ctrlKey && !e.metaKey) {
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault();
+          setBaseFontSize(prev => Math.min(40, prev + 2)); // 최대 40px
+          return;
+        } else if (e.key === '-') {
+          e.preventDefault();
+          setBaseFontSize(prev => Math.max(12, prev - 2)); // 최소 12px
+          return;
         }
       }
       
-      if (e.key === 'Delete' && selectedObject) {
+      // Delete 키 처리 - 텍스트 입력 필드에 포커스가 없을 때만
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedObject && !isInputFocused) {
+        e.preventDefault();
         setTextObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
         setSelectedObject(null);
         return;
@@ -692,7 +785,7 @@ const InfiniteTypewriterCanvas = () => {
       
       if (e.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
-        const moveDistance = baseFontSize * 1.5;
+        const moveDistance = typewriterLineHeight; // line-height와 통일
         
         setCanvasOffset(prev => {
           switch (e.key) {
@@ -714,7 +807,7 @@ const InfiniteTypewriterCanvas = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [scale, selectedObject, baseFontSize, zoomToLevel, setTextObjects, setSelectedObject, setCanvasOffset]);
+  }, [scale, selectedObject, typewriterLineHeight, zoomToLevel, setTextObjects, setSelectedObject, setCanvasOffset]);
 
   // Mouse events
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -783,9 +876,18 @@ const InfiniteTypewriterCanvas = () => {
   const handleMouseUp = () => {
     setIsDragging(false);
     setIsDraggingText(false);
+    
+    // 드래그가 끝난 후 텍스트 입력 필드에 포커스 복원
+    setTimeout(() => {
+      const input = document.getElementById('typewriter-input') as HTMLInputElement | null;
+      if (input) input.focus();
+    }, 0);
   };
 
   const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
+    // Ctrl/Cmd 키와 함께 사용할 때만 줌
+    if (!(e.ctrlKey || e.metaKey)) return;
+    
     e.preventDefault();
     const zoomLevels = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 5];
     const currentIndex = zoomLevels.findIndex(level => Math.abs(level - scale) < 0.01);
@@ -809,7 +911,7 @@ const InfiniteTypewriterCanvas = () => {
     if (showA4Guide) {
       const textBoxWorldTopLeft = screenToWorld(
         typewriterX - getTextBoxWidth() / 2,
-        typewriterY - baseFontSize
+        typewriterY - baseFontSize / 2
       );
       const a4OriginX = textBoxWorldTopLeft.x - A4_LEFT_MARGIN_WORLD;
       const a4OriginY = textBoxWorldTopLeft.y - A4_TOP_MARGIN_WORLD;
@@ -867,22 +969,47 @@ const InfiniteTypewriterCanvas = () => {
     if (input) input.focus();
   }, []);
 
-  // 모드 변경 시 body에 클래스 적용
-  useEffect(() => {
-    document.body.classList.remove('dark', 'light');
-    document.body.classList.add(colorMode);
-  }, [colorMode]);
+  const DEFAULT_FONT_SIZE = 20;
+
+  // UI Size 조절 함수
+  const handleUISizeChange = (newFontSize: number) => {
+    // 1. 변경 전 입력 박스 좌측 상단의 월드 좌표
+    const textBoxWidth = getTextBoxWidth();
+    const textBoxLeft = typewriterX - textBoxWidth / 2;
+    const textBoxTop = typewriterY - baseFontSize / 2;
+    const worldBefore = screenToWorld(textBoxLeft, textBoxTop);
+
+    // 2. scale 변경
+    const newScale = DEFAULT_FONT_SIZE / newFontSize;
+    setBaseFontSize(newFontSize);
+    setScale(newScale);
+
+    // 3. 변경 후 입력 박스 좌측 상단이 같은 월드 좌표를 가리키도록 offset 보정
+    // (이 코드는 setState 비동기이므로, useEffect로 scale/baseFontSize가 바뀐 후에 실행해야 할 수도 있음)
+    setTimeout(() => {
+      const newTextBoxWidth = getTextBoxWidth();
+      const newTextBoxLeft = typewriterX - newTextBoxWidth / 2;
+      const newTextBoxTop = typewriterY - newFontSize / 2;
+      // 새로운 offset = 화면상의 입력박스 좌측상단 - (변경 전 월드좌표 * 새로운 scale)
+      setCanvasOffset({
+        x: newTextBoxLeft - worldBefore.x * newScale,
+        y: newTextBoxTop - worldBefore.y * newScale,
+      });
+    }, 0);
+  };
 
   return (
-    <div className={`w-full h-screen flex flex-col ${colorMode === 'dark' ? 'bg-black' : 'bg-white'}`}> 
+    <div className={`w-full h-screen flex flex-col ${theme === 'dark' ? 'bg-black' : 'bg-gray-50'}`}>
       {/* Header */}
-      <div className={`backdrop-blur-sm border-b p-4 flex items-center justify-between transition-colors duration-200
-        ${colorMode === 'dark' ? 'bg-black/90 border-gray-800' : 'bg-white/90 border-gray-200'}`}
-      >
+      <div className={`${
+        theme === 'dark' 
+          ? 'bg-black/90 border-gray-800' 
+          : 'bg-white/90 border-gray-200'
+      } backdrop-blur-sm border-b p-4 flex items-center justify-between relative z-50`}>
         <div className="flex items-center gap-6">
-          <h1 className={`text-lg font-medium flex items-center gap-2 transition-colors duration-200
-            ${colorMode === 'dark' ? 'text-white' : 'text-gray-900'}`}
-          >
+          <h1 className={`text-lg font-medium flex items-center gap-2 ${
+            theme === 'dark' ? 'text-white' : 'text-gray-900'
+          }`}>
             <Type className="w-5 h-5" />
             Infinite Canvas
           </h1>
@@ -890,22 +1017,36 @@ const InfiniteTypewriterCanvas = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={resetCanvas}
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+              className={`p-2 rounded-lg transition-colors ${
+                theme === 'dark'
+                  ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
               title="Center"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
             <button
               onClick={clearAll}
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+              className={`p-2 rounded-lg transition-colors ${
+                theme === 'dark'
+                  ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
               title="Clear All"
             >
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
           
-          <div className="flex items-center gap-2 border-l border-gray-800 pl-6">
-            <label className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors cursor-pointer"
+          <div className={`flex items-center gap-2 border-l pl-6 ${
+            theme === 'dark' ? 'border-gray-800' : 'border-gray-200'
+          }`}>
+            <label className={`p-2 rounded-lg transition-colors cursor-pointer ${
+              theme === 'dark'
+                ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
                    title="Import">
               <Upload className="w-4 h-4" />
               <input
@@ -916,33 +1057,53 @@ const InfiniteTypewriterCanvas = () => {
               />
             </label>
             
-            <div className="relative export-dropdown">
+            <div className="relative export-dropdown z-[10000]">
               <button 
                 onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                className={`p-2 rounded-lg transition-colors ${
+                  theme === 'dark'
+                    ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                }`}
                 title="Export"
               >
                 <Download className="w-4 h-4" />
               </button>
               {isExportMenuOpen && (
-                <div className="absolute top-full left-0 mt-2 bg-gray-900 border border-gray-800 rounded-lg shadow-xl z-10 overflow-hidden">
+                <div className={`absolute top-full left-0 mt-2 rounded-lg shadow-2xl z-[10001] overflow-hidden border-2 ${
+                  theme === 'dark'
+                    ? 'bg-gray-900 border-gray-700'
+                    : 'bg-white border-gray-300'
+                }`}>
                   <button
                     onClick={exportAsJSON}
-                    className="flex items-center gap-3 w-full px-4 py-2.5 text-left text-gray-300 hover:bg-gray-800 hover:text-white transition-colors text-sm"
+                    className={`flex items-center gap-3 w-full px-4 py-2.5 text-left transition-colors text-sm ${
+                      theme === 'dark'
+                        ? 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                    }`}
                   >
                     <FileText className="w-4 h-4" />
                     JSON
                   </button>
                   <button
                     onClick={exportAsPNG}
-                    className="flex items-center gap-3 w-full px-4 py-2.5 text-left text-gray-300 hover:bg-gray-800 hover:text-white transition-colors text-sm"
+                    className={`flex items-center gap-3 w-full px-4 py-2.5 text-left transition-colors text-sm ${
+                      theme === 'dark'
+                        ? 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                    }`}
                   >
                     <Image className="w-4 h-4" />
                     PNG
                   </button>
                   <button
                     onClick={exportAsSVG}
-                    className="flex items-center gap-3 w-full px-4 py-2.5 text-left text-gray-300 hover:bg-gray-800 hover:text-white transition-colors text-sm"
+                    className={`flex items-center gap-3 w-full px-4 py-2.5 text-left transition-colors text-sm ${
+                      theme === 'dark'
+                        ? 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                    }`}
                   >
                     <Code className="w-4 h-4" />
                     SVG
@@ -952,13 +1113,17 @@ const InfiniteTypewriterCanvas = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 border-l border-gray-800 pl-6">
+          <div className={`flex items-center gap-2 border-l pl-6 ${
+            theme === 'dark' ? 'border-gray-800' : 'border-gray-200'
+          }`}>
             <button
               onClick={() => setShowGrid(prev => !prev)}
               className={`p-2 rounded-lg transition-colors ${
                 showGrid 
-                  ? 'text-blue-400 bg-blue-400/10' 
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  ? 'text-blue-500 bg-blue-500/10' 
+                  : theme === 'dark'
+                    ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
               }`}
               title="Toggle Grid"
             >
@@ -968,8 +1133,10 @@ const InfiniteTypewriterCanvas = () => {
               onClick={() => setShowA4Guide(prev => !prev)}
               className={`p-2 rounded-lg transition-colors ${
                 showA4Guide 
-                  ? 'text-blue-400 bg-blue-400/10' 
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  ? 'text-blue-500 bg-blue-500/10' 
+                  : theme === 'dark'
+                    ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
               }`}
               title="Toggle A4 Guide"
             >
@@ -979,41 +1146,45 @@ const InfiniteTypewriterCanvas = () => {
               onClick={() => setShowInfo(prev => !prev)}
               className={`p-2 rounded-lg transition-colors ${
                 showInfo 
-                  ? 'text-blue-400 bg-blue-400/10' 
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  ? 'text-blue-500 bg-blue-500/10' 
+                  : theme === 'dark'
+                    ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
               }`}
-              title="Toggle Info"
+              title="Toggle Canvas Info"
             >
               {showInfo ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
             </button>
+            <button
+              onClick={() => setShowShortcuts(prev => !prev)}
+              className={`p-2 rounded-lg transition-colors ${
+                showShortcuts 
+                  ? 'text-blue-500 bg-blue-500/10' 
+                  : theme === 'dark'
+                    ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+              title="Toggle Shortcuts"
+            >
+              <Code className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+              className={`p-2 rounded-lg transition-colors ${
+                theme === 'dark'
+                  ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+              title="Toggle Theme"
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
           </div>
         </div>
-        
-        {/* 우측 상단 모드 토글 버튼 */}
-        <div className="flex items-center gap-4 text-xs text-gray-500">
-          {/* 모드 토글 버튼: 안내문구 왼쪽에 위치 */}
-          <button
-            onClick={() => setColorMode(colorMode === 'dark' ? 'light' : 'dark')}
-            className={`p-2 rounded-lg border transition-colors duration-200 flex items-center justify-center mr-2
-              ${colorMode === 'dark' ? 'border-gray-700 bg-gray-900 hover:bg-gray-800 text-yellow-200' : 'border-gray-200 bg-white hover:bg-gray-100 text-gray-600'}`}
-            title="다크/라이트 모드 전환"
-            aria-label="Toggle color mode"
-            style={{ minWidth: 36, minHeight: 36 }}
-          >
-            {colorMode === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
-          <span className="flex items-center gap-2">
-            <kbd className={`px-2 py-1 rounded ${colorMode === 'dark' ? 'bg-gray-800 text-gray-400' : 'bg-gray-200 text-gray-600'}`}>Space</kbd>
-            <span>+ Drag to pan</span>
-          </span>
-          <span className="flex items-center gap-2">
-            <kbd className={`px-2 py-1 rounded ${colorMode === 'dark' ? 'bg-gray-800 text-gray-400' : 'bg-gray-200 text-gray-600'}`}>Ctrl</kbd>
-            <span>+ Scroll to zoom</span>
-          </span>
-        </div>
       </div>
+      
       {/* Canvas */}
-      <div className={`flex-1 relative overflow-hidden transition-colors duration-200 ${colorMode === 'dark' ? 'bg-black' : 'bg-white'}`}> 
+      <div className="flex-1 relative overflow-hidden">
         <canvas
           ref={canvasRef}
           width={canvasWidth}
@@ -1026,76 +1197,61 @@ const InfiniteTypewriterCanvas = () => {
           onWheel={handleWheel}
           tabIndex={0}
         />
+        
         {/* Input Field */}
-        <div
+        <input
+          id="typewriter-input"
+          type="text"
+          value={currentTypingText}
+          onChange={handleInputChange}
+          onKeyDown={handleInputKeyDown}
+          onCompositionStart={handleCompositionStart}
+          onCompositionEnd={handleCompositionEnd}
+          onClick={(e) => {
+            e.stopPropagation();
+            e.currentTarget.focus();
+          }}
           style={{
             position: 'absolute',
-            left: typewriterX - getTextBoxWidth() / 2 - 4, // padding만큼 보정
-            top: typewriterY - baseFontSize - 4,
-            width: getTextBoxWidth() + 8,
-            height: typewriterLineHeight + 8,
-            border: colorMode === 'dark'
-              ? '2px solid rgba(59, 130, 246, 0.3)'
-              : '2px solid #cbd5e1',
-            borderRadius: '6px',
-            boxSizing: 'border-box',
-            background: 'transparent',
+            left: typewriterX - getTextBoxWidth() / 2,
+            top: typewriterY - baseFontSize / 2,
+            width: getTextBoxWidth(),
+            height: Math.max(typewriterLineHeight, baseFontSize + 16), // baseFontSize에 따라 높이 조정
+            fontFamily: '"JetBrains Mono", monospace',
+            fontSize: baseFontSize,
+            background: colors[theme].inputBg,
+            border: `1px solid ${colors[theme].inputBorder}`,
+            outline: 'none',
+            color: colors[theme].text,
             zIndex: 20,
-            pointerEvents: 'none', // input만 클릭 가능하게
+            backdropFilter: 'blur(8px)',
+            borderRadius: '4px',
+            padding: '0 8px',
+            lineHeight: `${typewriterLineHeight}px`,
+            boxSizing: 'border-box'
           }}
-        >
-          <input
-            id="typewriter-input"
-            type="text"
-            value={currentTypingText}
-            onChange={handleInputChange}
-            onKeyDown={handleInputKeyDown}
-            onCompositionStart={handleCompositionStart}
-            onCompositionEnd={handleCompositionEnd}
-            style={{
-              width: getTextBoxWidth(),
-              height: typewriterLineHeight,
-              fontFamily: '"JetBrains Mono", monospace',
-              fontSize: baseFontSize,
-              background: colorMode === 'dark'
-                ? 'rgba(0,0,0,0.18)'
-                : 'rgba(255,255,255,0.18)',
-              border: 'none',
-              outline: 'none',
-              color: colorMode === 'dark'
-                ? 'rgba(255, 255, 255, 0.9)'
-                : '#222',
-              zIndex: 21,
-              position: 'absolute',
-              left: 4,
-              top: 4,
-              boxSizing: 'border-box',
-              padding: '0 8px',
-              borderRadius: '4px',
-              backdropFilter: 'blur(8px)',
-            }}
-          />
-        </div>
+        />
+        
         {/* Font Size Indicator */}
         <div
           style={{
             position: 'absolute',
             left: typewriterX - getTextBoxWidth() / 2 - 100,
-            top: typewriterY - baseFontSize,
+            top: typewriterY - baseFontSize / 2,
             fontSize: '11px',
-            color: colorMode === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)',
-            background: colorMode === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.8)',
+            color: theme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)',
+            background: theme === 'dark' ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.8)',
             padding: '6px 10px',
             borderRadius: '4px',
             zIndex: 20,
             whiteSpace: 'nowrap',
             backdropFilter: 'blur(8px)',
-            border: colorMode === 'dark' ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
-            boxShadow: colorMode === 'dark' ? undefined : '0 1px 4px 0 rgba(0,0,0,0.04)'
+            border: `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`
           }}
         >
-          {(baseFontSize / scale).toFixed(1)}pt
+          {baseFontSize}px ({(baseFontSize / scale).toFixed(1)}pt)
         </div>
+
         {/* Canvas Info Overlay */}
         {showInfo && (
           <CanvasInfoOverlay
@@ -1108,26 +1264,40 @@ const InfiniteTypewriterCanvas = () => {
             baseFontSize={baseFontSize}
             getTextBoxWidth={getTextBoxWidth}
             screenToWorld={screenToWorld}
-            colorMode={colorMode}
+            theme={theme}
           />
         )}
+
+        {/* Shortcuts Overlay */}
+        {showShortcuts && (
+          <ShortcutsOverlay theme={theme} />
+        )}
+
         {/* Status Messages */}
         {currentTypingText && (
-          <div className={`absolute bottom-4 left-4 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-mono
-            ${colorMode === 'dark' ? 'bg-black/80 text-white' : 'bg-white/90 text-gray-900 border border-gray-200'}`}
-          >
+          <div className={`absolute bottom-4 left-4 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-mono ${
+            theme === 'dark'
+              ? 'bg-black/80 text-white'
+              : 'bg-white/90 text-gray-900'
+          }`}>
             Typing: "{currentTypingText}"
           </div>
         )}
+        
         {selectedObject && (
-          <div className={`absolute bottom-4 right-4 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-mono border
-            ${colorMode === 'dark' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-blue-100 text-blue-700 border-blue-200'}`}
-          >
+          <div className={`absolute bottom-4 right-4 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-mono border ${
+            theme === 'dark'
+              ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+              : 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+          }`}>
             Selected: "{selectedObject.content.substring(0, 30)}{selectedObject.content.length > 30 ? '...' : ''}"
           </div>
         )}
+
         {/* Zoom Indicator */}
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-2 bg-black/80 backdrop-blur-sm px-3 py-1.5 rounded-full">
+        <div className={`absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-2 backdrop-blur-sm px-3 py-1.5 rounded-full ${
+          theme === 'dark' ? 'bg-black/80' : 'bg-white/90'
+        }`}>
           <button
             onClick={() => {
               const zoomLevels = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 5];
@@ -1137,11 +1307,17 @@ const InfiniteTypewriterCanvas = () => {
                 zoomToLevel(zoomLevels[newIndex]);
               }
             }}
-            className="p-1 text-gray-400 hover:text-white transition-colors"
+            className={`p-1 transition-colors ${
+              theme === 'dark'
+                ? 'text-gray-400 hover:text-white'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
           >
             <ZoomOut className="w-3 h-3" />
           </button>
-          <span className="text-xs text-gray-400 font-mono w-12 text-center">
+          <span className={`text-xs font-mono w-12 text-center ${
+            theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+          }`}>
             {(scale * 100).toFixed(0)}%
           </span>
           <button
@@ -1153,7 +1329,11 @@ const InfiniteTypewriterCanvas = () => {
                 zoomToLevel(zoomLevels[newIndex]);
               }
             }}
-            className="p-1 text-gray-400 hover:text-white transition-colors"
+            className={`p-1 transition-colors ${
+              theme === 'dark'
+                ? 'text-gray-400 hover:text-white'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
           >
             <ZoomIn className="w-3 h-3" />
           </button>
