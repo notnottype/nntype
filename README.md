@@ -2,11 +2,15 @@
   <img src="public/excalitype.png" alt="Excalitype Logo" width="220"/>
 </p>
 
-# Infinite Canvas Typewriter
+<p align="center">
+  <img src="public/ecalitype-draft-demo.gif" alt="Infinite Canvas Typewriter Demo" width="800"/>
+</p>
+
+# ExcaliType - Infinite Canvas Typewriter
 
 > For Korean instructions, see [README.ko.md](./README.ko.md)
 
-Infinite Canvas Typewriter is a modern infinite typewriter canvas supporting Korean/English monospaced fonts, vector/image/JSON export, and infinite zoom & pan.
+ExcaliType is a modern infinite typewriter canvas supporting Korean/English monospaced fonts, vector/image/JSON export, and infinite zoom & pan.
 
 - Based on React
 - Main component: `src/components/InfiniteTypewriterCanvas.tsx`

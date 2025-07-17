@@ -1,8 +1,12 @@
-# Infinite Canvas Typewriter
+# ExcaliType - Infinite Canvas Typewriter
+
+<p align="center">
+  <img src="public/ecalitype-draft-demo.gif" alt="Infinite Canvas Typewriter 데모" width="800"/>
+</p>
 
 > 이 문서는 한국어 설명입니다. 영어 안내는 [README.md](./README.md)를 참고하세요.
 
-Infinite Canvas Typewriter는 한글/영문 모노스페이스 폰트, 벡터/이미지/JSON 내보내기, 무한 줌&패닝을 지원하는 현대적인 타입라이터 캔버스입니다.
+ExcaliType은 한글/영문 모노스페이스 폰트, 벡터/이미지/JSON 내보내기, 무한 줌&패닝을 지원하는 현대적인 타입라이터 캔버스입니다.
 
 - React 기반
 - 주요 컴포넌트: `src/components/InfiniteTypewriterCanvas.tsx`
