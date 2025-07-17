@@ -17,11 +17,11 @@ type Theme = 'light' | 'dark';
 // 단축키 정보 오버레이 컴포넌트
 const ShortcutsOverlay = ({ theme }: { theme: Theme }) => {
   return (
-    <div className={`absolute top-20 right-4 ${
+    <div className={`absolute top-4 right-4 ${
       theme === 'dark' 
         ? 'bg-black/80 text-white' 
         : 'bg-white/90 text-gray-900'
-    } backdrop-blur-sm p-4 rounded-xl shadow-xl text-xs font-mono`}>
+    } backdrop-blur-sm p-4 rounded-xl shadow-md text-xs font-mono`}>
       <div className={`font-semibold mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
         Shortcuts
       </div>
@@ -70,7 +70,7 @@ const CanvasInfoOverlay = ({ canvasOffset, scale, textObjects, selectedObject, t
   const worldPos = screenToWorld(textBoxLeft, textBoxTop);
 
   return (
-    <div className={`absolute top-20 left-4 ${
+    <div className={`absolute top-4 left-4 ${
       theme === 'dark' 
         ? 'bg-black/80 text-white' 
         : 'bg-white/90 text-gray-900'
@@ -147,7 +147,7 @@ const InfiniteTypewriterCanvas = () => {
       grid: 'rgba(255, 255, 255, 0.05)',
       selection: 'rgba(59, 130, 246, 0.2)',
       a4Guide: 'rgba(59, 130, 246, 0.3)',
-      inputBg: 'rgba(0, 0, 0, 0.6)',
+      inputBg: 'rgba(0, 0, 0, 0.3)',
       inputBorder: 'rgba(59, 130, 246, 0.3)',
     },
     light: {
@@ -156,7 +156,7 @@ const InfiniteTypewriterCanvas = () => {
       grid: 'rgba(0, 0, 0, 0.05)',
       selection: 'rgba(59, 130, 246, 0.2)',
       a4Guide: 'rgba(59, 130, 246, 0.4)',
-      inputBg: 'rgba(255, 255, 255, 0.8)',
+      inputBg: 'rgba(255, 255, 255, 0.4)',
       inputBorder: 'rgba(59, 130, 246, 0.4)',
     }
   };
@@ -238,8 +238,8 @@ const InfiniteTypewriterCanvas = () => {
   const getCurrentWorldPosition = useCallback(() => {
     const textBoxWidth = getTextBoxWidth();
     const textBoxLeft = typewriterX - textBoxWidth / 2;
-    // 텍스트 베이스라인을 고려한 Y 위치 계산
-    const textBoxBaseline = typewriterY + baseFontSize / 2 - 4;
+    const textBoxTop = typewriterY - baseFontSize / 2;
+    const textBoxBaseline = textBoxTop + baseFontSize * 1.2;
     return screenToWorld(textBoxLeft, textBoxBaseline);
   }, [getTextBoxWidth, screenToWorld, typewriterX, typewriterY, baseFontSize]);
 
@@ -276,7 +276,8 @@ const InfiniteTypewriterCanvas = () => {
   }, [centerTypewriter]);
 
   const drawGrid = useCallback((ctx: CanvasRenderingContext2D) => {
-    const baseGridSize = 20;
+    // shift 이동키와 동일한 단위로 그리드 그리기
+    const baseGridSize = typewriterLineHeight;
     const gridSize = baseGridSize * scale;
     const offsetX = canvasOffset.x % gridSize;
     const offsetY = canvasOffset.y % gridSize;
@@ -297,7 +298,7 @@ const InfiniteTypewriterCanvas = () => {
       ctx.lineTo(canvasWidth, y);
       ctx.stroke();
     }
-  }, [canvasOffset, scale, canvasWidth, canvasHeight, theme]);
+  }, [canvasOffset, scale, canvasWidth, canvasHeight, theme, typewriterLineHeight]);
 
   const drawA4Guide = useCallback((ctx: CanvasRenderingContext2D) => {
     if (!a4GuideOriginWorld) return;
@@ -930,6 +931,11 @@ const InfiniteTypewriterCanvas = () => {
     }
   };
 
+  // 스냅 단위로 값을 조정하는 함수
+  const snapToGrid = (value: number, gridSize: number) => {
+    return Math.round(value / gridSize) * gridSize;
+  };
+
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isDraggingText && selectedObject) {
       const rect = canvasRef.current?.getBoundingClientRect();
@@ -940,28 +946,55 @@ const InfiniteTypewriterCanvas = () => {
       const deltaX = mouseX - dragStart.x;
       const deltaY = mouseY - dragStart.y;
       
-      setTextObjects(prev => prev.map(obj => 
-        obj.id === selectedObject.id 
-          ? { ...obj, x: obj.x + deltaX / scale, y: obj.y + deltaY / scale }
-          : obj
-      ));
+      // 월드 단위로 변환한 이동 거리를 그리드 단위로 스냅
+      const worldDeltaX = deltaX / scale;
+      const worldDeltaY = deltaY / scale;
+      const worldGridSize = typewriterLineHeight / scale; // 월드 단위 그리드 크기
       
-      setSelectedObject(prev => prev ? 
-        { ...prev, x: prev.x + deltaX / scale, y: prev.y + deltaY / scale } 
-        : null
-      );
+      const snappedWorldDeltaX = snapToGrid(worldDeltaX, worldGridSize);
+      const snappedWorldDeltaY = snapToGrid(worldDeltaY, worldGridSize);
       
-      setDragStart({ x: mouseX, y: mouseY });
+      // 실제로 이동할 거리가 있을 때만 업데이트
+      if (Math.abs(snappedWorldDeltaX) >= worldGridSize || Math.abs(snappedWorldDeltaY) >= worldGridSize) {
+        setTextObjects(prev => prev.map(obj => 
+          obj.id === selectedObject.id 
+            ? { ...obj, x: obj.x + snappedWorldDeltaX, y: obj.y + snappedWorldDeltaY }
+            : obj
+        ));
+        
+        setSelectedObject(prev => prev ? 
+          { ...prev, x: prev.x + snappedWorldDeltaX, y: prev.y + snappedWorldDeltaY } 
+          : null
+        );
+        
+        // 스냅된 이동량만큼 dragStart 업데이트
+        const screenDeltaX = snappedWorldDeltaX * scale;
+        const screenDeltaY = snappedWorldDeltaY * scale;
+        setDragStart({ 
+          x: dragStart.x + screenDeltaX, 
+          y: dragStart.y + screenDeltaY 
+        });
+      }
     } else if (isDragging) {
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
       
-      setCanvasOffset(prev => ({
-        x: prev.x + deltaX,
-        y: prev.y + deltaY
-      }));
+      // 캔버스 패닝도 그리드 단위로 스냅
+      const snappedDeltaX = snapToGrid(deltaX, typewriterLineHeight);
+      const snappedDeltaY = snapToGrid(deltaY, typewriterLineHeight);
       
-      setDragStart({ x: e.clientX, y: e.clientY });
+      // 실제로 이동할 거리가 있을 때만 업데이트
+      if (Math.abs(snappedDeltaX) >= typewriterLineHeight || Math.abs(snappedDeltaY) >= typewriterLineHeight) {
+        setCanvasOffset(prev => ({
+          x: prev.x + snappedDeltaX,
+          y: prev.y + snappedDeltaY
+        }));
+        
+        setDragStart({ 
+          x: dragStart.x + snappedDeltaX, 
+          y: dragStart.y + snappedDeltaY 
+        });
+      }
     }
   };
 
