@@ -918,6 +918,7 @@ const InfiniteTypewriterCanvas = () => {
   // Keyboard event handlers for Spacebar
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (document.activeElement?.id === 'typewriter-input') return;
       if (e.key === ' ') {
         setIsSpacePressed(true);
         e.preventDefault();
@@ -925,6 +926,7 @@ const InfiniteTypewriterCanvas = () => {
     };
 
     const handleGlobalKeyUp = (e: KeyboardEvent) => {
+      if (document.activeElement?.id === 'typewriter-input') return;
       if (e.key === ' ') {
         setIsSpacePressed(false);
       }
