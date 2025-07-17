@@ -1652,7 +1652,7 @@ const InfiniteTypewriterCanvas = () => {
             theme === 'dark' ? 'text-white' : 'text-gray-900'
           }`}>
             <Type className="w-5 h-5" />
-            Infinite Canvas
+            Infinite Canvas Typewriter
           </h1>
         </div>
         {/* 중앙: 파일/도구/삭제 */}

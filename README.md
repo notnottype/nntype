@@ -2,118 +2,52 @@
   <img src="public/excalitype.png" alt="Excalitype Logo" width="220"/>
 </p>
 
-# ExcaliType
+# Infinite Canvas Typewriter
 
-A modern, infinite typewriter canvas built with React. Supports Korean monospaced fonts, vector/image/JSON export, and infinite zoom & pan.
+> For Korean instructions, see [README.ko.md](./README.ko.md)
 
----
+Infinite Canvas Typewriter is a modern infinite typewriter canvas supporting Korean/English monospaced fonts, vector/image/JSON export, and infinite zoom & pan.
 
-## Features
-- Typewriter-style text input on an infinite canvas
-- Supports Korean monospaced fonts (Nanum Gothic Coding, Noto Sans Mono, JetBrains Mono)
-- Drag, select, and delete text objects
-- Pan the canvas and zoom in/out with mouse or keyboard shortcuts
-- **Grid snap functionality** - Objects and canvas movement snap to 36px grid units
-- **UI Size adjustment** - Scale UI elements while maintaining logical point sizes
-- Export to JSON, PNG, SVG and import from JSON
-- Responsive UI with TailwindCSS
-- Dark/Light mode support
-- A4 guide and grid overlay
-- **Enhanced text positioning** - Precise alignment between input box and canvas rendering
+- Based on React
+- Main component: `src/components/InfiniteTypewriterCanvas.tsx`
+- Entry point: `src/main.tsx`
+- Uses Tailwind CSS, Lucide icons
 
-## Keyboard Shortcuts
-
-| Action | Shortcut |
-|--------|----------|
-| Pan canvas | `Space + Drag` |
-| Move view | `Shift + ↑↓←→` |
-| Zoom | `Ctrl/Cmd + Scroll` |
-| **UI Size adjustment** | `Ctrl/Cmd + / -` |
-| Zoom in/out | `Alt + / -` |
-| Reset zoom | `Ctrl/Cmd + 0` |
-| Reset view | `Cmd + R` |
-| Delete selected text | `Del` |
-| Commit text input | `Enter` |
-| Cancel text input | `Esc` |
-
-## Getting Started
+## How to Run
 
 ```bash
 npm install
 npm run dev
-```
-
-Open [http://localhost:5173](http://localhost:5173) in your browser.
-
-## Build
-
-```bash
-npm run build
 ```
 
 ## Folder Structure
-- `InfiniteTypewriterCanvas.tsx`: Main component
-- `src/`: Entry point (main.tsx), styles (index.css)
 
----
-
-# ExcaliType (한국어)
-
-한글 모노스페이스 폰트 지원, 벡터/이미지/JSON 내보내기, 무한 확대/이동이 가능한 React 기반 타이프라이터 캔버스입니다.
-
-## 주요 기능
-- 무한 캔버스에서 타이프라이터 방식으로 텍스트 입력
-- 한글 모노스페이스 폰트(Nanum Gothic Coding, Noto Sans Mono, JetBrains Mono) 지원
-- 텍스트 객체 드래그 이동 및 선택/삭제
-- 캔버스 드래그 이동, 휠/단축키로 확대/축소
-- **그리드 스냅 기능** - 객체와 캔버스 이동이 36px 단위로 스냅됩니다
-- **UI 크기 조절** - 논리적 pt는 유지하면서 UI 요소 크기를 조절합니다
-- JSON, PNG, SVG 내보내기 및 JSON 불러오기
-- TailwindCSS 기반 반응형 UI
-- 다크/라이트 모드 지원
-- A4 가이드, 그리드 표시
-- **향상된 텍스트 정렬** - 입력 박스와 캔버스 렌더링 간 정확한 정렬
-
-## 키보드 단축키
-
-| 기능 | 단축키 |
-|------|--------|
-| 캔버스 이동 | `Space + 드래그` |
-| 뷰 이동 | `Shift + ↑↓←→` |
-| 확대/축소 | `Ctrl/Cmd + 스크롤` |
-| **UI 크기 조절** | `Ctrl/Cmd + / -` |
-| 확대/축소 | `Alt + / -` |
-| 확대 초기화 | `Ctrl/Cmd + 0` |
-| 뷰 초기화 | `Cmd + R` |
-| 선택된 텍스트 삭제 | `Del` |
-| 텍스트 입력 확정 | `Enter` |
-| 텍스트 입력 취소 | `Esc` |
-
-## 설치 및 실행
-
-```bash
-npm install
-npm run dev
+```
+excalitype-1/
+├── src/
+│   ├── main.tsx                # App entry
+│   ├── components/
+│   │   └── InfiniteTypewriterCanvas.tsx  # Main canvas component
+│   ├── index.css
+│   └── ...
+├── public/
+│   └── excalitype.png
+├── README.md
+└── ...
 ```
 
-브라우저에서 [http://localhost:5173](http://localhost:5173) 으로 접속하세요.
+## Key Features
+- Korean/English monospaced typewriter
+- Infinite canvas, grid, A4 guide
+- Export/import PNG, SVG, JSON
+- Shortcuts overlay, dark mode, UI/zoom/scale control
 
-## 빌드
+## How to Use
+- Type in the input box and press Enter
+- Change width: click 40-60-80 buttons below input
+- Zoom: Option/Alt + +/-, UI size: Ctrl/Cmd + +/-
+- Export/import: use header menu
 
-```bash
-npm run build
-```
-
-## 폴더 구조
-- `InfiniteTypewriterCanvas.tsx`: 메인 컴포넌트
-- `src/`: 진입점(main.tsx), 스타일(index.css)
-
----
-
-## Copyright
-
-© 2025 Hyeonsong Kim ([@kimhxsong](https://github.com/kimhxsong))
-
-**Contact:** kimhxsong@gmail.com
-
-All rights reserved. This project contains code generated with AI assistance and further developed and customized by the author.
+## License
+- © 2025 Hyeonsong Kim (kimhxsong@gmail.com)
+- Personal copyright, not MIT
