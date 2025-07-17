@@ -1015,6 +1015,8 @@ const InfiniteTypewriterCanvas = () => {
   // Keyboard events
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // IME 조합 중이면 단축키 무시
+      if (isComposing) return;
       const input = document.getElementById('typewriter-input') as HTMLInputElement;
       const isInputFocused = document.activeElement === input;
       if (e.key === 'Escape') {
@@ -1046,14 +1048,17 @@ const InfiniteTypewriterCanvas = () => {
       }
       // Scale: Alt/Option + +/-
       if (e.altKey && !e.ctrlKey && !e.metaKey) {
-        if (e.key === '=' || e.key === '+') {
+        // + 인식: =, +, Equal(Shift+Equal)
+        if (e.key === '=' || e.key === '+' || e.code === 'Equal') {
           e.preventDefault();
           const newIndex = Math.min(zoomLevels.length - 1, currentIndex + 1);
           if (newIndex !== currentIndex) {
             zoomToLevel(zoomLevels[newIndex]);
           }
           return;
-        } else if (e.key === '-') {
+        }
+        // - 인식: -, _, Minus(Shift+Minus)
+        if (e.key === '-' || e.key === '_' || e.code === 'Minus') {
           e.preventDefault();
           const newIndex = Math.max(0, currentIndex - 1);
           if (newIndex !== currentIndex) {
@@ -1269,10 +1274,12 @@ const InfiniteTypewriterCanvas = () => {
 
   const handleCompositionStart = (e: React.CompositionEvent<HTMLInputElement>) => {
     setIsComposing(true);
+    isComposingRef.current = true;
   };
 
   const handleCompositionEnd = (e: React.CompositionEvent<HTMLInputElement>) => {
     setIsComposing(false);
+    isComposingRef.current = false;
     setCurrentTypingText(e.currentTarget.value); 
   };
 
@@ -1622,6 +1629,8 @@ const InfiniteTypewriterCanvas = () => {
     const ctx = canvas.getContext('2d');
     if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }, [canvasWidth, canvasHeight]);
+
+  const isComposingRef = useRef(false);
 
   return (
     <div className={`w-full h-screen flex flex-col ${theme === 'dark' ? 'bg-black' : 'bg-gray-50'}`}>
