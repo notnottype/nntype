@@ -1,16 +1,16 @@
 <p align="center">
-  <img src="public/excalitype.png" alt="Excalitype Logo" width="220"/>
+  <img src="public/infty.png" alt="InfTy Logo" width="220"/>
 </p>
 
 <p align="center">
-  <img src="public/ecalitype-draft-demo.gif" alt="Infinite Canvas Typewriter Demo" width="800"/>
+  <img src="public/infty-demo.gif" alt="Infinite Canvas Typewriter Demo" width="800"/>
 </p>
 
-# ExcaliType - Infinite Canvas Typewriter
+# InfTy - Infinite Canvas Typewriter
 
 > For Korean instructions, see [README.ko.md](./README.ko.md)
 
-ExcaliType is a modern infinite typewriter canvas supporting Korean/English monospaced fonts, vector/image/JSON export, and infinite zoom & pan.
+InfTy is a modern infinite typewriter canvas supporting Korean/English monospaced fonts, vector/image/JSON export, and infinite zoom & pan.
 
 - Based on React
 - Main component: `src/components/InfiniteTypewriterCanvas.tsx`
@@ -27,7 +27,7 @@ npm run dev
 ## Folder Structure
 
 ```
-excalitype-1/
+InfTy/
 ├── src/
 │   ├── main.tsx                # App entry
 │   ├── components/
@@ -35,7 +35,7 @@ excalitype-1/
 │   ├── index.css
 │   └── ...
 ├── public/
-│   └── excalitype.png
+│   └── infty.png
 ├── README.md
 └── ...
 ```
