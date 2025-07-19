@@ -49,5 +49,7 @@ excalitype-1/
 - 내보내기/가져오기: 헤더 메뉴 사용
 
 ## 라이선스
+이 프로젝트는 GNU General Public License v3.0 하에 라이선스됩니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하세요.
+
 - © 2025 Hyeonsong Kim (kimhxsong@gmail.com)
-- 개인 저작권 고지 포함, MIT 미사용 
+- GitHub: https://github.com/kimhxsong 

@@ -53,5 +53,7 @@ excalitype-1/
 - Export/import: use header menu
 
 ## License
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
 - © 2025 Hyeonsong Kim (kimhxsong@gmail.com)
-- Personal copyright, not MIT
+- GitHub: https://github.com/kimhxsong
