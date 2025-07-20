@@ -1,8 +1,8 @@
-# InfTy Project Roadmap
+# excalitype Project Roadmap
 
 ## Project Overview
 
-InfTy is an Infinite Canvas Typewriter that reimagines the writing experience by combining the limitless freedom of infinite canvas with intuitive text creation. This roadmap tracks development progress from the current implementation to a feature-rich creative writing tool.
+excalitype is an Infinite Canvas Typewriter that reimagines the writing experience by combining the limitless freedom of infinite canvas with intuitive text creation. This roadmap tracks development progress from the current implementation to a feature-rich creative writing tool.
 
 ## Current Status
 

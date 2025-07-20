@@ -1,12 +1,12 @@
-# InfTy - Infinite Canvas Typewriter
+# ExcaliType - Infinite Canvas Typewriter
 
 <p align="center">
-  <img src="public/infty-demo.gif" alt="Infinite Canvas Typewriter 데모" width="800"/>
+  <img src="public/inf-demo.gif" alt="Infinite Canvas Typewriter 데모" width="800"/>
 </p>
 
 > 이 문서는 한국어 설명입니다. 영어 안내는 [README.md](./README.md)를 참고하세요.
 
-InfTy는 한글/영문 모노스페이스 폰트, 벡터/이미지/JSON 내보내기, 무한 줌&패닝을 지원하는 현대적인 타입라이터 캔버스입니다.
+excalitype는 한글/영문 모노스페이스 폰트, 벡터/이미z지/JSON 내보내기, 무한 줌&패닝을 지원하는 현대적인 타입라이터 캔버스입니다.
 
 - React 기반
 - 주요 컴포넌트: `src/components/InfiniteTypewriterCanvas.tsx`
@@ -23,7 +23,7 @@ npm run dev
 ## 폴더 구조
 
 ```
-InfTy/
+excalitype/
 ├── src/
 │   ├── main.tsx                # 앱 진입점
 │   ├── components/
@@ -31,7 +31,7 @@ InfTy/
 │   ├── index.css
 │   └── ...
 ├── public/
-│   └── infty.png
+│   └── excalitype.png
 ├── README.md
 └── ...
 ```
@@ -49,5 +49,7 @@ InfTy/
 - 내보내기/가져오기: 헤더 메뉴 사용
 
 ## 라이선스
+이 프로젝트는 GNU General Public License v3.0 하에 라이선스됩니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하세요.
+
 - © 2025 Hyeonsong Kim (kimhxsong@gmail.com)
-- 개인 저작권 고지 포함, MIT 미사용 
+- GitHub: https://github.com/kimhxsong 
