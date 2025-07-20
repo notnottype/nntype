@@ -1,3 +1,15 @@
+/**
+ * ExcaliType - Infinite Typewriter Canvas
+ * 
+ * © 2025 Hyeonsong Kim (@kimhxsong)
+ * Contact: kimhxsong@gmail.com
+ * 
+ * A modern, infinite typewriter canvas built with React.
+ * Supports Korean monospaced fonts, vector/image/JSON export, and infinite zoom & pan.
+ * 
+ * This code contains AI-generated content that has been further developed and customized.
+ */
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Type, Move, Download, Upload, Import, Grid, FileText, Image, Code, RotateCcw, Trash2, Eye, EyeOff, ZoomIn, ZoomOut, FileDown, Sun, Moon, CornerUpLeft, CornerUpRight, Layers, Info, NotepadTextDashed, TextCursorInput } from 'lucide-react';
 

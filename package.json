@@ -2,8 +2,7 @@
   "name": "InfTy",
   "version": "0.1.25.7.19",
   "private": true,
-  "description": "Infinite Canvas Typewriter",
-  "license": "GPL-3.0", 
+  "description": "Infinite Canvas Typewriter", 
   "author": {
     "name": "Hyeonsong Kim",
     "email": "kimhxsong@gmail.com",
