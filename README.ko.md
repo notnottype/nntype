@@ -1,8 +1,14 @@
-# ExcaliType - Infinite Canvas Typewriter
+
 
 <p align="center">
-  <img src="public/inf-demo.gif" alt="Infinite Canvas Typewriter 데모" width="800"/>
+  <img src="public/excalitype.png" alt="excalitype Logo" width="220"/>
 </p>
+
+<p align="center">
+  <img src="public/excalitype-demo.gif" alt="Infinite Canvas Typewriter 데모" width="800"/>
+</p>
+
+# ExcaliType - Infinite Canvas Typewriter
 
 > 이 문서는 한국어 설명입니다. 영어 안내는 [README.md](./README.md)를 참고하세요.
 
