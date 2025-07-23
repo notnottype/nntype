@@ -12,183 +12,52 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Type, Move, Download, Upload, Import, Grid, FileText, Image, Code, RotateCcw, Trash2, Eye, EyeOff, ZoomIn, ZoomOut, FileDown, Sun, Moon, CornerUpLeft, CornerUpRight, Layers, Info, NotepadTextDashed, TextCursorInput } from 'lucide-react';
+import { ShortcutsOverlay } from './ShortcutsOverlay';
+import { CanvasInfoOverlay } from './CanvasInfoOverlay';
+import { 
+  measureTextWidth, 
+  snapToGrid, 
+  isPointInObject, 
+  calculateContentBoundingBox,
+  worldToScreen,
+  screenToWorld,
+  drawGrid,
+  drawCanvasObjects,
+  drawHoverHighlight,
+  setupCanvasHiDPI,
+  loadGoogleFonts,
+  getCurrentLineHeight,
+  findFontSizeLevel,
+  findZoomLevel,
+  calculateTextBoxOffset,
+  calculateA4GuidePosition,
+  calculateDPIPixelsPerMM,
+  drawContentForExport,
+  createExportData,
+  downloadFile,
+  downloadCanvas,
+  createSVGElement,
+  addSVGBackground,
+  addTextObjectToSVG,
+  addA4GuideToSVG,
+  addCurrentTypingTextToSVG,
+  calculateSVGOutputSize,
+  serializeSVG
+} from '../utils';
+import { 
+  INITIAL_FONT_SIZE,
+  TEXT_BOX_WIDTH_MM,
+  A4_MARGIN_LR_MM,
+  A4_MARGIN_TOP_MM,
+  A4_WIDTH_MM,
+  A4_HEIGHT_MM,
+  ZOOM_LEVELS,
+  FONT_SIZE_LEVELS,
+  THEME_COLORS
+} from '../constants';
+import { CanvasObjectType, TextObjectType, A4GuideObjectType, Theme } from '../types';
 
-// 오브젝트 타입들 정의
-interface TextObjectType {
-  id: number;
-  type: 'text';
-  content: string;
-  x: number;
-  y: number;
-  scale: number;
-  fontSize: number; // 월드 단위 폰트 크기
-}
-
-interface A4GuideObjectType {
-  id: number;
-  type: 'a4guide';
-  x: number; // 좌상단 월드 좌표
-  y: number;
-  width: number; // 월드 단위 크기
-  height: number;
-}
-
-type CanvasObjectType = TextObjectType | A4GuideObjectType;
-
-// 테마 타입
-type Theme = 'light' | 'dark';
-
-// 단축키 정보 오버레이 컴포넌트
-const ShortcutsOverlay = ({ theme }: { theme: Theme }) => {
-  return (
-    <div
-      className={`absolute top-4 right-4 ${
-        theme === 'dark'
-          ? 'bg-black/40 text-white'
-          : 'bg-white/50 text-gray-900'
-      } backdrop-blur-sm rounded-xl shadow-sm text-[11px] font-mono`}
-      style={{
-        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-        fontSize: '11px',
-        padding: '12px',
-        maxHeight: '45vh',
-        minWidth: '260px', // minWidth 확장 (중복 제거)
-        maxWidth: '340px',
-        backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.5)',
-        overflowY: 'auto',
-      }}
-    >
-      <div className={`font-semibold mb-2 text-sm flex items-center gap-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`} style={{whiteSpace: 'nowrap'}}>
-        <Layers className="w-4 h-4 opacity-80" />
-        Keyboard Shortcuts
-      </div>
-      <div className="border-b border-gray-300/40 mb-2" />
-      <div className="space-y-2">
-        <div className="font-bold text-xs mt-1 mb-0.5" style={{whiteSpace: 'nowrap'}}>Undo/Redo</div>
-        <div className="flex flex-col gap-0.5 pl-2">
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Undo</span>: <span className="font-mono">Ctrl+Z</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Redo</span>: <span className="font-mono">Ctrl+Shift+Z</span>, <span className="font-mono">Ctrl+Y</span></div>
-        </div>
-        <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>View & Navigation</div>
-        <div className="flex flex-col gap-0.5 pl-2">
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Pan Canvas</span>: <span className="font-mono">Space + Drag</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Move View</span>: <span className="font-mono">Shift + Arrow Keys</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Scale In/Out</span>: <span className="font-mono">Alt/Option + +/-</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Reset Zoom</span>: <span className="font-mono">Ctrl + 0</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Reset View</span>: <span className="font-mono">Cmd + R</span></div>
-        </div>
-        <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Editing</div>
-        <div className="flex flex-col gap-0.5 pl-2">
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">UI Size</span>: <span className="font-mono">Ctrl/Cmd + +/-</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Delete Selected</span>: <span className="font-mono">Del</span></div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selectedObject, hoveredObject, mousePosition, isMouseInTextBox, typewriterX, typewriterY, baseFontSize, initialFontSize, getTextBoxWidth, screenToWorld, theme }: {
-  canvasOffset: { x: number; y: number; };
-  scale: number;
-  canvasObjects: CanvasObjectType[];
-  selectedObject: CanvasObjectType | null;
-  hoveredObject: CanvasObjectType | null;
-  mousePosition: { x: number; y: number };
-  isMouseInTextBox: boolean;
-  typewriterX: number;
-  typewriterY: number;
-  baseFontSize: number;
-  initialFontSize: number;
-  getTextBoxWidth: () => number;
-  screenToWorld: (screenX: number, screenY: number) => { x: number; y: number; };
-  theme: Theme;
-}) => {
-  const textBoxWidth = getTextBoxWidth();
-  const textBoxLeft = typewriterX - textBoxWidth / 2;
-  const textBoxTop = typewriterY - baseFontSize / 2;
-  const textBoxRight = textBoxLeft + textBoxWidth;
-  const textBoxBottom = textBoxTop + baseFontSize;
-
-  // 4 corners (window/world)
-  const corners = [
-    { label: 'Top Left', sx: textBoxLeft, sy: textBoxTop },
-    { label: 'Top Right', sx: textBoxRight, sy: textBoxTop },
-    { label: 'Bottom Left', sx: textBoxLeft, sy: textBoxBottom },
-    { label: 'Bottom Right', sx: textBoxRight, sy: textBoxBottom },
-  ].map(corner => ({
-    ...corner,
-    world: screenToWorld(corner.sx, corner.sy)
-  }));
-
-  const worldPos = screenToWorld(textBoxLeft, textBoxTop);
-
-  return (
-    <div
-      className={`absolute top-4 left-4 ${
-        theme === 'dark'
-          ? 'bg-black/40 text-white'
-          : 'bg-white/50 text-gray-900'
-      } backdrop-blur-sm rounded-xl shadow-sm text-[11px] font-mono`}
-      style={{
-        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-        fontSize: '11px',
-        padding: '12px',
-        maxHeight: '32vh',
-        minWidth: '260px', // minWidth 확장 (중복 제거)
-        maxWidth: '340px',
-        backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.5)',
-        overflowY: 'auto',
-      }}
-    >
-      <div className={`font-semibold mb-2 text-sm flex items-center gap-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`} style={{whiteSpace: 'nowrap'}}>
-        <Info className="w-4 h-4 opacity-80" />
-        Canvas Info
-      </div>
-      <div className="border-b border-gray-300/40 mb-2" />
-      <div className="space-y-2">
-        <div className="font-bold text-xs mt-1 mb-0.5" style={{whiteSpace: 'nowrap'}}>View State</div>
-        <div className="flex flex-col gap-0.5 pl-2">
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Offset</span>: <span className="font-mono">({Math.round(-canvasOffset.x)}, {Math.round(-canvasOffset.y)})</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Zoom</span>: <span className="font-mono">{scale.toFixed(2)}x</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">UI Size</span>: <span className="font-mono">{(baseFontSize / initialFontSize).toFixed(2)}x ({baseFontSize}px)</span></div>
-        </div>
-        <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Objects</div>
-        <div className="flex flex-col gap-0.5 pl-2">
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Object Count</span>: <span className="font-mono">{canvasObjects.length}</span></div>
-        </div>
-        <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Typewriter Box</div>
-        <div className="flex flex-col gap-0.5 pl-2">
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Origin (Top Left)</span>: <span className="font-mono">({Math.round(worldPos.x)}, {Math.round(worldPos.y)})</span></div>
-          {corners.map(c => (
-            <div key={c.label} style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">{c.label}</span>: <span className="font-mono">win({Math.round(c.sx)}, {Math.round(c.sy)}) / world({Math.round(c.world.x)}, {Math.round(c.world.y)})</span></div>
-          ))}
-        </div>
-        <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Mouse</div>
-        <div className="flex flex-col gap-0.5 pl-2">
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Screen</span>: <span className="font-mono">({mousePosition.x}, {mousePosition.y})</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">World</span>: <span className="font-mono">({Math.round(screenToWorld(mousePosition.x, mousePosition.y).x)}, {Math.round(screenToWorld(mousePosition.x, mousePosition.y).y)})</span></div>
-        </div>
-        {hoveredObject && (
-          <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Hovered Object</div>
-        )}
-        {hoveredObject && (
-          <div className="pl-2 text-yellow-700 dark:text-yellow-300" style={{whiteSpace: 'nowrap'}}>
-            {hoveredObject.type === 'text' ? `Text: "${hoveredObject.content.substring(0, 15)}${hoveredObject.content.length > 15 ? '...' : ''}"` : 'A4 Guide'}
-          </div>
-        )}
-        {selectedObject && (
-          <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Selected Object</div>
-        )}
-        {selectedObject && (
-          <div className="pl-2 text-green-700 dark:text-green-300" style={{whiteSpace: 'nowrap'}}>
-            {selectedObject.type === 'text' ? `Text: "${selectedObject.content.substring(0, 20)}${selectedObject.content.length > 20 ? '...' : ''}"` : 'A4 Guide'}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
+1
 const InfiniteTypewriterCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [canvasObjects, setCanvasObjects] = useState<CanvasObjectType[]>([]);
@@ -214,13 +83,6 @@ const InfiniteTypewriterCanvas = () => {
   // Dynamically measure CSS pixels per millimeter (accounts for DPI / zoom)
   const [pxPerMm, setPxPerMm] = useState(96 / 25.4); // fallback default
 
-  // A4 guide calculations based on 80-character textbox width
-  const TEXT_BOX_WIDTH_MM = 160;
-  const A4_MARGIN_LR_MM = 25;
-  const A4_MARGIN_TOP_MM = 30;
-  const A4_WIDTH_MM = TEXT_BOX_WIDTH_MM + (A4_MARGIN_LR_MM * 2); // 210mm
-  const A4_HEIGHT_MM = A4_WIDTH_MM * (297 / 210); // A4 aspect ratio
-
   const [showInfo, setShowInfo] = useState(true);
   const [showShortcuts, setShowShortcuts] = useState(true);
   const [showTextBox, setShowTextBox] = useState(true);
@@ -230,178 +92,62 @@ const InfiniteTypewriterCanvas = () => {
   const typewriterX = canvasWidth / 2;
   const typewriterY = canvasHeight / 2;
   const [maxCharsPerLine, setMaxCharsPerLine] = useState(80); // 한글 기준 80자, 동적 변경
-  const INITIAL_FONT_SIZE = 20; // 20px = 10pt (논리적 표시용)
   const [baseFontSize, setBaseFontSize] = useState(INITIAL_FONT_SIZE);
 
-  // 현재 활성 텍스트의 line-height 계산 (선택된 요소 우선, 없으면 현재 입력 폰트 사용)
-  const getCurrentLineHeight = useCallback(() => {
-    if (selectedObject && selectedObject.type === 'text') {
-      return selectedObject.fontSize * scale * 1.8; // 선택된 요소의 렌더링 크기 기반
-    }
-    return baseFontSize * 1.8; // 현재 입력 폰트 크기 기반
-  }, [selectedObject, baseFontSize, scale]);
-
   useEffect(() => {
-    // Create a hidden element 100mm wide to measure
-    const ruler = document.createElement('div');
-    ruler.style.width = '100mm';
-    ruler.style.position = 'absolute';
-    ruler.style.visibility = 'hidden';
-    document.body.appendChild(ruler);
-    const measuredPxPerMm = ruler.getBoundingClientRect().width / 100;
-    if (measuredPxPerMm && !Number.isNaN(measuredPxPerMm)) {
-      setPxPerMm(measuredPxPerMm);
-    }
-    document.body.removeChild(ruler);
+    setPxPerMm(calculateDPIPixelsPerMM());
   }, []);
 
 
-  
-  // Theme colors
-  const colors = {
-    dark: {
-      background: '#0a0a0a',
-      text: 'rgba(255, 255, 255, 0.9)',
-      grid: 'rgba(255, 255, 255, 0.05)',
-      selection: 'rgba(59, 130, 246, 0.2)',
-      a4Guide: 'rgba(59, 130, 246, 0.3)',
-          inputBg: 'rgba(0, 0, 0, 0.01)', // 99% 투명
-    inputBorder: 'rgba(59, 130, 246, 0.2)',
-    },
-    light: {
-      background: '#ffffff',
-      text: 'rgba(0, 0, 0, 0.9)',
-      grid: 'rgba(0, 0, 0, 0.05)',
-      selection: 'rgba(59, 130, 246, 0.2)',
-      a4Guide: 'rgba(59, 130, 246, 0.4)',
-          inputBg: 'rgba(255, 255, 255, 0.01)', // 99% 투명
-    inputBorder: 'rgba(59, 130, 246, 0.2)',
-    }
-  };
 
   // Load Google Fonts
   useEffect(() => {
-    const link = document.createElement('link');
-    link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap';
-    link.rel = 'stylesheet';
-    document.head.appendChild(link);
-    
-    const checkFont = () => {
-      if (document.fonts && document.fonts.ready) {
-        document.fonts.ready.then(() => {
-          const testCanvas = document.createElement('canvas');
-          const testCtx = testCanvas.getContext('2d');
-          if (testCtx) {
-            testCtx.font = '12px "JetBrains Mono", monospace';
-            testCtx.fillText('Test', 0, 0);
-          }
-          setTimeout(() => setFontLoaded(true), 100);
-        });
-      } else {
-        setTimeout(() => setFontLoaded(true), 1500);
-      }
-    };
-    checkFont();
-    
-    return () => {
-      if (document.head.contains(link)) {
-        document.head.removeChild(link);
-      }
-    };
+    loadGoogleFonts().then(() => setFontLoaded(true));
   }, []);
   
-  const measureTextWidth = useCallback((text: string, fontSize: number = baseFontSize) => {
-    const canvas = canvasRef.current;
-    if (!canvas || !fontLoaded) return text.length * 12;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return text.length * 12;
-    ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
-    return ctx.measureText(text).width;
+  const measureTextWidthLocal = useCallback((text: string, fontSize: number = baseFontSize) => {
+    return measureTextWidth(text, fontSize, canvasRef.current, fontLoaded);
   }, [baseFontSize, fontLoaded]);
 
   const getTextBoxWidth = useCallback(() => {
-    return measureTextWidth('A'.repeat(maxCharsPerLine));
-  }, [measureTextWidth, maxCharsPerLine]);
+    return measureTextWidthLocal('A'.repeat(maxCharsPerLine));
+  }, [measureTextWidthLocal, maxCharsPerLine]);
 
-  const worldToScreen = useCallback((worldX: number, worldY: number) => ({
-    x: worldX * scale + canvasOffset.x,
-    y: worldY * scale + canvasOffset.y
-  }), [scale, canvasOffset]);
+  const worldToScreenLocal = useCallback((worldX: number, worldY: number) => 
+    worldToScreen(worldX, worldY, scale, canvasOffset), [scale, canvasOffset]);
 
-  const screenToWorld = useCallback((screenX: number, screenY: number) => ({
-    x: (screenX - canvasOffset.x) / scale,
-    y: (screenY - canvasOffset.y) / scale
-  }), [scale, canvasOffset]);
+  const screenToWorldLocal = useCallback((screenX: number, screenY: number) => 
+    screenToWorld(screenX, screenY, scale, canvasOffset), [scale, canvasOffset]);
 
   const zoomToLevel = useCallback((newScale: number) => {
-    // 1. 현재 입력창 LT의 월드 좌표 구하기
-    const textBoxWidth = getTextBoxWidth();
-    const textBoxLeft = typewriterX - textBoxWidth / 2;
-    const textBoxTop = typewriterY - baseFontSize / 2;
-    const currentLTWorld = screenToWorld(textBoxLeft, textBoxTop);
-
-    // 2. 새 scale에서 입력창 LT가 같은 화면 위치에 오도록 offset 계산
-    const newTextBoxWidth = measureTextWidth('A'.repeat(maxCharsPerLine), baseFontSize);
-    const newTextBoxLeft = typewriterX - newTextBoxWidth / 2;
-    const newTextBoxTop = typewriterY - baseFontSize / 2;
-    const newOffsetX = newTextBoxLeft - currentLTWorld.x * newScale;
-    const newOffsetY = newTextBoxTop - currentLTWorld.y * newScale;
+    const currentTextBoxWidth = getTextBoxWidth();
+    const newTextBoxWidth = measureTextWidthLocal('A'.repeat(maxCharsPerLine), baseFontSize);
+    const newOffset = calculateTextBoxOffset(
+      newScale, 
+      scale, 
+      canvasOffset, 
+      typewriterX, 
+      typewriterY, 
+      currentTextBoxWidth, 
+      newTextBoxWidth, 
+      baseFontSize
+    );
 
     setScale(newScale);
-    setCanvasOffset({
-      x: newOffsetX,
-      y: newOffsetY
-    });
-  }, [getTextBoxWidth, screenToWorld, typewriterX, typewriterY, baseFontSize, measureTextWidth, maxCharsPerLine]);
+    setCanvasOffset(newOffset);
+  }, [getTextBoxWidth, measureTextWidthLocal, scale, canvasOffset, typewriterX, typewriterY, baseFontSize, maxCharsPerLine]);
 
   const getCurrentWorldPosition = useCallback(() => {
     const textBoxWidth = getTextBoxWidth();
     const textBoxLeft = typewriterX - textBoxWidth / 2;
     const textBoxTop = typewriterY - baseFontSize / 2;
     const textBoxBaseline = textBoxTop + baseFontSize * 1.2;
-    return screenToWorld(textBoxLeft, textBoxBaseline);
-  }, [getTextBoxWidth, screenToWorld, typewriterX, typewriterY, baseFontSize]);
+    return screenToWorldLocal(textBoxLeft, textBoxBaseline);
+  }, [getTextBoxWidth, screenToWorldLocal, typewriterX, typewriterY, baseFontSize]);
 
-  const isPointInObject = useCallback((obj: CanvasObjectType, screenX: number, screenY: number) => {
-    if (obj.type === 'text') {
-      const textObj = obj as TextObjectType;
-      const screenPos = worldToScreen(textObj.x, textObj.y);
-      const fontSize = textObj.fontSize * scale;
-      
-      // measureTextWidth 함수에 정확한 폰트 크기 전달
-      const textWidth = measureTextWidth(textObj.content, fontSize);
-      const textHeight = fontSize;
-      
-      // 텍스트 베이스라인을 기준으로 위아래로 여유 공간 추가
-      const padding = 5; // 클릭 영역 확장을 위한 패딩
-      return screenX >= screenPos.x - padding && 
-             screenX <= screenPos.x + textWidth + padding &&
-             screenY >= screenPos.y - textHeight - padding &&
-             screenY <= screenPos.y + padding;
-    } else if (obj.type === 'a4guide') {
-      const a4Obj = obj as A4GuideObjectType;
-      const screenPos = worldToScreen(a4Obj.x, a4Obj.y);
-      const screenWidth = a4Obj.width * scale;
-      const screenHeight = a4Obj.height * scale;
-      const borderWidth = 10; // 클릭 가능한 보더 영역 폭 (px)
-      
-      // 전체 영역 내부에 있는지 확인
-      const inOuterRect = screenX >= screenPos.x &&
-                          screenX <= screenPos.x + screenWidth &&
-                          screenY >= screenPos.y &&
-                          screenY <= screenPos.y + screenHeight;
-      
-      // 내부 영역(보더 제외)에 있는지 확인
-      const inInnerRect = screenX >= screenPos.x + borderWidth &&
-                          screenX <= screenPos.x + screenWidth - borderWidth &&
-                          screenY >= screenPos.y + borderWidth &&
-                          screenY <= screenPos.y + screenHeight - borderWidth;
-      
-      // 보더 영역에만 있을 때만 클릭 감지 (전체 영역에 있지만 내부 영역에는 없을 때)
-      return inOuterRect && !inInnerRect;
-    }
-    return false;
-  }, [scale, measureTextWidth, worldToScreen]);
+  const isPointInObjectLocal = useCallback((obj: CanvasObjectType, screenX: number, screenY: number) => {
+    return isPointInObject(obj, screenX, screenY, scale, worldToScreenLocal, measureTextWidthLocal);
+  }, [scale, worldToScreenLocal, measureTextWidthLocal]);
 
   const centerTypewriter = useCallback(() => {
     setCanvasOffset({
@@ -423,80 +169,27 @@ const InfiniteTypewriterCanvas = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, [centerTypewriter]);
 
-  const drawGrid = useCallback((ctx: CanvasRenderingContext2D) => {
-    // 현재 활성 텍스트의 line-height와 동일한 단위로 그리드 그리기
-    const baseGridSize = getCurrentLineHeight();
-    const gridSize = baseGridSize;
-    const offsetX = canvasOffset.x % gridSize;
-    const offsetY = canvasOffset.y % gridSize;
-    
-    ctx.strokeStyle = colors[theme].grid;
-    ctx.lineWidth = 1;
-    
-    for (let x = offsetX; x < canvasWidth; x += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, canvasHeight);
-      ctx.stroke();
-    }
-    
-    for (let y = offsetY; y < canvasHeight; y += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(canvasWidth, y);
-      ctx.stroke();
-    }
-  }, [canvasOffset, scale, canvasWidth, canvasHeight, theme, getCurrentLineHeight]);
+  const drawGridLocal = useCallback((ctx: CanvasRenderingContext2D) => {
+    const baseGridSize = getCurrentLineHeight(selectedObject, baseFontSize, scale);
+    drawGrid(ctx, canvasWidth, canvasHeight, canvasOffset, baseGridSize, THEME_COLORS[theme].grid);
+  }, [canvasOffset, canvasWidth, canvasHeight, theme, selectedObject, baseFontSize, scale]);
 
 
 
-  const drawCanvasObjects = useCallback((ctx: CanvasRenderingContext2D) => {
-    ctx.textBaseline = 'alphabetic';
-    
-    // A4가이드를 먼저 그려서 배경에 배치 (z-index 낮게)
-    canvasObjects.filter(obj => obj.type === 'a4guide').forEach(obj => {
-      const a4Obj = obj as A4GuideObjectType;
-      const screenPos = worldToScreen(a4Obj.x, a4Obj.y);
-      const screenWidth = a4Obj.width * scale;
-      const screenHeight = a4Obj.height * scale;
-      
-      if (selectedObject && selectedObject.id === a4Obj.id) {
-        ctx.fillStyle = colors[theme].selection;
-        ctx.fillRect(screenPos.x - 4, screenPos.y - 4, screenWidth + 8, screenHeight + 8);
-      }
-      
-      ctx.strokeStyle = colors[theme].a4Guide;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([10, 5]);
-      ctx.strokeRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
-      ctx.setLineDash([]);
-      
-      ctx.fillStyle = colors[theme].a4Guide;
-      ctx.font = `${14 * scale}px "Inter", sans-serif`;
-      ctx.fillText('A4', screenPos.x + 10 * scale, screenPos.y + 20 * scale);
-    });
-    
-    // 텍스트 오브젝트들을 나중에 그려서 전경에 배치
-    canvasObjects.filter(obj => obj.type === 'text').forEach(obj => {
-      const textObj = obj as TextObjectType;
-      const screenPos = worldToScreen(textObj.x, textObj.y);
-      
-      if (screenPos.x > -200 && screenPos.x < canvasWidth + 200 && screenPos.y > -50 && screenPos.y < canvasHeight + 50) {
-        const fontSize = textObj.fontSize * scale;
-        ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
-        
-        if (selectedObject && selectedObject.id === textObj.id) {
-          ctx.fillStyle = colors[theme].selection;
-          const textWidth = measureTextWidth(textObj.content, fontSize);
-          const textHeight = fontSize;
-          ctx.fillRect(screenPos.x - 4, screenPos.y - textHeight, textWidth + 8, textHeight + 8);
-        }
-        
-        ctx.fillStyle = colors[theme].text;
-        ctx.fillText(textObj.content, screenPos.x, screenPos.y);
-      }
-    });
-  }, [canvasObjects, scale, selectedObject, canvasWidth, canvasHeight, worldToScreen, measureTextWidth, theme]);
+  const drawCanvasObjectsLocal = useCallback((ctx: CanvasRenderingContext2D) => {
+    drawCanvasObjects(
+      ctx,
+      canvasObjects,
+      scale,
+      selectedObject,
+      canvasWidth,
+      canvasHeight,
+      worldToScreenLocal,
+      measureTextWidthLocal,
+      theme,
+      THEME_COLORS
+    );
+  }, [canvasObjects, scale, selectedObject, canvasWidth, canvasHeight, worldToScreenLocal, measureTextWidthLocal, theme]);
 
   const render = useCallback(() => {
     const canvas = canvasRef.current;
@@ -506,51 +199,23 @@ const InfiniteTypewriterCanvas = () => {
     if (!ctx) return;
     
     // Background
-    ctx.fillStyle = colors[theme].background;
+    ctx.fillStyle = THEME_COLORS[theme].background;
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
     
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     
     if (showGrid) {
-      drawGrid(ctx);
+      drawGridLocal(ctx);
     }
-    drawCanvasObjects(ctx);
+    drawCanvasObjectsLocal(ctx);
     
     // 호버된 오브젝트 하이라이트 표시
     if (hoveredObject) {
-      ctx.strokeStyle = 'rgba(135, 206, 235, 0.8)'; // 연한 하늘색
-      ctx.lineWidth = 1; // 더 얇은 선
-      ctx.lineJoin = 'round'; // 둥근 모서리
-      ctx.lineCap = 'round'; // 둥근 끝점
-      ctx.setLineDash([]); // 실선
-      
-      if (hoveredObject.type === 'text') {
-        const textObj = hoveredObject as TextObjectType;
-        const screenPos = worldToScreen(textObj.x, textObj.y);
-        const fontSize = textObj.fontSize * scale;
-        const textWidth = measureTextWidth(textObj.content, fontSize);
-        const textHeight = fontSize;
-        // 텍스트 영역 주변에 하이라이트 박스
-        const padding = 4;
-        ctx.strokeRect(
-          screenPos.x - padding, 
-          screenPos.y - textHeight - padding, 
-          textWidth + padding * 2, 
-          textHeight + padding * 2
-        );
-      } else if (hoveredObject.type === 'a4guide') {
-        const a4Obj = hoveredObject as A4GuideObjectType;
-        const screenPos = worldToScreen(a4Obj.x, a4Obj.y);
-        const screenWidth = a4Obj.width * scale;
-        const screenHeight = a4Obj.height * scale;
-        
-        // A4 가이드 전체 영역에 하이라이트
-        ctx.strokeRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
-      }
+      drawHoverHighlight(ctx, hoveredObject, scale, worldToScreenLocal, measureTextWidthLocal);
     }
     
-  }, [canvasOffset, scale, canvasObjects, selectedObject, hoveredObject, getTextBoxWidth, drawGrid, drawCanvasObjects, canvasWidth, canvasHeight, typewriterX, typewriterY, baseFontSize, screenToWorld, worldToScreen, showGrid, theme, measureTextWidth, colors]);
+  }, [canvasWidth, canvasHeight, theme, showGrid, drawGridLocal, drawCanvasObjectsLocal, hoveredObject, scale, worldToScreenLocal, measureTextWidthLocal]);
 
   const animationRef = useRef<number | null>(null);
 
@@ -569,63 +234,27 @@ const InfiniteTypewriterCanvas = () => {
 
 
 
-  const calculateContentBoundingBox = useCallback(() => {
-    const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    if (!tempCtx) {
-      console.error("Could not get 2D context for temporary canvas.");
-      return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
-    }
-
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-
-    const measureTextWidthForExport = (text: string, fontSize: number) => {
+  const calculateBounds = useCallback(() => {
+    const measureText = (text: string, fontSize: number) => {
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      if (!tempCtx) return text.length * 12;
       tempCtx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
       return tempCtx.measureText(text).width;
     };
 
-    canvasObjects.filter(obj => obj.type === 'text').forEach(obj => {
-      const textObj = obj as TextObjectType;
-      const textObjScale = textObj.scale || 1;
-      const effectiveFontSizeInWorld = textObj.fontSize; // 저장된 폰트 크기를 사용
-      const textWorldWidth = measureTextWidthForExport(textObj.content, effectiveFontSizeInWorld);
-      const textWorldHeight = effectiveFontSizeInWorld;
-
-      const worldLeft = textObj.x;
-      const worldTop = textObj.y - textWorldHeight;
-      const worldRight = textObj.x + textWorldWidth;
-      const worldBottom = textObj.y + 4;
-
-      minX = Math.min(minX, worldLeft);
-      minY = Math.min(minY, worldTop);
-      maxX = Math.max(maxX, worldRight);
-      maxY = Math.max(maxY, worldBottom);
-    });
-
-    if (currentTypingText.trim()) {
-      const worldPos = getCurrentWorldPosition();
-      const actualTextWidth = measureTextWidthForExport(currentTypingText, baseFontSize);
-      const textHeight = baseFontSize;
-
-      minX = Math.min(minX, worldPos.x);
-      minY = Math.min(minY, worldPos.y);
-      maxX = Math.max(maxX, worldPos.x + actualTextWidth);
-      maxY = Math.max(maxY, worldPos.y + textHeight);
-    }
-
-    if (canvasObjects.length === 0 && !currentTypingText.trim()) {
-      return { minX: -10, minY: -10, maxX: 10, maxY: 10 };
-    }
-
-    return { minX, minY, maxX, maxY };
-  }, [canvasObjects, currentTypingText, baseFontSize, maxCharsPerLine, getCurrentWorldPosition]);
+    return calculateContentBoundingBox(
+      canvasObjects,
+      currentTypingText,
+      baseFontSize,
+      getCurrentWorldPosition,
+      measureText
+    );
+  }, [canvasObjects, currentTypingText, baseFontSize, getCurrentWorldPosition]);
 
   const exportAsPNG = useCallback(() => {
     setIsExportMenuOpen(false);
-    const bbox = calculateContentBoundingBox();
+    const bbox = calculateBounds();
 
     const padding = 50; 
     const contentWidth = bbox.maxX - bbox.minX;
@@ -645,119 +274,50 @@ const InfiniteTypewriterCanvas = () => {
       return;
     }
 
-    tempCtx.fillStyle = colors[theme].background;
+    tempCtx.fillStyle = THEME_COLORS[theme].background;
     tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
     const tempOffsetX = padding - bbox.minX * exportScaleFactor;
     const tempOffsetY = padding - bbox.minY * exportScaleFactor;
 
-    const drawContentForExport = (ctx: CanvasRenderingContext2D, currentOffset: { x: number, y: number }, currentScale: number) => {
-      ctx.textBaseline = 'alphabetic';
-      ctx.fillStyle = colors[theme].text;
+    drawContentForExport(
+      tempCtx,
+      canvasObjects,
+      currentTypingText,
+      getCurrentWorldPosition,
+      baseFontSize,
+      { x: tempOffsetX, y: tempOffsetY },
+      exportScaleFactor,
+      theme,
+      THEME_COLORS
+    );
 
-      canvasObjects.filter(obj => obj.type === 'text').forEach(obj => {
-      const textObj = obj as TextObjectType;
-        const screenX = textObj.x * currentScale + currentOffset.x;
-        const screenY = textObj.y * currentScale + currentOffset.y;
-
-        const fontSize = textObj.fontSize * currentScale; // 저장된 폰트 크기를 사용
-        ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
-        ctx.fillText(textObj.content, screenX, screenY);
-      });
-
-      if (currentTypingText.trim()) {
-        const worldPos = getCurrentWorldPosition();
-        const screenX = worldPos.x * currentScale + currentOffset.x;
-        const screenY = worldPos.y * currentScale + currentOffset.y;
-        const fontSize = baseFontSize * currentScale; // 입력창 폰트 크기를 사용
-        ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
-        ctx.fillText(currentTypingText, screenX, screenY);
-      }
-
-      // A4Guide 오브젝트들 렌더링
-      canvasObjects.filter(obj => obj.type === 'a4guide').forEach(obj => {
-        const a4Obj = obj as A4GuideObjectType;
-        const a4ScreenX = a4Obj.x * currentScale + currentOffset.x;
-        const a4ScreenY = a4Obj.y * currentScale + currentOffset.y;
-        const a4ScreenWidth = a4Obj.width * currentScale;
-        const a4ScreenHeight = a4Obj.height * currentScale;
-
-        ctx.strokeStyle = colors[theme].a4Guide;
-        ctx.lineWidth = 2;
-        ctx.setLineDash([10, 5]);
-        ctx.strokeRect(a4ScreenX, a4ScreenY, a4ScreenWidth, a4ScreenHeight);
-        ctx.setLineDash([]);
-
-        ctx.fillStyle = colors[theme].a4Guide;
-        ctx.font = `${14 * currentScale}px "Inter", sans-serif`;
-        ctx.fillText('A4', a4ScreenX + 10 * currentScale, a4ScreenY + 20 * currentScale);
-      });
-    };
-
-    drawContentForExport(tempCtx, { x: tempOffsetX, y: tempOffsetY }, exportScaleFactor);
-
-    const link = document.createElement('a');
-    link.download = `typewriter-canvas-${new Date().toISOString().slice(0, 10)}.png`;
-    link.href = tempCanvas.toDataURL();
-    link.click();
-    URL.revokeObjectURL(link.href);
-  }, [canvasObjects, currentTypingText, baseFontSize, calculateContentBoundingBox, getCurrentWorldPosition, theme]);
+    downloadCanvas(tempCanvas, `typewriter-canvas-${new Date().toISOString().slice(0, 10)}.png`);
+  }, [canvasObjects, currentTypingText, baseFontSize, calculateBounds, getCurrentWorldPosition, theme]);
 
   const exportAsJSON = useCallback(() => {
     setIsExportMenuOpen(false);
-    const data = {
-      version: "1.0",
-      type: "infinite-typewriter-canvas",
-      elements: canvasObjects.map(obj => {
-        if (obj.type === 'text') {
-          const textObj = obj as TextObjectType;
-          return {
-            id: textObj.id,
-            type: textObj.type,
-            content: textObj.content,
-            x: textObj.x,
-            y: textObj.y,
-            scale: textObj.scale,
-            fontSize: textObj.fontSize
-          };
-        } else if (obj.type === 'a4guide') {
-          const a4Obj = obj as A4GuideObjectType;
-          return {
-            id: a4Obj.id,
-            type: a4Obj.type,
-            x: a4Obj.x,
-            y: a4Obj.y,
-            width: a4Obj.width,
-            height: a4Obj.height
-          };
-        }
-        return obj;
-      }),
-              appState: {
-          canvasOffset: canvasOffset,
-          scale: scale,
-          typewriterPosition: {
-            x: typewriterX,
-            y: typewriterY
-          },
-          showGrid: showGrid,
-          showTextBox: showTextBox,
-          theme: theme
-        }
-    };
+    const data = createExportData(
+      canvasObjects,
+      canvasOffset,
+      scale,
+      typewriterX,
+      typewriterY,
+      showGrid,
+      showTextBox,
+      theme
+    );
     
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `typewriter-canvas-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadFile(
+      JSON.stringify(data, null, 2),
+      `typewriter-canvas-${new Date().toISOString().slice(0, 10)}.json`,
+      'application/json'
+    );
   }, [canvasObjects, canvasOffset, scale, typewriterX, typewriterY, showGrid, showTextBox, theme]);
 
   const exportAsSVG = useCallback(() => {
     setIsExportMenuOpen(false);
-    const bbox = calculateContentBoundingBox();
+    const bbox = calculateBounds();
 
     const svgPaddingWorld = 20; 
     const contentWidth = bbox.maxX - bbox.minX;
@@ -768,101 +328,27 @@ const InfiniteTypewriterCanvas = () => {
     const viewBoxWidth = contentWidth + 2 * svgPaddingWorld;
     const viewBoxHeight = contentHeight + 2 * svgPaddingWorld;
 
-    const svgNS = "http://www.w3.org/2000/svg";
-    const svg = document.createElementNS(svgNS, "svg");
+    const { width: outputWidth, height: outputHeight } = calculateSVGOutputSize(viewBoxWidth, viewBoxHeight, 1000);
     
-    const maxSvgOutputSize = 1000; 
-    let outputWidth = viewBoxWidth;
-    let outputHeight = viewBoxHeight;
-
-    if (outputWidth > maxSvgOutputSize || outputHeight > maxSvgOutputSize) {
-      const aspectRatio = outputWidth / outputHeight;
-      if (aspectRatio > 1) {
-        outputWidth = maxSvgOutputSize;
-        outputHeight = maxSvgOutputSize / aspectRatio;
-      } else {
-        outputHeight = maxSvgOutputSize;
-        outputWidth = maxSvgOutputSize * aspectRatio;
-      }
-    }
-
-    svg.setAttribute("width", String(outputWidth));
-    svg.setAttribute("height", String(outputHeight));
-    svg.setAttribute("viewBox", `${viewBoxMinX} ${viewBoxMinY} ${viewBoxWidth} ${viewBoxHeight}`);
-    
-    const bg = document.createElementNS(svgNS, "rect");
-    bg.setAttribute("width", "100%");
-    bg.setAttribute("height", "100%");
-    bg.setAttribute("fill", "#ffffff");
-    svg.appendChild(bg);
+    const svg = createSVGElement(viewBoxMinX, viewBoxMinY, viewBoxWidth, viewBoxHeight, outputWidth, outputHeight);
+    addSVGBackground(svg, "#ffffff");
 
     canvasObjects.filter(obj => obj.type === 'text').forEach(obj => {
-      const textObj = obj as TextObjectType;
-      const fontSize = textObj.fontSize; // 저장된 폰트 크기를 사용
-      
-      const text = document.createElementNS(svgNS, "text");
-      text.setAttribute("x", String(textObj.x));
-      text.setAttribute("y", String(textObj.y));
-      text.setAttribute("font-family", '"JetBrains Mono", monospace');
-      text.setAttribute("font-size", String(fontSize));
-      text.setAttribute("dominant-baseline", "alphabetic");
-      text.setAttribute("fill", "#000000");
-      text.textContent = textObj.content;
-      
-      svg.appendChild(text);
+      addTextObjectToSVG(svg, obj as TextObjectType, "#000000");
     });
 
     if (currentTypingText.trim()) {
       const worldPos = getCurrentWorldPosition();
-      const fontSize = baseFontSize; // 입력창 폰트 크기를 사용
-      
-      const text = document.createElementNS(svgNS, "text");
-      text.setAttribute("x", String(worldPos.x));
-      text.setAttribute("y", String(worldPos.y));
-      text.setAttribute("font-family", '"JetBrains Mono", monospace');
-      text.setAttribute("font-size", String(fontSize));
-      text.setAttribute("dominant-baseline", "alphabetic");
-      text.setAttribute("fill", "#000000");
-      text.textContent = currentTypingText;
-      
-      svg.appendChild(text);
+      addCurrentTypingTextToSVG(svg, currentTypingText, worldPos, baseFontSize, "#000000");
     }
 
-    // A4Guide 오브젝트들 SVG로 변환
     canvasObjects.filter(obj => obj.type === 'a4guide').forEach(obj => {
-      const a4Obj = obj as A4GuideObjectType;
-      const a4Rect = document.createElementNS(svgNS, "rect");
-      a4Rect.setAttribute("x", String(a4Obj.x));
-      a4Rect.setAttribute("y", String(a4Obj.y));
-      a4Rect.setAttribute("width", String(a4Obj.width));
-      a4Rect.setAttribute("height", String(a4Obj.height));
-      a4Rect.setAttribute("stroke", "#888888");
-      a4Rect.setAttribute("stroke-width", "2");
-      a4Rect.setAttribute("fill", "none");
-      a4Rect.setAttribute("stroke-dasharray", "10,5");
-      svg.appendChild(a4Rect);
-
-      const a4Text = document.createElementNS(svgNS, "text");
-      a4Text.setAttribute("x", String(a4Obj.x + 10));
-      a4Text.setAttribute("y", String(a4Obj.y + 20));
-      a4Text.setAttribute("font-family", '"Inter", sans-serif');
-      a4Text.setAttribute("font-size", "14");
-      a4Text.setAttribute("dominant-baseline", "alphabetic");
-      a4Text.setAttribute("fill", "#888888");
-      a4Text.textContent = 'A4';
-      svg.appendChild(a4Text);
+      addA4GuideToSVG(svg, obj as A4GuideObjectType);
     });
     
-    const serializer = new XMLSerializer();
-    const svgString = serializer.serializeToString(svg);
-    const blob = new Blob([svgString], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `typewriter-canvas-${new Date().toISOString().slice(0, 10)}.svg`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [canvasObjects, currentTypingText, baseFontSize, calculateContentBoundingBox, getCurrentWorldPosition, theme]);
+    const svgString = serializeSVG(svg);
+    downloadFile(svgString, `typewriter-canvas-${new Date().toISOString().slice(0, 10)}.svg`, 'image/svg+xml');
+  }, [canvasObjects, currentTypingText, baseFontSize, calculateBounds, getCurrentWorldPosition, theme]);
 
   const importFile = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -950,7 +436,7 @@ const InfiniteTypewriterCanvas = () => {
   const handleUISizeChange = (up: boolean) => {
     const fontSizeLevels = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24, 26, 28, 32, 36, 42, 48, 56, 64];
     
-    const currentIndex = fontSizeLevels.findIndex(level => Math.abs(level - baseFontSize) < 0.01);
+    const currentIndex = findFontSizeLevel(baseFontSize, fontSizeLevels);
     
     let newIndex = up
       ? Math.min(fontSizeLevels.length - 1, currentIndex + 1)
@@ -1032,13 +518,7 @@ const InfiniteTypewriterCanvas = () => {
       const zoomLevels = [
         0.1, 0.15, 0.2, 0.25, 0.33, 0.4, 0.5, 0.6, 0.75, 0.85, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5, 6, 8, 10
       ];
-      let currentIndex = zoomLevels.findIndex(level => Math.abs(level - scale) < 0.01);
-      // If exact match not found, find closest level
-      if (currentIndex === -1) {
-        currentIndex = zoomLevels.reduce((prev, curr, index) => {
-          return (Math.abs(curr - scale) < Math.abs(zoomLevels[prev] - scale)) ? index : prev;
-        }, 0);
-      }
+      const currentIndex = findZoomLevel(scale, zoomLevels);
       // UI Size: Ctrl/Cmd + +/-
       if ((e.ctrlKey || e.metaKey) && !e.altKey) {
         if (e.key === '=' || e.key === '+') {
@@ -1091,7 +571,7 @@ const InfiniteTypewriterCanvas = () => {
       }
       if (e.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
-        const moveDistance = getCurrentLineHeight();
+        const moveDistance = getCurrentLineHeight(selectedObject, baseFontSize, scale);
         setCanvasOffset(prev => {
           switch (e.key) {
             case 'ArrowUp':
@@ -1125,7 +605,7 @@ const InfiniteTypewriterCanvas = () => {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     
-    const clickedObject = canvasObjects.find(obj => isPointInObject(obj, mouseX, mouseY));
+    const clickedObject = canvasObjects.find(obj => isPointInObjectLocal(obj, mouseX, mouseY));
     
     if (clickedObject) {
       setSelectedObject(clickedObject);
@@ -1143,19 +623,16 @@ const InfiniteTypewriterCanvas = () => {
   };
 
   // 스냅 단위로 값을 조정하는 함수
-  const snapToGrid = (value: number, gridSize: number) => {
-    return Math.round(value / gridSize) * gridSize;
-  };
 
   // 마우스가 텍스트박스 영역에 있는지 확인하는 함수
   const isPointInTextBox = useCallback((mouseX: number, mouseY: number) => {
     // 텍스트박스의 월드 좌표 계산
-    const textBoxWorldCenter = screenToWorld(typewriterX, typewriterY);
+    const textBoxWorldCenter = screenToWorldLocal(typewriterX, typewriterY);
     const textBoxWidth = getTextBoxWidth();
     const textBoxHeight = baseFontSize;
     
     // 마우스 위치를 월드 좌표로 변환
-    const mouseWorldPos = screenToWorld(mouseX, mouseY);
+    const mouseWorldPos = screenToWorldLocal(mouseX, mouseY);
     
     // 월드 좌표에서 텍스트박스 영역 계산
     const textBoxWorldLeft = textBoxWorldCenter.x - (textBoxWidth / scale) / 2;
@@ -1179,7 +656,7 @@ const InfiniteTypewriterCanvas = () => {
     
     // 마우스가 오브젝트 위에 있는지 확인 (드래그 중이 아닐 때만)
     if (!isDraggingText) {
-      const objectUnderMouse = canvasObjects.find(obj => isPointInObject(obj, mouseX, mouseY));
+      const objectUnderMouse = canvasObjects.find(obj => isPointInObjectLocal(obj, mouseX, mouseY));
       setHoveredObject(objectUnderMouse || null);
     }
     
@@ -1191,7 +668,7 @@ const InfiniteTypewriterCanvas = () => {
       // 월드 단위로 변환한 이동 거리를 그리드 단위로 스냅
       const worldDeltaX = deltaX / scale;
       const worldDeltaY = deltaY / scale;
-      const worldGridSize = getCurrentLineHeight() / scale; // 월드 단위 그리드 크기
+      const worldGridSize = getCurrentLineHeight(selectedObject, baseFontSize, scale) / scale; // 월드 단위 그리드 크기
       
       const snappedWorldDeltaX = snapToGrid(worldDeltaX, worldGridSize);
       const snappedWorldDeltaY = snapToGrid(worldDeltaY, worldGridSize);
@@ -1222,7 +699,7 @@ const InfiniteTypewriterCanvas = () => {
       const deltaY = e.clientY - dragStart.y;
       
       // 캔버스 패닝도 그리드 단위로 스냅
-      const currentLineHeight = getCurrentLineHeight();
+      const currentLineHeight = getCurrentLineHeight(selectedObject, baseFontSize, scale);
       const snappedDeltaX = snapToGrid(deltaX, currentLineHeight);
       const snappedDeltaY = snapToGrid(deltaY, currentLineHeight);
       
@@ -1262,7 +739,7 @@ const InfiniteTypewriterCanvas = () => {
     const zoomLevels = [
       0.1, 0.15, 0.2, 0.25, 0.33, 0.4, 0.5, 0.6, 0.75, 0.85, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5, 6, 8, 10
     ];
-    const currentIndex = zoomLevels.findIndex(level => Math.abs(level - scale) < 0.01);
+    const currentIndex = findZoomLevel(scale, zoomLevels);
     
     let newIndex;
     if (e.deltaY > 0) {
@@ -1392,7 +869,7 @@ const InfiniteTypewriterCanvas = () => {
         // 오브젝트 생성 여부와 상관없이 줄바꿈(캔버스 오프셋 이동)은 항상 실행
         setCanvasOffset(prev => ({
           x: prev.x,
-          y: prev.y - getCurrentLineHeight()
+          y: prev.y - getCurrentLineHeight(selectedObject, baseFontSize, scale)
         }));
       }
       e.preventDefault();
@@ -1573,30 +1050,33 @@ const InfiniteTypewriterCanvas = () => {
       onClick={() => {
         if (maxCharsPerLine !== 80) return; // 80자 모드에서만 동작
         // A4Guide 생성
-        const textBoxWorldCenter = screenToWorld(typewriterX, typewriterY);
-        const textBoxWorldTopLeft = screenToWorld(
+        const textBoxWorldCenter = screenToWorldLocal(typewriterX, typewriterY);
+        const textBoxWorldTopLeft = screenToWorldLocal(
           typewriterX - getTextBoxWidth() / 2,
           typewriterY - baseFontSize / 2
         );
-        // 실제 텍스트박스 픽셀 폭을 160mm로 가정하고 A4 가이드 계산
-        const actualTextBoxWidth = getTextBoxWidth(); // 현재 80자 기준 픽셀 폭
-        const mmPerPixel = TEXT_BOX_WIDTH_MM / actualTextBoxWidth; // 160mm / 실제픽셀폭
-        const a4MarginLRPixels = A4_MARGIN_LR_MM / mmPerPixel; // 25mm를 픽셀로 변환
-        const a4WidthWorld = actualTextBoxWidth + (a4MarginLRPixels * 2); // 텍스트박스 + 좌우 여백
-        const a4HeightWorld = a4WidthWorld * (A4_HEIGHT_MM / A4_WIDTH_MM); // A4 비율 유지
-        const a4MarginTopPixels = A4_MARGIN_TOP_MM / mmPerPixel; // 30mm를 픽셀로 변환
-        const a4OriginX = textBoxWorldCenter.x - a4WidthWorld / 2;
-        const a4OriginY = textBoxWorldTopLeft.y - a4MarginTopPixels;
+        const actualTextBoxWidth = getTextBoxWidth();
+        
+        const a4Guide = calculateA4GuidePosition(
+          textBoxWorldCenter,
+          textBoxWorldTopLeft,
+          actualTextBoxWidth,
+          TEXT_BOX_WIDTH_MM,
+          A4_MARGIN_LR_MM,
+          A4_MARGIN_TOP_MM,
+          A4_WIDTH_MM,
+          A4_HEIGHT_MM
+        );
         setCanvasObjects(prev => [
           ...prev,
           {
             id: Date.now(),
             type: 'a4guide',
-            x: a4OriginX,
-            y: a4OriginY,
-            width: a4WidthWorld,
-            height: a4HeightWorld
-          }
+            x: a4Guide.x,
+            y: a4Guide.y,
+            width: a4Guide.width,
+            height: a4Guide.height
+          } as A4GuideObjectType
         ]);
       }}
       disabled={maxCharsPerLine !== 80}
@@ -1626,10 +1106,10 @@ const InfiniteTypewriterCanvas = () => {
       x: typewriterX - prevTextBoxWidth / 2,
       y: typewriterY - baseFontSize / 2,
     };
-    const prevLTWorld = screenToWorld(prevLTScreen.x, prevLTScreen.y);
+    const prevLTWorld = screenToWorldLocal(prevLTScreen.x, prevLTScreen.y);
 
     // 2. 새 폭에 맞는 입력창 폭 계산
-    const tempTextBoxWidth = measureTextWidth('A'.repeat(newMaxChars));
+    const tempTextBoxWidth = measureTextWidthLocal('A'.repeat(newMaxChars));
     const newLTScreen = {
       x: typewriterX - tempTextBoxWidth / 2,
       y: typewriterY - baseFontSize / 2,
@@ -1645,15 +1125,9 @@ const InfiniteTypewriterCanvas = () => {
 
   useEffect(() => {
     // HiDPI(레티나) 대응: 캔버스 해상도 업스케일
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = canvasWidth * dpr;
-    canvas.height = canvasHeight * dpr;
-    canvas.style.width = `${canvasWidth}px`;
-    canvas.style.height = `${canvasHeight}px`;
-    const ctx = canvas.getContext('2d');
-    if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (canvasRef.current) {
+      setupCanvasHiDPI(canvasRef.current, canvasWidth, canvasHeight);
+    }
   }, [canvasWidth, canvasHeight]);
 
   const isComposingRef = useRef(false);
@@ -1726,30 +1200,34 @@ const InfiniteTypewriterCanvas = () => {
             onClick={() => {
               if (maxCharsPerLine !== 80) return; // 80자 모드에서만 동작
               // A4Guide 생성
-              const textBoxWorldCenter = screenToWorld(typewriterX, typewriterY);
-              const textBoxWorldTopLeft = screenToWorld(
+              const textBoxWorldCenter = screenToWorldLocal(typewriterX, typewriterY);
+              const textBoxWorldTopLeft = screenToWorldLocal(
                 typewriterX - getTextBoxWidth() / 2,
                 typewriterY - baseFontSize / 2
               );
-              // 실제 텍스트박스 픽셀 폭을 160mm로 가정하고 A4 가이드 계산
-              const actualTextBoxWidth = getTextBoxWidth(); // 현재 80자 기준 픽셀 폭
-              const mmPerPixel = TEXT_BOX_WIDTH_MM / actualTextBoxWidth; // 160mm / 실제픽셀폭
-              const a4MarginLRPixels = A4_MARGIN_LR_MM / mmPerPixel; // 25mm를 픽셀로 변환
-              const a4WidthWorld = actualTextBoxWidth + (a4MarginLRPixels * 2); // 텍스트박스 + 좌우 여백
-              const a4HeightWorld = a4WidthWorld * (A4_HEIGHT_MM / A4_WIDTH_MM); // A4 비율 유지
-              const a4MarginTopPixels = A4_MARGIN_TOP_MM / mmPerPixel; // 30mm를 픽셀로 변환
-              const a4OriginX = textBoxWorldCenter.x - a4WidthWorld / 2;
-              const a4OriginY = textBoxWorldTopLeft.y - a4MarginTopPixels;
+              const actualTextBoxWidth = getTextBoxWidth();
+              
+              const a4Guide = calculateA4GuidePosition(
+                textBoxWorldCenter,
+                textBoxWorldTopLeft,
+                actualTextBoxWidth,
+                TEXT_BOX_WIDTH_MM,
+                A4_MARGIN_LR_MM,
+                A4_MARGIN_TOP_MM,
+                A4_WIDTH_MM,
+                A4_HEIGHT_MM
+              );
+              
               setCanvasObjects(prev => [
                 ...prev,
                 {
                   id: Date.now(),
                   type: 'a4guide',
-                  x: a4OriginX,
-                  y: a4OriginY,
-                  width: a4WidthWorld,
-                  height: a4HeightWorld
-                }
+                  x: a4Guide.x,
+                  y: a4Guide.y,
+                  width: a4Guide.width,
+                  height: a4Guide.height
+                } as A4GuideObjectType
               ]);
             }}
             disabled={maxCharsPerLine !== 80}
@@ -1875,18 +1353,18 @@ const InfiniteTypewriterCanvas = () => {
                 left: typewriterX - getTextBoxWidth() / 2,
                 top: typewriterY - baseFontSize / 2,
                 width: getTextBoxWidth(),
-                height: Math.max(getCurrentLineHeight(), baseFontSize + 16),
+                height: Math.max(getCurrentLineHeight(selectedObject, baseFontSize, scale), baseFontSize + 16),
                 fontFamily: '"JetBrains Mono", monospace',
                 fontSize: baseFontSize,
-                background: colors[theme].inputBg,
-                border: `1px solid ${colors[theme].inputBorder}`,
+                background: THEME_COLORS[theme].inputBg,
+                border: `1px solid ${THEME_COLORS[theme].inputBorder}`,
                 outline: 'none',
-                color: colors[theme].text,
+                color: THEME_COLORS[theme].text,
                 zIndex: 20,
                 backdropFilter: 'blur(8px)',
                 borderRadius: '4px',
                 padding: 0,
-                lineHeight: `${getCurrentLineHeight()}px`,
+                lineHeight: `${getCurrentLineHeight(selectedObject, baseFontSize, scale)}px`,
                 boxSizing: 'border-box'
               }}
             />
@@ -1971,7 +1449,7 @@ const InfiniteTypewriterCanvas = () => {
           baseFontSize={baseFontSize}
           initialFontSize={INITIAL_FONT_SIZE}
           getTextBoxWidth={getTextBoxWidth}
-          screenToWorld={screenToWorld}
+          screenToWorld={(screenX, screenY) => screenToWorld(screenX, screenY, scale, canvasOffset)}
           theme={theme}
         />
         )}
@@ -2029,7 +1507,7 @@ const InfiniteTypewriterCanvas = () => {
               const zoomLevels = [
                 0.1, 0.15, 0.2, 0.25, 0.33, 0.4, 0.5, 0.6, 0.75, 0.85, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5, 6, 8, 10
               ];
-              const currentIndex = zoomLevels.findIndex(level => Math.abs(level - scale) < 0.01);
+              const currentIndex = findZoomLevel(scale, zoomLevels);
               const newIndex = Math.max(0, currentIndex - 1);
               if (newIndex !== currentIndex) {
                 zoomToLevel(zoomLevels[newIndex]);
@@ -2053,7 +1531,7 @@ const InfiniteTypewriterCanvas = () => {
               const zoomLevels = [
                 0.1, 0.15, 0.2, 0.25, 0.33, 0.4, 0.5, 0.6, 0.75, 0.85, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5, 6, 8, 10
               ];
-              const currentIndex = zoomLevels.findIndex(level => Math.abs(level - scale) < 0.01);
+              const currentIndex = findZoomLevel(scale, zoomLevels);
               const newIndex = Math.min(zoomLevels.length - 1, currentIndex + 1);
               if (newIndex !== currentIndex) {
                 zoomToLevel(zoomLevels[newIndex]);
