@@ -58,6 +58,7 @@ import {
 } from '../constants';
 import { CanvasObjectType, A4GuideObjectType, Theme } from '../types';
 import { ExportMenu } from './ExportMenu';
+import { saveSession, loadSession, clearSession } from '../utils/sessionStorage';
 
 1
 const InfiniteTypewriterCanvas = () => {
@@ -91,6 +92,10 @@ const InfiniteTypewriterCanvas = () => {
 
   const [maxCharsPerLine, setMaxCharsPerLine] = useState(80); // 한글 기준 80자, 동적 변경
   const [baseFontSize, setBaseFontSize] = useState(INITIAL_FONT_SIZE);
+  const [typewriterPosition, setTypewriterPosition] = useState({ 
+    x: window.innerWidth / 2, 
+    y: (window.innerHeight - 64) / 2 
+  });
 
   useEffect(() => {
     setPxPerMm(calculateDPIPixelsPerMM());
@@ -102,6 +107,127 @@ const InfiniteTypewriterCanvas = () => {
   useEffect(() => {
     loadGoogleFonts().then(() => setFontLoaded(true));
   }, []);
+
+  // Load session on component mount
+  useEffect(() => {
+    const sessionData = loadSession();
+    if (sessionData) {
+      console.log('Restoring session from:', new Date(sessionData.timestamp));
+      
+      // Restore canvas state
+      setCanvasObjects(sessionData.canvasObjects);
+      setCanvasOffset(sessionData.canvasOffset);
+      setScale(sessionData.scale);
+      setCurrentTypingText(sessionData.currentTypingText);
+      setBaseFontSize(sessionData.baseFontSize);
+      setMaxCharsPerLine(sessionData.maxCharsPerLine);
+      
+      // Restore UI state
+      setShowGrid(sessionData.showGrid);
+      setShowTextBox(sessionData.showTextBox);
+      setShowInfo(sessionData.showInfo);
+      setShowShortcuts(sessionData.showShortcuts);
+      setTheme(sessionData.theme);
+      
+      // Restore selected object if exists
+      if (sessionData.selectedObjectId) {
+        const selectedObj = sessionData.canvasObjects.find(obj => obj.id === sessionData.selectedObjectId);
+        if (selectedObj) {
+          setSelectedObject(selectedObj);
+        }
+      }
+    } else {
+      // No session found, use initial centering
+      setTimeout(centerTypewriter, 0);
+    }
+  }, []);
+
+  // Typewriter settings
+  const typewriterX = canvasWidth / 2;
+  const typewriterY = canvasHeight / 2;
+
+  // Auto-save session when state changes
+  useEffect(() => {
+    // Don't save during initial load
+    if (!fontLoaded) return;
+    
+    const saveCurrentSession = () => {
+      saveSession({
+        canvasObjects,
+        canvasOffset,
+        scale,
+        typewriterPosition: { x: typewriterX, y: typewriterY },
+        currentTypingText,
+        baseFontSize,
+        maxCharsPerLine,
+        showGrid,
+        showTextBox,
+        showInfo,
+        showShortcuts,
+        theme,
+        selectedObjectId: selectedObject?.id
+      });
+    };
+
+    // Debounce saving to avoid too frequent saves
+    const timeoutId = setTimeout(saveCurrentSession, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [
+    canvasObjects,
+    canvasOffset,
+    scale,
+    typewriterX,
+    typewriterY,
+    currentTypingText,
+    baseFontSize,
+    maxCharsPerLine,
+    showGrid,
+    showTextBox,
+    showInfo,
+    showShortcuts,
+    theme,
+    selectedObject,
+    fontLoaded
+  ]);
+
+  // Save session before page unload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      saveSession({
+        canvasObjects,
+        canvasOffset,
+        scale,
+        typewriterPosition: { x: typewriterX, y: typewriterY },
+        currentTypingText,
+        baseFontSize,
+        maxCharsPerLine,
+        showGrid,
+        showTextBox,
+        showInfo,
+        showShortcuts,
+        theme,
+        selectedObjectId: selectedObject?.id
+      });
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [
+    canvasObjects,
+    canvasOffset,
+    scale,
+    typewriterX,
+    typewriterY,
+    currentTypingText,
+    baseFontSize,
+    maxCharsPerLine,
+    showGrid,
+    showTextBox,
+    showInfo,
+    showShortcuts,
+    theme,
+    selectedObject
+  ]);
   
   const measureTextWidthLocal = useCallback((text: string, fontSize: number = baseFontSize) => {
     return measureTextWidth(text, fontSize, canvasRef.current, fontLoaded);
@@ -110,10 +236,6 @@ const InfiniteTypewriterCanvas = () => {
   const getTextBoxWidth = useCallback(() => {
     return measureTextWidthLocal('A'.repeat(maxCharsPerLine));
   }, [measureTextWidthLocal, maxCharsPerLine]);
-
-  // Typewriter settings
-  const typewriterX = canvasWidth / 2;
-  const typewriterY = canvasHeight / 2;
 
   const worldToScreenLocal = useCallback((worldX: number, worldY: number) => 
     worldToScreen(worldX, worldY, scale, canvasOffset), [scale, canvasOffset]);
@@ -479,6 +601,7 @@ const InfiniteTypewriterCanvas = () => {
     setScale(1);
     centerTypewriter();
     setSelectedObject(null);
+    clearSession(); // 세션도 함께 클리어
   }, [setScale, centerTypewriter, setSelectedObject]);
   
   // Keyboard events
