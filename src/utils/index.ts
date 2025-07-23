@@ -1,3 +1,11 @@
+// Re-export all utility functions from specialized modules
+export * from './canvasUtils';
+export * from './exportUtils';
+export * from './coordinateUtils';
+export * from './fontUtils';
+export * from './svgUtils';
+
+// Legacy functions kept for backward compatibility
 import { CanvasObjectType, TextObjectType, A4GuideObjectType } from '../types';
 
 export const measureTextWidth = (
@@ -9,7 +17,7 @@ export const measureTextWidth = (
   if (!canvas || !fontLoaded) return text.length * 12;
   const ctx = canvas.getContext('2d');
   if (!ctx) return text.length * 12;
-  ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
+  ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
   return ctx.measureText(text).width;
 };
 
@@ -30,10 +38,11 @@ export const isPointInTextObject = (
   const textWidth = measureText(obj.content, fontSize);
   const textHeight = fontSize;
   
-  return screenX >= screenPos.x && 
-         screenX <= screenPos.x + textWidth &&
-         screenY >= screenPos.y - textHeight &&
-         screenY <= screenPos.y + 4;
+  const padding = 5;
+  return screenX >= screenPos.x - padding && 
+         screenX <= screenPos.x + textWidth + padding &&
+         screenY >= screenPos.y - textHeight - padding &&
+         screenY <= screenPos.y + padding;
 };
 
 export const isPointInA4GuideObject = (

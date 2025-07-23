@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { CanvasObjectType, CanvasState, Theme } from '../types';
-import { INITIAL_FONT_SIZE, MAX_CHARS_PER_LINE } from '../constants';
+import { INITIAL_UI_FONT_SIZE_PX, MAX_CHARS_PER_LINE } from '../constants';
 import { measureTextWidth } from '../utils';
 
 export const useCanvas = () => {
@@ -26,7 +26,7 @@ export const useCanvas = () => {
   const [showShortcuts, setShowShortcuts] = useState(true);
   const [showTextBox, setShowTextBox] = useState(true);
   const [theme, setTheme] = useState<Theme>('dark');
-  const [baseFontSize, setBaseFontSize] = useState(INITIAL_FONT_SIZE);
+  const [baseFontSize, setBaseFontSize] = useState(INITIAL_UI_FONT_SIZE_PX);
 
   const typewriterX = canvasWidth / 2;
   const typewriterY = canvasHeight / 2;

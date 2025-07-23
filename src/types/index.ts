@@ -5,15 +5,15 @@ export interface TextObjectType {
   x: number;
   y: number;
   scale: number;
-  fontSize: number;
+  fontSize: number; // 월드 단위 폰트 크기
 }
 
 export interface A4GuideObjectType {
   id: number;
   type: 'a4guide';
-  x: number;
+  x: number; // 좌상단 월드 좌표
   y: number;
-  width: number;
+  width: number; // 월드 단위 크기
   height: number;
 }
 
