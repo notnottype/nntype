@@ -124,7 +124,39 @@ const InfiniteTypewriterCanvas = () => {
       setScale(sessionData.scale);
       setCurrentTypingText(sessionData.currentTypingText);
       setBaseFontSize(sessionData.baseFontSize);
+      if (sessionData.baseFontSizePt) {
+        setBaseFontSizePt(sessionData.baseFontSizePt);
+      }
       setMaxCharsPerLine(sessionData.maxCharsPerLine);
+      
+      // Restore typewriter LT position if available (윈도우 크기 변경 대응)
+      if (sessionData.typewriterLTWorldPosition) {
+        // maintainTypewriterLTWorldPosition와 동일한 방식으로 복구
+        const measureTextWidthFn = createMeasureTextWidthFn();
+        const textBoxWidth = measureTextWidthFn('A'.repeat(sessionData.maxCharsPerLine), sessionData.baseFontSize);
+        
+        // 현재 윈도우 크기 기준 타이프라이터 중앙 위치
+        const currentTypewriterX = window.innerWidth / 2;
+        const currentTypewriterY = (window.innerHeight - 64) / 2;
+        
+        // 현재 LT 스크린 좌표
+        const currentLTScreen = {
+          x: currentTypewriterX - textBoxWidth / 2,
+          y: currentTypewriterY - sessionData.baseFontSize / 2
+        };
+        
+        // 복구하고자 하는 LT 월드 좌표를 현재 스크린 좌표로 변환
+        const targetScreenX = sessionData.typewriterLTWorldPosition.x * sessionData.scale;
+        const targetScreenY = sessionData.typewriterLTWorldPosition.y * sessionData.scale;
+        
+        // 오프셋 계산: 현재 LT 위치가 목표 위치가 되도록
+        const restoredOffset = {
+          x: currentLTScreen.x - targetScreenX,
+          y: currentLTScreen.y - targetScreenY
+        };
+        
+        setCanvasOffset(restoredOffset);
+      }
       
       // Restore UI state
       setShowGrid(sessionData.showGrid);
@@ -156,13 +188,18 @@ const InfiniteTypewriterCanvas = () => {
     if (!fontLoaded) return;
     
     const saveCurrentSession = () => {
+      // 실시간 LT 월드 좌표 사용
+      const currentLTWorld = getCurrentLTWorldPosition();
+      
       saveSession({
         canvasObjects,
         canvasOffset,
         scale,
         typewriterPosition: { x: typewriterX, y: typewriterY },
+        typewriterLTWorldPosition: currentLTWorld,
         currentTypingText,
         baseFontSize,
+        baseFontSizePt,
         maxCharsPerLine,
         showGrid,
         showTextBox,
@@ -173,37 +210,32 @@ const InfiniteTypewriterCanvas = () => {
       });
     };
 
-    // Debounce saving to avoid too frequent saves
-    const timeoutId = setTimeout(saveCurrentSession, 1000);
+
+    // Debounce saving to avoid too frequent saves (객체 수에 따라 저장 빈도 조절)
+    const saveDelay = canvasObjects.length > 100 ? 5000 : canvasObjects.length > 50 ? 3000 : 1000;
+    const timeoutId = setTimeout(saveCurrentSession, saveDelay);
     return () => clearTimeout(timeoutId);
   }, [
-    canvasObjects,
-    canvasOffset,
-    scale,
-    typewriterX,
-    typewriterY,
-    currentTypingText,
-    baseFontSize,
-    maxCharsPerLine,
-    showGrid,
-    showTextBox,
-    showInfo,
-    showShortcuts,
-    theme,
-    selectedObject,
+    canvasObjects, // 실제 콘텐츠 변경 시에만 LT 위치 업데이트
+    currentTypingText, // 타이핑 중인 텍스트 변경
     fontLoaded
   ]);
 
   // Save session before page unload
   useEffect(() => {
     const handleBeforeUnload = () => {
+      // 실시간 LT 월드 좌표 사용
+      const currentLTWorld = getCurrentLTWorldPosition();
+      
       saveSession({
         canvasObjects,
         canvasOffset,
         scale,
         typewriterPosition: { x: typewriterX, y: typewriterY },
+        typewriterLTWorldPosition: currentLTWorld,
         currentTypingText,
         baseFontSize,
+        baseFontSizePt,
         maxCharsPerLine,
         showGrid,
         showTextBox,
@@ -218,12 +250,13 @@ const InfiniteTypewriterCanvas = () => {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [
     canvasObjects,
-    canvasOffset,
+    // canvasOffset,  // 윈도우 리사이즈 시 LT 고정을 위해 제외
     scale,
-    typewriterX,
-    typewriterY,
+    // typewriterX,   // 윈도우 리사이즈로 변경되는 값이므로 제외
+    // typewriterY,   // 윈도우 리사이즈로 변경되는 값이므로 제외
     currentTypingText,
     baseFontSize,
+    baseFontSizePt,
     maxCharsPerLine,
     showGrid,
     showTextBox,
@@ -231,6 +264,49 @@ const InfiniteTypewriterCanvas = () => {
     showShortcuts,
     theme,
     selectedObject
+  ]);
+
+  // UI 상태 변경 시 저장 (LT 위치는 유지)  
+  useEffect(() => {
+    if (!fontLoaded) return;
+    
+    const saveUIState = () => {
+      // UI 상태 변경 시에도 현재 실시간 LT 위치 사용 (더 정확한 위치 추적)
+      const currentLTWorld = getCurrentLTWorldPosition();
+      
+      saveSession({
+        canvasObjects,
+        canvasOffset,
+        scale,
+        typewriterPosition: { x: typewriterX, y: typewriterY },
+        typewriterLTWorldPosition: currentLTWorld, // 현재 실시간 LT 위치 사용
+        currentTypingText,
+        baseFontSize,
+        baseFontSizePt,
+        maxCharsPerLine,
+        showGrid,
+        showTextBox,
+        showInfo,
+        showShortcuts,
+        theme,
+        selectedObjectId: selectedObject?.id
+      });
+    };
+
+    const timeoutId = setTimeout(saveUIState, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [
+    scale,
+    baseFontSize,
+    baseFontSizePt,
+    maxCharsPerLine,
+    showGrid,
+    showTextBox,
+    showInfo,
+    showShortcuts,
+    theme,
+    selectedObject,
+    fontLoaded
   ]);
   
   // 메모리 누수 방지: measureTextWidth 함수를 캐시
@@ -286,6 +362,19 @@ const InfiniteTypewriterCanvas = () => {
     return screenToWorldLocal(textBoxLeft, textBoxBaseline);
   }, [getTextBoxWidth, screenToWorldLocal, typewriterX, typewriterY, baseFontSize]);
 
+  // 현재 LT 월드 좌표를 실시간으로 계산하는 함수
+  const getCurrentLTWorldPosition = useCallback(() => {
+    const textBoxWidth = getTextBoxWidth();
+    const currentLTScreen = {
+      x: typewriterX - textBoxWidth / 2,
+      y: typewriterY - baseFontSize / 2
+    };
+    return {
+      x: (currentLTScreen.x - canvasOffset.x) / scale,
+      y: (currentLTScreen.y - canvasOffset.y) / scale
+    };
+  }, [getTextBoxWidth, typewriterX, typewriterY, baseFontSize, canvasOffset, scale]);
+
   const isPointInObjectLocal = useCallback((obj: CanvasObjectType, screenX: number, screenY: number) => {
     return isPointInObject(obj, screenX, screenY, scale, worldToScreenLocal, measureTextWidthLocal);
   }, [scale, worldToScreenLocal, measureTextWidthLocal]);
@@ -299,17 +388,8 @@ const InfiniteTypewriterCanvas = () => {
 
   useEffect(() => {
     const handleResize = () => {
-      // 1. 현재 LT World 좌표 저장
-      const measureTextWidthFn = createMeasureTextWidthFn();
-      const currentTextBoxWidth = measureTextWidthFn('A'.repeat(maxCharsPerLine), baseFontSize);
-      const currentLTScreen = {
-        x: typewriterX - currentTextBoxWidth / 2,
-        y: typewriterY - baseFontSize / 2
-      };
-      const currentLTWorld = {
-        x: (currentLTScreen.x - canvasOffset.x) / scale,
-        y: (currentLTScreen.y - canvasOffset.y) / scale
-      };
+      // 1. 실시간 LT World 좌표 사용 (세션 데이터 지연 문제 해결)
+      const targetLTWorld = getCurrentLTWorldPosition();
       
       // 2. 새로운 윈도우 크기 설정
       const newWidth = window.innerWidth;
@@ -320,16 +400,15 @@ const InfiniteTypewriterCanvas = () => {
       setCanvasWidth(newWidth);
       setCanvasHeight(newHeight);
       
-      // 3. 새로운 화면 중앙에서 동일한 LT World 좌표 유지
+      // 3. 새로운 화면 중앙에서 저장된 LT World 좌표 유지
       setTimeout(() => {
-        const newTextBoxWidth = measureTextWidthFn('A'.repeat(maxCharsPerLine), baseFontSize);
         const newLTScreen = {
-          x: newTypewriterX - newTextBoxWidth / 2,
+          x: newTypewriterX - getTextBoxWidth() / 2,
           y: newTypewriterY - baseFontSize / 2
         };
         
-        const targetScreenX = currentLTWorld.x * scale;
-        const targetScreenY = currentLTWorld.y * scale;
+        const targetScreenX = targetLTWorld.x * scale;
+        const targetScreenY = targetLTWorld.y * scale;
         
         const newOffset = {
           x: newLTScreen.x - targetScreenX,
@@ -343,7 +422,7 @@ const InfiniteTypewriterCanvas = () => {
     
     // 초기 로드 시에만 centerTypewriter 실행
     return () => window.removeEventListener('resize', handleResize);
-  }, [createMeasureTextWidthFn, maxCharsPerLine, baseFontSize, typewriterX, typewriterY, scale, centerTypewriter]);
+  }, [getCurrentLTWorldPosition, getTextBoxWidth, baseFontSize, scale]);
 
   // 초기 로드 시 캔버스 중앙 배치
   useEffect(() => {
