@@ -132,7 +132,7 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
         padding: '12px',
         maxHeight: '32vh',
         minWidth: '260px', // minWidth 확장 (중복 제거)
-        maxWidth: '340px',
+        maxWidth: '400px',
         backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.5)',
         overflowY: 'auto',
       }}

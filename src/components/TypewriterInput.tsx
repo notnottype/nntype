@@ -94,7 +94,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
         style={{
           position: 'absolute',
           left: typewriterX - getTextBoxWidth() / 2,
-          top: typewriterY - baseFontSize / 2 - 45, // 타이프라이터 박스 위쪽으로 이동
+          top: typewriterY - baseFontSize / 2 + 45, // 타이프라이터 박스 위쪽으로 이동
           fontSize: '11px',
           color: theme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)',
           background: theme === 'dark' ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.8)',

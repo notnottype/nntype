@@ -233,6 +233,7 @@ const InfiniteTypewriterCanvas = () => {
     selectedObject
   ]);
   
+  // 메모리 누수 방지: measureTextWidth 함수를 캐시
   const measureTextWidthLocal = useCallback((text: string, fontSize: number = baseFontSize) => {
     return measureTextWidth(text, fontSize, canvasRef.current, fontLoaded);
   }, [baseFontSize, fontLoaded]);
@@ -240,6 +241,18 @@ const InfiniteTypewriterCanvas = () => {
   const getTextBoxWidth = useCallback(() => {
     return measureTextWidthLocal('A'.repeat(maxCharsPerLine));
   }, [measureTextWidthLocal, maxCharsPerLine]);
+
+  // 공통 measureTextWidth 함수 (메모리 누수 방지)
+  const createMeasureTextWidthFn = useCallback(() => {
+    return (text: string, fontSize: number) => {
+      const canvas = canvasRef.current;
+      if (!canvas || !fontLoaded) return text.length * 12;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return text.length * 12;
+      ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
+      return ctx.measureText(text).width;
+    };
+  }, [fontLoaded]);
 
   const worldToScreenLocal = useCallback((worldX: number, worldY: number) => 
     worldToScreen(worldX, worldY, scale, canvasOffset), [scale, canvasOffset]);
@@ -286,17 +299,56 @@ const InfiniteTypewriterCanvas = () => {
 
   useEffect(() => {
     const handleResize = () => {
+      // 1. 현재 LT World 좌표 저장
+      const measureTextWidthFn = createMeasureTextWidthFn();
+      const currentTextBoxWidth = measureTextWidthFn('A'.repeat(maxCharsPerLine), baseFontSize);
+      const currentLTScreen = {
+        x: typewriterX - currentTextBoxWidth / 2,
+        y: typewriterY - baseFontSize / 2
+      };
+      const currentLTWorld = {
+        x: (currentLTScreen.x - canvasOffset.x) / scale,
+        y: (currentLTScreen.y - canvasOffset.y) / scale
+      };
+      
+      // 2. 새로운 윈도우 크기 설정
       const newWidth = window.innerWidth;
       const newHeight = window.innerHeight - 64;
+      const newTypewriterX = newWidth / 2;
+      const newTypewriterY = newHeight / 2;
+      
       setCanvasWidth(newWidth);
       setCanvasHeight(newHeight);
-      setTimeout(centerTypewriter, 0); 
+      
+      // 3. 새로운 화면 중앙에서 동일한 LT World 좌표 유지
+      setTimeout(() => {
+        const newTextBoxWidth = measureTextWidthFn('A'.repeat(maxCharsPerLine), baseFontSize);
+        const newLTScreen = {
+          x: newTypewriterX - newTextBoxWidth / 2,
+          y: newTypewriterY - baseFontSize / 2
+        };
+        
+        const targetScreenX = currentLTWorld.x * scale;
+        const targetScreenY = currentLTWorld.y * scale;
+        
+        const newOffset = {
+          x: newLTScreen.x - targetScreenX,
+          y: newLTScreen.y - targetScreenY
+        };
+        
+        setCanvasOffset(newOffset);
+      }, 0);
     };
     window.addEventListener('resize', handleResize);
     
-    setTimeout(centerTypewriter, 0);
+    // 초기 로드 시에만 centerTypewriter 실행
     return () => window.removeEventListener('resize', handleResize);
-  }, [centerTypewriter]);
+  }, [createMeasureTextWidthFn, maxCharsPerLine, baseFontSize, typewriterX, typewriterY, scale, centerTypewriter]);
+
+  // 초기 로드 시 캔버스 중앙 배치
+  useEffect(() => {
+    setTimeout(centerTypewriter, 0);
+  }, []); // 빈 의존성 배열로 초기 로드 시에만 실행
 
   const drawGridLocal = useCallback((ctx: CanvasRenderingContext2D) => {
     const baseGridSize = getCurrentLineHeight(selectedObject, baseFontSize, scale);
@@ -534,25 +586,22 @@ const InfiniteTypewriterCanvas = () => {
     };
   }, []);
 
-  // 타이프라이터 LT 월드 좌표 유지하면서 상태 변경하는 공통 함수
-  const maintainTypewriterLTWorldPosition = useCallback((
+  // 타이프라이터 LT 월드 좌표 유지하면서 상태 변경하는 공통 함수 (현재 상태 기준)
+  const maintainTypewriterLTWorldPosition = (
     newFontSize: number,
-    newScale: number,
-    measureTextWidthFn: (text: string, fontSize: number) => number
+    newScale: number
   ) => {
-    const currentOffset = canvasOffset;
-    const currentScale = scale;
-    const currentFontSize = baseFontSize;
+    const measureTextWidthFn = createMeasureTextWidthFn();
     
-    // 1. 현재 타이프라이터 LT의 월드 좌표 계산
-    const currentTextBoxWidth = measureTextWidthFn('A'.repeat(maxCharsPerLine), currentFontSize);
+    // 1. 호출 시점의 현재 타이프라이터 LT 월드 좌표 계산
+    const currentTextBoxWidth = measureTextWidthFn('A'.repeat(maxCharsPerLine), baseFontSize);
     const currentLTScreen = {
       x: typewriterX - currentTextBoxWidth / 2,
-      y: typewriterY - currentFontSize / 2
+      y: typewriterY - baseFontSize / 2
     };
     const currentLTWorld = {
-      x: (currentLTScreen.x - currentOffset.x) / currentScale,
-      y: (currentLTScreen.y - currentOffset.y) / currentScale
+      x: (currentLTScreen.x - canvasOffset.x) / scale,
+      y: (currentLTScreen.y - canvasOffset.y) / scale
     };
     
     // 2. 새로운 설정에서 타이프라이터 LT의 화면 좌표 계산
@@ -575,7 +624,7 @@ const InfiniteTypewriterCanvas = () => {
     setBaseFontSize(newFontSize);
     setScale(newScale);
     setCanvasOffset(newOffset);
-  }, [canvasOffset, scale, baseFontSize, maxCharsPerLine, typewriterX, typewriterY]);
+  };
 
   // UI Font Size 조절 함수 (픽셀 기반 - 타이프라이터 입력박스 크기 조정)
   const handleUISizeChange = (up: boolean) => {
@@ -590,17 +639,7 @@ const InfiniteTypewriterCanvas = () => {
       const fontSizeRatio = newFontSize / baseFontSize;
       const newScale = scale * fontSizeRatio;
       
-      // measureTextWidth 함수 생성
-      const measureTextWidthWithFont = (text: string, fontSize: number) => {
-        const canvas = canvasRef.current;
-        if (!canvas || !fontLoaded) return text.length * 12;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return text.length * 12;
-        ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
-        return ctx.measureText(text).width;
-      };
-      
-      maintainTypewriterLTWorldPosition(newFontSize, newScale, measureTextWidthWithFont);
+      maintainTypewriterLTWorldPosition(newFontSize, newScale);
       // UI Font Size만 조정하고 Base Font Size는 독립적으로 유지
     }
   };
@@ -621,31 +660,40 @@ const InfiniteTypewriterCanvas = () => {
       const ptRatio = newBaseFontSizePt / baseFontSizePt;
       const newScale = scale / ptRatio; // Base Font Size 증가 시 캔버스 축소 (역비율)
       
-      // measureTextWidth 함수 생성 (현재 UI 폰트 크기 유지)
-      const measureTextWidthWithFont = (text: string, fontSize: number) => {
-        const canvas = canvasRef.current;
-        if (!canvas || !fontLoaded) return text.length * 12;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return text.length * 12;
-        ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
-        return ctx.measureText(text).width;
-      };
-      
       // UI 폰트 크기는 유지하면서 스케일만 조정하여 LT 월드 좌표 유지
-      maintainTypewriterLTWorldPosition(baseFontSize, newScale, measureTextWidthWithFont);
+      maintainTypewriterLTWorldPosition(baseFontSize, newScale);
       // Base Font Size만 업데이트
       setBaseFontSizePt(newBaseFontSizePt);
     }
   };
 
+  // UI Zoom 리셋 (UI 폰트 사이즈를 초기값으로, 스케일을 1.0으로)
+  const resetUIZoom = useCallback(() => {
+    // LT World 좌표 유지하면서 UI 폰트 사이즈와 스케일만 초기화
+    maintainTypewriterLTWorldPosition(INITIAL_UI_FONT_SIZE_PX, 1.0);
+  }, [maintainTypewriterLTWorldPosition]);
+
+  // Base Font 리셋 (Base Font Size를 초기값으로)
+  const resetBaseFont = useCallback(() => {
+    if (baseFontSizePt !== INITIAL_BASE_FONT_SIZE_PT) {
+      // 포인트 크기 변화 비율 계산 (역비율 적용)
+      const ptRatio = INITIAL_BASE_FONT_SIZE_PT / baseFontSizePt;
+      const newScale = scale / ptRatio; // Base Font Size 변경 시 캔버스 스케일 역비율 조정
+      
+      // UI 폰트 크기는 유지하면서 스케일만 조정하여 LT 월드 좌표 유지
+      maintainTypewriterLTWorldPosition(baseFontSize, newScale);
+      // Base Font Size를 초기값으로 업데이트
+      setBaseFontSizePt(INITIAL_BASE_FONT_SIZE_PT);
+    }
+  }, [baseFontSizePt, scale, baseFontSize, maintainTypewriterLTWorldPosition]);
+
   const resetCanvas = useCallback(() => {
-    setScale(1);
-    setBaseFontSize(INITIAL_UI_FONT_SIZE_PX); // UI Font Size 초기화
-    setBaseFontSizePt(INITIAL_BASE_FONT_SIZE_PT); // Base Font Size 초기화
-    centerTypewriter();
+    // 전체 캔버스 리셋 (모든 값 초기화)
+    maintainTypewriterLTWorldPosition(INITIAL_UI_FONT_SIZE_PX, 1.0);
+    setBaseFontSizePt(INITIAL_BASE_FONT_SIZE_PT);
     setSelectedObject(null);
     clearSession(); // 세션도 함께 클리어
-  }, [setScale, centerTypewriter, setSelectedObject]);
+  }, [maintainTypewriterLTWorldPosition, setSelectedObject]);
   
   // Keyboard events
   useEffect(() => {
@@ -669,9 +717,7 @@ const InfiniteTypewriterCanvas = () => {
           return;
         } else if (e.key === '0') {
           e.preventDefault();
-          if (Math.abs(scale - 1) > 0.01) {
-            zoomToLevel(1);
-          }
+          resetUIZoom(); // UI Zoom 리셋
           return;
         } else if (e.key === 'Home' || e.key === 'r' || e.key === 'R') {
           e.preventDefault();
@@ -691,6 +737,12 @@ const InfiniteTypewriterCanvas = () => {
         if (e.key === '-' || e.key === '_' || e.code === 'Minus') {
           e.preventDefault();
           handleBaseFontSizeChange(false);
+          return;
+        }
+        // 0 인식: Base Font Size 리셋
+        if (e.key === '0') {
+          e.preventDefault();
+          resetBaseFont(); // Base Font 리셋
           return;
         }
       }
@@ -744,7 +796,7 @@ const InfiniteTypewriterCanvas = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [scale, selectedObject, getCurrentLineHeight, zoomToLevel, setCanvasObjects, setSelectedObject, setCanvasOffset, handleUISizeChange, resetCanvas]);
+  }, [scale, selectedObject, getCurrentLineHeight, zoomToLevel, setCanvasObjects, setSelectedObject, setCanvasOffset, handleUISizeChange, handleBaseFontSizeChange, resetUIZoom, resetBaseFont, resetCanvas]);
 
   // Mouse events
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1082,7 +1134,7 @@ const InfiniteTypewriterCanvas = () => {
             : 'bg-blue-100/80 border-blue-400 text-blue-700 hover:bg-blue-200 hover:text-blue-900'
         }`}
         style={{fontWeight: 600, boxShadow: '0 2px 8px rgba(0,0,0,0.06)'}}
-        title="초기화"
+        title="전체 리셋 (Cmd+R)"
       >
         <RotateCcw className="w-5 h-5" color={theme === 'dark' ? '#60a5fa' : '#2563eb'} />
       </button>
