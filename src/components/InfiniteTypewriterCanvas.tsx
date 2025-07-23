@@ -10,10 +10,11 @@
  * This code contains AI-generated content that has been further developed and customized.
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Type, Move, Download, Upload, Import, Grid, FileText, Image, Code, RotateCcw, Trash2, Eye, EyeOff, ZoomIn, ZoomOut, FileDown, Sun, Moon, CornerUpLeft, CornerUpRight, Layers, Info, NotepadTextDashed, TextCursorInput } from 'lucide-react';
-import { ShortcutsOverlay } from './ShortcutsOverlay';
-import { CanvasInfoOverlay } from './CanvasInfoOverlay';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Type, Move, Download, Import, Grid, FileText, Image, Code, RotateCcw, Trash2, Eye, EyeOff, Sun, Moon, Layers, Info, NotepadTextDashed, TextCursorInput } from 'lucide-react';
+import { Header } from './Header';
+import { CanvasContainer } from './CanvasContainer';
+import { createPNGExporter, createJSONExporter, createSVGExporter } from '../utils/exportHandlers';
 import { 
   measureTextWidth, 
   snapToGrid, 
@@ -55,7 +56,8 @@ import {
   FONT_SIZE_LEVELS,
   THEME_COLORS
 } from '../constants';
-import { CanvasObjectType, TextObjectType, A4GuideObjectType, Theme } from '../types';
+import { CanvasObjectType, A4GuideObjectType, Theme } from '../types';
+import { ExportMenu } from './ExportMenu';
 
 1
 const InfiniteTypewriterCanvas = () => {
@@ -73,7 +75,6 @@ const InfiniteTypewriterCanvas = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isMouseInTextBox, setIsMouseInTextBox] = useState(false);
   const [hoveredObject, setHoveredObject] = useState<CanvasObjectType | null>(null);
-  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [canvasWidth, setCanvasWidth] = useState(window.innerWidth);
   const [canvasHeight, setCanvasHeight] = useState(window.innerHeight - 64);
   const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
@@ -88,9 +89,6 @@ const InfiniteTypewriterCanvas = () => {
   const [showTextBox, setShowTextBox] = useState(true);
   const [theme, setTheme] = useState<Theme>('light');
 
-  // Typewriter settings
-  const typewriterX = canvasWidth / 2;
-  const typewriterY = canvasHeight / 2;
   const [maxCharsPerLine, setMaxCharsPerLine] = useState(80); // 한글 기준 80자, 동적 변경
   const [baseFontSize, setBaseFontSize] = useState(INITIAL_FONT_SIZE);
 
@@ -112,6 +110,10 @@ const InfiniteTypewriterCanvas = () => {
   const getTextBoxWidth = useCallback(() => {
     return measureTextWidthLocal('A'.repeat(maxCharsPerLine));
   }, [measureTextWidthLocal, maxCharsPerLine]);
+
+  // Typewriter settings
+  const typewriterX = canvasWidth / 2;
+  const typewriterY = canvasHeight / 2;
 
   const worldToScreenLocal = useCallback((worldX: number, worldY: number) => 
     worldToScreen(worldX, worldY, scale, canvasOffset), [scale, canvasOffset]);
@@ -165,6 +167,7 @@ const InfiniteTypewriterCanvas = () => {
       setTimeout(centerTypewriter, 0); 
     };
     window.addEventListener('resize', handleResize);
+    
     setTimeout(centerTypewriter, 0);
     return () => window.removeEventListener('resize', handleResize);
   }, [centerTypewriter]);
@@ -252,52 +255,20 @@ const InfiniteTypewriterCanvas = () => {
     );
   }, [canvasObjects, currentTypingText, baseFontSize, getCurrentWorldPosition]);
 
-  const exportAsPNG = useCallback(() => {
-    setIsExportMenuOpen(false);
-    const bbox = calculateBounds();
-
-    const padding = 50; 
-    const contentWidth = bbox.maxX - bbox.minX;
-    const contentHeight = bbox.maxY - bbox.minY;
-
-    const exportScaleFactor = 2; 
-    const exportWidth = contentWidth * exportScaleFactor + padding * 2;
-    const exportHeight = contentHeight * exportScaleFactor + padding * 2;
-
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = exportWidth;
-    tempCanvas.height = exportHeight;
-    const tempCtx = tempCanvas.getContext('2d');
-
-    if (!tempCtx) {
-      console.error("Could not get 2D context for PNG export.");
-      return;
-    }
-
-    tempCtx.fillStyle = THEME_COLORS[theme].background;
-    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-
-    const tempOffsetX = padding - bbox.minX * exportScaleFactor;
-    const tempOffsetY = padding - bbox.minY * exportScaleFactor;
-
-    drawContentForExport(
-      tempCtx,
+  const exportAsPNG = useMemo(() => 
+    createPNGExporter(
       canvasObjects,
       currentTypingText,
-      getCurrentWorldPosition,
       baseFontSize,
-      { x: tempOffsetX, y: tempOffsetY },
-      exportScaleFactor,
+      getCurrentWorldPosition,
       theme,
       THEME_COLORS
-    );
+    ),
+    [canvasObjects, currentTypingText, baseFontSize, getCurrentWorldPosition, theme]
+  );
 
-    downloadCanvas(tempCanvas, `typewriter-canvas-${new Date().toISOString().slice(0, 10)}.png`);
-  }, [canvasObjects, currentTypingText, baseFontSize, calculateBounds, getCurrentWorldPosition, theme]);
-
-  const exportAsJSON = useCallback(() => {
-    setIsExportMenuOpen(false);
-    const data = createExportData(
+  const exportAsJSON = useMemo(() =>
+    createJSONExporter(
       canvasObjects,
       canvasOffset,
       scale,
@@ -306,49 +277,54 @@ const InfiniteTypewriterCanvas = () => {
       showGrid,
       showTextBox,
       theme
+    ),
+    [canvasObjects, canvasOffset, scale, typewriterX, typewriterY, showGrid, showTextBox, theme]
+  );
+
+  const exportAsSVG = useMemo(() =>
+    createSVGExporter(
+      canvasObjects,
+      currentTypingText,
+      baseFontSize,
+      getCurrentWorldPosition,
+      theme
+    ),
+    [canvasObjects, currentTypingText, baseFontSize, getCurrentWorldPosition, theme]
+  );
+
+  const handleAddA4Guide = useCallback(() => {
+    if (maxCharsPerLine !== 80) return;
+    
+    const textBoxWorldCenter = screenToWorldLocal(typewriterX, typewriterY);
+    const textBoxWorldTopLeft = screenToWorldLocal(
+      typewriterX - getTextBoxWidth() / 2,
+      typewriterY - baseFontSize / 2
+    );
+    const actualTextBoxWidth = getTextBoxWidth();
+    
+    const a4Guide = calculateA4GuidePosition(
+      textBoxWorldCenter,
+      textBoxWorldTopLeft,
+      actualTextBoxWidth,
+      TEXT_BOX_WIDTH_MM,
+      A4_MARGIN_LR_MM,
+      A4_MARGIN_TOP_MM,
+      A4_WIDTH_MM,
+      A4_HEIGHT_MM
     );
     
-    downloadFile(
-      JSON.stringify(data, null, 2),
-      `typewriter-canvas-${new Date().toISOString().slice(0, 10)}.json`,
-      'application/json'
-    );
-  }, [canvasObjects, canvasOffset, scale, typewriterX, typewriterY, showGrid, showTextBox, theme]);
-
-  const exportAsSVG = useCallback(() => {
-    setIsExportMenuOpen(false);
-    const bbox = calculateBounds();
-
-    const svgPaddingWorld = 20; 
-    const contentWidth = bbox.maxX - bbox.minX;
-    const contentHeight = bbox.maxY - bbox.minY;
-
-    const viewBoxMinX = bbox.minX - svgPaddingWorld;
-    const viewBoxMinY = bbox.minY - svgPaddingWorld;
-    const viewBoxWidth = contentWidth + 2 * svgPaddingWorld;
-    const viewBoxHeight = contentHeight + 2 * svgPaddingWorld;
-
-    const { width: outputWidth, height: outputHeight } = calculateSVGOutputSize(viewBoxWidth, viewBoxHeight, 1000);
-    
-    const svg = createSVGElement(viewBoxMinX, viewBoxMinY, viewBoxWidth, viewBoxHeight, outputWidth, outputHeight);
-    addSVGBackground(svg, "#ffffff");
-
-    canvasObjects.filter(obj => obj.type === 'text').forEach(obj => {
-      addTextObjectToSVG(svg, obj as TextObjectType, "#000000");
-    });
-
-    if (currentTypingText.trim()) {
-      const worldPos = getCurrentWorldPosition();
-      addCurrentTypingTextToSVG(svg, currentTypingText, worldPos, baseFontSize, "#000000");
-    }
-
-    canvasObjects.filter(obj => obj.type === 'a4guide').forEach(obj => {
-      addA4GuideToSVG(svg, obj as A4GuideObjectType);
-    });
-    
-    const svgString = serializeSVG(svg);
-    downloadFile(svgString, `typewriter-canvas-${new Date().toISOString().slice(0, 10)}.svg`, 'image/svg+xml');
-  }, [canvasObjects, currentTypingText, baseFontSize, calculateBounds, getCurrentWorldPosition, theme]);
+    setCanvasObjects(prev => [
+      ...prev,
+      {
+        id: Date.now(),
+        type: 'a4guide',
+        x: a4Guide.x,
+        y: a4Guide.y,
+        width: a4Guide.width,
+        height: a4Guide.height
+      } as A4GuideObjectType
+    ]);
+  }, [maxCharsPerLine, typewriterX, typewriterY, getTextBoxWidth, baseFontSize, screenToWorldLocal]);
 
   const importFile = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -513,7 +489,6 @@ const InfiniteTypewriterCanvas = () => {
       const input = document.getElementById('typewriter-input') as HTMLInputElement;
       const isInputFocused = document.activeElement === input;
       if (e.key === 'Escape') {
-        setIsExportMenuOpen(false);
       }
       const zoomLevels = [
         0.1, 0.15, 0.2, 0.25, 0.33, 0.4, 0.5, 0.6, 0.75, 0.85, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5, 6, 8, 10
@@ -591,14 +566,10 @@ const InfiniteTypewriterCanvas = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [scale, selectedObject, getCurrentLineHeight, zoomToLevel, setCanvasObjects, setSelectedObject, setCanvasOffset, handleUISizeChange, resetCanvas, setIsExportMenuOpen]);
+  }, [scale, selectedObject, getCurrentLineHeight, zoomToLevel, setCanvasObjects, setSelectedObject, setCanvasOffset, handleUISizeChange, resetCanvas]);
 
   // Mouse events
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const target = e.target as HTMLElement;
-    if (isExportMenuOpen && (!target || !target.closest || !target.closest('.export-dropdown'))) {
-      setIsExportMenuOpen(false);
-    }
     
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -948,26 +919,12 @@ const InfiniteTypewriterCanvas = () => {
       <Import className="w-4 h-4" />
       <input type="file" accept=".json" onChange={importFile} className="hidden" />
     </label>
-    <div className="relative">
-      <button
-        onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-        className={`p-2 rounded-lg transition-colors ${
-          theme === 'dark'
-            ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-        }`}
-        title="Export"
-      >
-        <Upload className="w-4 h-4" />
-      </button>
-      {isExportMenuOpen && (
-        <div className={`export-dropdown absolute right-0 mt-2 min-w-[140px] rounded shadow-lg z-50 p-1 ${theme === 'dark' ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200'}`}>
-          <button onClick={exportAsPNG} className={`block w-full text-left px-3 py-1 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-sm ${theme === 'dark' ? 'text-gray-100' : 'text-gray-800'}`}>Export as PNG</button>
-          <button onClick={exportAsSVG} className={`block w-full text-left px-3 py-1 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-sm ${theme === 'dark' ? 'text-gray-100' : 'text-gray-800'}`}>Export as SVG</button>
-          <button onClick={exportAsJSON} className={`block w-full text-left px-3 py-1 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-sm ${theme === 'dark' ? 'text-gray-100' : 'text-gray-800'}`}>Export as JSON</button>
-        </div>
-      )}
-    </div>
+    <ExportMenu
+      onExportPNG={exportAsPNG}
+      onExportSVG={exportAsSVG}
+      onExportJSON={exportAsJSON}
+      theme={theme}
+    />
     <div className="border-l h-6 mx-2" />
     {/* 보기/설정 관련 */}
     <button
@@ -1134,480 +1091,95 @@ const InfiniteTypewriterCanvas = () => {
 
   return (
     <div className={`w-full h-screen flex flex-col ${theme === 'dark' ? 'bg-black' : 'bg-gray-50'}`}>
-      {/* Header */}
-      <div className={`${
-        theme === 'dark' 
-          ? 'bg-black/90 border-gray-800' 
-          : 'bg-white/90 border-gray-200'
-      } backdrop-blur-sm border-b p-4 flex items-center justify-between relative z-50`}>
-        {/* 좌측: 타이틀 */}
-        <div className="flex items-center gap-6 min-w-[180px]">
-          <h1 className={`text-lg font-medium flex items-center gap-2 ${
-            theme === 'dark' ? 'text-white' : 'text-gray-900'
-          }`}>
-            <Type className="w-5 h-5" />
-            Infinite Canvas Typewriter
-          </h1>
-        </div>
-        {/* 중앙: 파일/도구/삭제 */}
-        <div className="flex items-center gap-2 justify-center flex-1 relative">
-          {/* 파일 관련 */}
-          <label className={`p-2 rounded-lg transition-colors cursor-pointer ${
-            theme === 'dark'
-              ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-          }`} title="Import">
-            <Import className="w-4 h-4" />
-            <input type="file" accept=".json" onChange={importFile} className="hidden" />
-          </label>
-          <div className="relative">
-            <button
-              onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-              className={`p-2 rounded-lg transition-colors ${
-                theme === 'dark'
-                  ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-              title="Export"
-            >
-              <Upload className="w-4 h-4" />
-            </button>
-            {isExportMenuOpen && (
-              <div className={`export-dropdown absolute right-0 mt-2 min-w-[140px] rounded shadow-lg z-50 p-1 ${theme === 'dark' ? 'bg-gray-900 border border-gray-700' : 'bg-white border border-gray-200'}`}>
-                <button onClick={exportAsPNG} className={`block w-full text-left px-3 py-1 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-sm ${theme === 'dark' ? 'text-gray-100' : 'text-gray-800'}`}>Export as PNG</button>
-                <button onClick={exportAsSVG} className={`block w-full text-left px-3 py-1 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-sm ${theme === 'dark' ? 'text-gray-100' : 'text-gray-800'}`}>Export as SVG</button>
-                <button onClick={exportAsJSON} className={`block w-full text-left px-3 py-1 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-sm ${theme === 'dark' ? 'text-gray-100' : 'text-gray-800'}`}>Export as JSON</button>
-              </div>
-            )}
-          </div>
-          {/* 구분선 */}
-          <span className="mx-2 text-gray-400 select-none">|</span>
-          {/* 도구 관련 */}
-          <button
-            onClick={() => setShowGrid(prev => !prev)}
-            className={`p-2 rounded-lg transition-colors ${
-              showGrid 
-                ? 'text-blue-500 bg-blue-500/10' 
-                : theme === 'dark'
-                  ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}
-            title="Toggle Grid"
-          >
-            <Grid className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => {
-              if (maxCharsPerLine !== 80) return; // 80자 모드에서만 동작
-              // A4Guide 생성
-              const textBoxWorldCenter = screenToWorldLocal(typewriterX, typewriterY);
-              const textBoxWorldTopLeft = screenToWorldLocal(
-                typewriterX - getTextBoxWidth() / 2,
-                typewriterY - baseFontSize / 2
-              );
-              const actualTextBoxWidth = getTextBoxWidth();
-              
-              const a4Guide = calculateA4GuidePosition(
-                textBoxWorldCenter,
-                textBoxWorldTopLeft,
-                actualTextBoxWidth,
-                TEXT_BOX_WIDTH_MM,
-                A4_MARGIN_LR_MM,
-                A4_MARGIN_TOP_MM,
-                A4_WIDTH_MM,
-                A4_HEIGHT_MM
-              );
-              
-              setCanvasObjects(prev => [
-                ...prev,
-                {
-                  id: Date.now(),
-                  type: 'a4guide',
-                  x: a4Guide.x,
-                  y: a4Guide.y,
-                  width: a4Guide.width,
-                  height: a4Guide.height
-                } as A4GuideObjectType
-              ]);
-            }}
-            disabled={maxCharsPerLine !== 80}
-            className={`p-2 rounded-lg transition-colors ${
-              maxCharsPerLine !== 80
-                ? (theme === 'dark'
-                    ? 'text-gray-600 bg-gray-800/40 cursor-not-allowed opacity-50'
-                    : 'text-gray-400 bg-gray-100/60 cursor-not-allowed opacity-50')
-                : (theme === 'dark'
-                    ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
-            }`}
-            title="Add A4 Guide"
-          >
-            <NotepadTextDashed className="w-4 h-4" />
-          </button>
-          {/* 구분선 */}
-          <span className="mx-2 text-gray-400 select-none">|</span>
-          {/* 삭제(Reset) 버튼 */}
-          <button
-            onClick={clearAll}
-            className={`p-2 rounded-lg transition-colors ${
-              theme === 'dark'
-                ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}
-            title="Reset"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-        {/* 우측: 다크모드, info, shortcuts */}
-        <div className="flex items-center gap-2 min-w-[180px] justify-end">
-          <button
-            onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
-            className={`p-2 rounded-lg transition-colors ${
-              theme === 'dark'
-                ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}
-            title="Toggle Theme"
-          >
-            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
-          <button
-            onClick={() => setShowInfo(prev => !prev)}
-            className={`p-2 rounded-lg transition-colors ${
-              showInfo 
-                ? 'text-blue-500 bg-blue-500/10' 
-                : theme === 'dark'
-                  ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}
-            title="캔버스 정보 토글"
-          >
-            <Info className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setShowShortcuts(prev => !prev)}
-            className={`p-2 rounded-lg transition-colors ${
-              showShortcuts 
-                ? 'text-blue-500 bg-blue-500/10' 
-                : theme === 'dark'
-                  ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}
-            title="단축키 안내 토글"
-          >
-            <Layers className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+      <Header
+        theme={theme}
+        showGrid={showGrid}
+        showInfo={showInfo}
+        showShortcuts={showShortcuts}
+        maxCharsPerLine={maxCharsPerLine}
+        onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+        onShowGridToggle={() => setShowGrid(prev => !prev)}
+        onShowInfoToggle={() => setShowInfo(prev => !prev)}
+        onShowShortcutsToggle={() => setShowShortcuts(prev => !prev)}
+        onImportFile={importFile}
+        onExportPNG={exportAsPNG}
+        onExportSVG={exportAsSVG}
+        onExportJSON={exportAsJSON}
+        onAddA4Guide={handleAddA4Guide}
+        onClearAll={clearAll}
+      />
 
-      {/* Canvas */}
-      <div className="flex-1 relative overflow-hidden">
-        <canvas
-          ref={canvasRef}
-          width={canvasWidth}
-          height={canvasHeight}
-          className={`absolute inset-0 ${
-            (() => {
-              if (isSpacePressed) {
-                return isMouseInTextBox ? 'cursor-grab' : 'cursor-default';
-              }
-              if (hoveredObject && isMouseInTextBox) {
-                return 'cursor-move'; // 오브젝트 이동 가능을 명확히 표시
-              }
-              if (isMouseInTextBox) {
-                return 'cursor-text';
-              }
-              return 'cursor-default';
-            })()
-          }`}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={() => {
-            handleMouseUp();
-            setHoveredObject(null);
-            setIsMouseInTextBox(false);
-          }}
-          onWheel={handleWheel}
-          tabIndex={0}
-        />
-        
-        {/* Input Field */}
-        {showTextBox && (
-          <>
-            <input
-              id="typewriter-input"
-              type="text"
-              value={currentTypingText}
-              onChange={handleInputChange}
-              onKeyDown={handleInputKeyDown}
-              onCompositionStart={handleCompositionStart}
-              onCompositionEnd={handleCompositionEnd}
-              onClick={(e) => {
-                e.stopPropagation();
-                e.currentTarget.focus();
-              }}
-              style={{
-                position: 'absolute',
-                left: typewriterX - getTextBoxWidth() / 2,
-                top: typewriterY - baseFontSize / 2,
-                width: getTextBoxWidth(),
-                height: Math.max(getCurrentLineHeight(selectedObject, baseFontSize, scale), baseFontSize + 16),
-                fontFamily: '"JetBrains Mono", monospace',
-                fontSize: baseFontSize,
-                background: THEME_COLORS[theme].inputBg,
-                border: `1px solid ${THEME_COLORS[theme].inputBorder}`,
-                outline: 'none',
-                color: THEME_COLORS[theme].text,
-                zIndex: 20,
-                backdropFilter: 'blur(8px)',
-                borderRadius: '4px',
-                padding: 0,
-                lineHeight: `${getCurrentLineHeight(selectedObject, baseFontSize, scale)}px`,
-                boxSizing: 'border-box'
-              }}
-            />
-            
-            {/* Font Size Indicator */}
-            <div
-              style={{
-                position: 'absolute',
-                left: typewriterX - getTextBoxWidth() / 2 - 100,
-                top: typewriterY - baseFontSize / 2,
-                fontSize: '11px',
-                color: theme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)',
-                background: theme === 'dark' ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.8)',
-                padding: '6px 10px',
-                borderRadius: '4px',
-                zIndex: 20,
-                whiteSpace: 'nowrap',
-                backdropFilter: 'blur(8px)',
-                border: `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`
-              }}
-            >
-              {baseFontSize}px ({((baseFontSize / scale) / 2).toFixed(1)}pt)
-            </div>
-            {/* 폭 선택 버튼: 입력창 아래 중앙 */}
-            <div
-              style={{
-                position: 'absolute',
-                left: typewriterX - getTextBoxWidth() / 2,
-                top: typewriterY + baseFontSize / 2 + 24,
-                width: getTextBoxWidth(),
-                display: 'flex',
-                justifyContent: 'center',
-                zIndex: 30,
-                pointerEvents: 'auto',
-              }}
-            >
-              {[40, 60, 80].map((chars, idx, arr) => (
-                <React.Fragment key={chars}>
-                  <button
-                    onClick={() => handleMaxCharsChange(chars)}
-                    disabled={maxCharsPerLine === chars}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      outline: 'none',
-                      color: maxCharsPerLine === chars
-                        ? '#60a5fa' // 하이라이트 하늘색
-                        : (theme === 'dark' ? '#bfc9d1' : '#bfc9d1'), // 연한 회색
-                      fontWeight: maxCharsPerLine === chars ? 500 : 400, // 더 얇게
-                      fontFamily: 'JetBrains Mono, monospace',
-                      fontSize: 13,
-                      padding: '1px 8px',
-                      cursor: maxCharsPerLine === chars ? 'default' : 'pointer',
-                      opacity: maxCharsPerLine === chars ? 1 : 0.7,
-                      transition: 'color 0.15s, opacity 0.15s',
-                    }}
-                    title={`${chars}자 폭으로 변경`}
-                  >
-                    {chars}
-                  </button>
-                  {idx < arr.length - 1 && (
-                    <span style={{ color: theme === 'dark' ? '#bfc9d1' : '#bfc9d1', fontSize: 13, margin: '0 2px' }}>-</span>
-                  )}
-                </React.Fragment>
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* Canvas Info Overlay */}
-        {showInfo && (
-                  <CanvasInfoOverlay
-          canvasOffset={canvasOffset}
-          scale={scale}
-          canvasObjects={canvasObjects}
-          selectedObject={selectedObject}
-          hoveredObject={hoveredObject}
-          mousePosition={mousePosition}
-          isMouseInTextBox={isMouseInTextBox}
-          typewriterX={typewriterX}
-          typewriterY={typewriterY}
-          baseFontSize={baseFontSize}
-          initialFontSize={INITIAL_FONT_SIZE}
-          getTextBoxWidth={getTextBoxWidth}
-          screenToWorld={(screenX, screenY) => screenToWorld(screenX, screenY, scale, canvasOffset)}
-          theme={theme}
-        />
-        )}
-
-        {/* Shortcuts Overlay */}
-        {showShortcuts && (
-          <ShortcutsOverlay theme={theme} />
-        )}
-
-        {/* Status Messages */}
-        {showTextBox && currentTypingText && (
-          <div className={`absolute bottom-4 left-4 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-mono ${
-            theme === 'dark'
-              ? 'bg-black/80 text-white'
-              : 'bg-white/90 text-gray-900'
-          }`}>
-            Typing: "{currentTypingText}"
-          </div>
-        )}
-        
-        {selectedObject && (
-          <div className={`absolute bottom-4 right-4 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-mono border flex items-center gap-3 ${
-            theme === 'dark'
-              ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
-              : 'bg-blue-500/10 text-blue-600 border-blue-500/20'
-          }`}>
-            <span>
-              Selected: {selectedObject.type === 'text' 
-                ? `"${(selectedObject as TextObjectType).content.substring(0, 30)}${(selectedObject as TextObjectType).content.length > 30 ? '...' : ''}"` 
-                : 'A4 Guide'}
-            </span>
-            <button
-              onClick={() => {
-                setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
-                setSelectedObject(null);
-              }}
-              className={`p-1 rounded transition-colors ${
-                theme === 'dark'
-                  ? 'hover:bg-red-500/20 text-red-400 hover:text-red-300'
-                  : 'hover:bg-red-500/20 text-red-600 hover:text-red-500'
-              }`}
-              title="Delete selected object"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
-        {/* Zoom Indicator */}
-        <div className={`absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-2 backdrop-blur-sm px-3 py-1.5 rounded-full ${
-          theme === 'dark' ? 'bg-black/80' : 'bg-white/90'
-        }`}>
-          <button
-            onClick={() => {
-              const zoomLevels = [
-                0.1, 0.15, 0.2, 0.25, 0.33, 0.4, 0.5, 0.6, 0.75, 0.85, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5, 6, 8, 10
-              ];
-              const currentIndex = findZoomLevel(scale, zoomLevels);
-              const newIndex = Math.max(0, currentIndex - 1);
-              if (newIndex !== currentIndex) {
-                zoomToLevel(zoomLevels[newIndex]);
-              }
-            }}
-            className={`p-1 transition-colors ${
-              theme === 'dark'
-                ? 'text-gray-400 hover:text-white'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <ZoomOut className="w-3 h-3" />
-          </button>
-          <span className={`text-xs font-mono w-12 text-center ${
-            theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-          }`}>
-            {(scale * 100).toFixed(0)}%
-          </span>
-          <button
-            onClick={() => {
-              const zoomLevels = [
-                0.1, 0.15, 0.2, 0.25, 0.33, 0.4, 0.5, 0.6, 0.75, 0.85, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5, 6, 8, 10
-              ];
-              const currentIndex = findZoomLevel(scale, zoomLevels);
-              const newIndex = Math.min(zoomLevels.length - 1, currentIndex + 1);
-              if (newIndex !== currentIndex) {
-                zoomToLevel(zoomLevels[newIndex]);
-              }
-            }}
-            className={`p-1 transition-colors ${
-              theme === 'dark'
-                ? 'text-gray-400 hover:text-white'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <ZoomIn className="w-3 h-3" />
-          </button>
-        </div>
-
-        {/* Undo/Redo 버튼 */}
-        <div
-          style={{
-            position: 'absolute',
-            left: typewriterX + getTextBoxWidth() / 2 - 68, // 기존 -48에서 -76으로 더 왼쪽으로 이동
-            top: typewriterY + baseFontSize / 2 + 12,
-            display: 'flex',
-            flexDirection: 'row',
-            gap: '8px',
-            zIndex: 30,
-            padding: '4px 20px 4px 4px',
-            borderRadius: '10px',
-            background: 'transparent',
-          }}
-        >
-          <button
-            onClick={handleUndo}
-            disabled={undoStack.length === 0}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              borderRadius: '50%',
-              width: 28,
-              height: 28,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#aaa',
-              cursor: undoStack.length === 0 ? 'not-allowed' : 'pointer',
-              transition: 'background 0.2s',
-            }}
-            title="실행 취소 (Undo)"
-            onMouseOver={e => e.currentTarget.style.background = theme === 'dark' ? 'rgba(200,200,200,0.08)' : 'rgba(200,200,200,0.15)'}
-            onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-          >
-            <CornerUpLeft className="w-4 h-4" color="#aaa" />
-          </button>
-          <button
-            onClick={handleRedo}
-            disabled={redoStack.length === 0}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              borderRadius: '50%',
-              width: 28,
-              height: 28,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#aaa',
-              cursor: redoStack.length === 0 ? 'not-allowed' : 'pointer',
-              transition: 'background 0.2s',
-            }}
-            title="다시 실행 (Redo)"
-            onMouseOver={e => e.currentTarget.style.background = theme === 'dark' ? 'rgba(200,200,200,0.08)' : 'rgba(200,200,200,0.15)'}
-            onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-          >
-            <CornerUpRight className="w-4 h-4" color="#aaa" />
-          </button>
-        </div>
-      </div>
+      <CanvasContainer
+        canvasRef={canvasRef}
+        canvasWidth={canvasWidth}
+        canvasHeight={canvasHeight}
+        isSpacePressed={isSpacePressed}
+        hoveredObject={hoveredObject}
+        isMouseInTextBox={isMouseInTextBox}
+        theme={theme}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={() => {
+          handleMouseUp();
+          setHoveredObject(null);
+          setIsMouseInTextBox(false);
+        }}
+        onWheel={handleWheel}
+        showTextBox={showTextBox}
+        currentTypingText={currentTypingText}
+        typewriterX={typewriterX}
+        typewriterY={typewriterY}
+        baseFontSize={baseFontSize}
+        scale={scale}
+        maxCharsPerLine={maxCharsPerLine}
+        selectedObject={selectedObject}
+        undoStack={undoStack}
+        redoStack={redoStack}
+        getTextBoxWidth={getTextBoxWidth}
+        getCurrentLineHeight={getCurrentLineHeight}
+        handleInputChange={handleInputChange}
+        handleInputKeyDown={handleInputKeyDown}
+        handleCompositionStart={handleCompositionStart}
+        handleCompositionEnd={handleCompositionEnd}
+        handleMaxCharsChange={handleMaxCharsChange}
+        handleUndo={handleUndo}
+        handleRedo={handleRedo}
+        THEME_COLORS={THEME_COLORS}
+        showInfo={showInfo}
+        showShortcuts={showShortcuts}
+        canvasOffset={canvasOffset}
+        canvasObjects={canvasObjects}
+        mousePosition={mousePosition}
+        INITIAL_FONT_SIZE={INITIAL_FONT_SIZE}
+        screenToWorld={(screenX, screenY) => screenToWorld(screenX, screenY, scale, canvasOffset)}
+        onDeleteSelected={() => {
+          if (selectedObject) {
+            setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
+            setSelectedObject(null);
+          }
+        }}
+        onZoomIn={() => {
+          const zoomLevels = [
+            0.1, 0.15, 0.2, 0.25, 0.33, 0.4, 0.5, 0.6, 0.75, 0.85, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5, 6, 8, 10
+          ];
+          const currentIndex = findZoomLevel(scale, zoomLevels);
+          const newIndex = Math.min(zoomLevels.length - 1, currentIndex + 1);
+          if (newIndex !== currentIndex) {
+            zoomToLevel(zoomLevels[newIndex]);
+          }
+        }}
+        onZoomOut={() => {
+          const zoomLevels = [
+            0.1, 0.15, 0.2, 0.25, 0.33, 0.4, 0.5, 0.6, 0.75, 0.85, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5, 6, 8, 10
+          ];
+          const currentIndex = findZoomLevel(scale, zoomLevels);
+          const newIndex = Math.max(0, currentIndex - 1);
+          if (newIndex !== currentIndex) {
+            zoomToLevel(zoomLevels[newIndex]);
+          }
+        }}
+      />
     </div>
   );
 };
