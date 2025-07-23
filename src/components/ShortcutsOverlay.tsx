@@ -94,13 +94,17 @@ export const ShortcutsOverlay = ({ theme }: { theme: Theme }) => {
         <div className="flex flex-col gap-0.5 pl-2">
           <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Pan Canvas</span>: <span className="font-mono">Space + Drag</span></div>
           <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Move View</span>: <span className="font-mono">Shift + Arrow Keys</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Scale In/Out</span>: <span className="font-mono">Alt/Option + +/-</span></div>
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Canvas Zoom</span>: <span className="font-mono">Shift + Alt + +/-</span></div>
           <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Reset Zoom</span>: <span className="font-mono">Ctrl + 0</span></div>
           <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Reset View</span>: <span className="font-mono">Cmd + R</span></div>
         </div>
+        <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Font Sizes</div>
+        <div className="flex flex-col gap-0.5 pl-2">
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">UI Font Size</span>: <span className="font-mono">Ctrl/Cmd + +/-</span></div>
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Base Font Size</span>: <span className="font-mono">Alt + +/-</span></div>
+        </div>
         <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Editing</div>
         <div className="flex flex-col gap-0.5 pl-2">
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">UI Size</span>: <span className="font-mono">Ctrl/Cmd + +/-</span></div>
           <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-28">Delete Selected</span>: <span className="font-mono">Del</span></div>
         </div>
       </div>

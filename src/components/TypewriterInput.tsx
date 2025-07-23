@@ -1,13 +1,15 @@
 import React from 'react'
 import { CornerUpLeft, CornerUpRight } from 'lucide-react'
+import { pxToPoints } from '../utils/units'
 
 interface TypewriterInputProps {
   showTextBox: boolean
   currentTypingText: string
   typewriterX: number
   typewriterY: number
-  baseFontSize: number
-  scale: number
+  baseFontSize: number      // UI 폰트 크기 (픽셀)
+  baseFontSizePt: number    // Base 폰트 크기 (포인트)
+  scale: number             // 캔버스 줌 레벨
   theme: 'light' | 'dark'
   maxCharsPerLine: number
   selectedObject: any
@@ -31,6 +33,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
   typewriterX,
   typewriterY,
   baseFontSize,
+  baseFontSizePt,
   scale,
   theme,
   maxCharsPerLine,
@@ -90,8 +93,8 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
       <div
         style={{
           position: 'absolute',
-          left: typewriterX - getTextBoxWidth() / 2 - 100,
-          top: typewriterY - baseFontSize / 2,
+          left: typewriterX - getTextBoxWidth() / 2,
+          top: typewriterY - baseFontSize / 2 - 45, // 타이프라이터 박스 위쪽으로 이동
           fontSize: '11px',
           color: theme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)',
           background: theme === 'dark' ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.8)',
@@ -103,7 +106,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
           border: `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`
         }}
       >
-        {baseFontSize}px ({((baseFontSize / scale) / 2).toFixed(1)}pt)
+        UI: {baseFontSize}px ({pxToPoints(baseFontSize).toFixed(1)}pt) | Base: {baseFontSizePt.toFixed(1)}pt
       </div>
 
       {/* Width Selection Buttons */}

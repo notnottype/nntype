@@ -29,6 +29,7 @@ interface CanvasContainerProps {
   typewriterX: number
   typewriterY: number
   baseFontSize: number
+  baseFontSizePt: number
   scale: number
   maxCharsPerLine: number
   selectedObject: any
@@ -51,7 +52,7 @@ interface CanvasContainerProps {
   canvasOffset: { x: number; y: number }
   canvasObjects: CanvasObjectType[]
   mousePosition: { x: number; y: number }
-  INITIAL_FONT_SIZE: number
+  INITIAL_FONT_SIZE: number  // TODO: 향후 INITIAL_UI_FONT_SIZE_PX로 변경 예정
   screenToWorld: (screenX: number, screenY: number) => { x: number; y: number }
   
   // Status props
@@ -80,6 +81,7 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
   typewriterX,
   typewriterY,
   baseFontSize,
+  baseFontSizePt,
   scale,
   maxCharsPerLine,
   selectedObject,
@@ -146,6 +148,7 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
         typewriterX={typewriterX}
         typewriterY={typewriterY}
         baseFontSize={baseFontSize}
+        baseFontSizePt={baseFontSizePt}
         scale={scale}
         theme={theme}
         maxCharsPerLine={maxCharsPerLine}
