@@ -81,7 +81,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
           outline: 'none',
           color: THEME_COLORS[theme].text,
           zIndex: 20,
-          backdropFilter: 'blur(8px)',
+          backdropFilter: 'blur(1px)',
           borderRadius: '4px',
           padding: 0,
           lineHeight: `${getCurrentLineHeight(selectedObject, baseFontSize, scale)}px`,

@@ -63,16 +63,24 @@ import { CanvasObjectType, A4GuideObjectType, Theme } from '../types';
 import { ExportMenu } from './ExportMenu';
 import { saveSession, loadSession, clearSession } from '../utils/sessionStorage';
 
-1
 const InfiniteTypewriterCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [canvasObjects, setCanvasObjects] = useState<CanvasObjectType[]>([]);
-  const [currentTypingText, setCurrentTypingText] = useState('');
+  const [canvasObjects, setCanvasObjects] = useState<CanvasObjectType[]>(() => {
+    const sessionData = loadSession();
+    return sessionData?.canvasObjects || [];
+  });
+  const [currentTypingText, setCurrentTypingText] = useState(() => {
+    const sessionData = loadSession();
+    return sessionData?.currentTypingText || '';
+  });
   const [isComposing, setIsComposing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isDraggingText, setIsDraggingText] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useState(() => {
+    const sessionData = loadSession();
+    return sessionData?.scale || 1;
+  });
   const [isTyping, setIsTyping] = useState(false);
   const [fontLoaded, setFontLoaded] = useState(false);
   const [selectedObject, setSelectedObject] = useState<CanvasObjectType | null>(null);
@@ -81,21 +89,87 @@ const InfiniteTypewriterCanvas = () => {
   const [hoveredObject, setHoveredObject] = useState<CanvasObjectType | null>(null);
   const [canvasWidth, setCanvasWidth] = useState(window.innerWidth);
   const [canvasHeight, setCanvasHeight] = useState(window.innerHeight - 64);
-  const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
+  const [canvasOffset, setCanvasOffset] = useState(() => {
+    // 초기 렌더링 시 세션에서 LT 위치 복구하여 깜빡임 방지
+    const sessionData = loadSession();
+    if (sessionData?.typewriterLTWorldPosition) {
+      try {
+        // 정확한 세션 데이터 값으로 계산
+        const initialTypewriterX = window.innerWidth / 2;
+        const initialTypewriterY = (window.innerHeight - 64) / 2;
+        
+        // 정확한 텍스트 박스 너비 계산 (세션 데이터 사용)
+        const textBoxWidth = sessionData.maxCharsPerLine * (sessionData.baseFontSize * 0.6);
+        
+        const currentLTScreen = {
+          x: initialTypewriterX - textBoxWidth / 2,
+          y: initialTypewriterY - sessionData.baseFontSize / 2
+        };
+        
+        const targetScreenX = sessionData.typewriterLTWorldPosition.x * sessionData.scale;
+        const targetScreenY = sessionData.typewriterLTWorldPosition.y * sessionData.scale;
+        
+        console.log('Initial canvas offset calculation:', {
+          typewriterLT: sessionData.typewriterLTWorldPosition,
+          scale: sessionData.scale,
+          currentLTScreen,
+          targetScreen: { x: targetScreenX, y: targetScreenY },
+          calculatedOffset: {
+            x: currentLTScreen.x - targetScreenX,
+            y: currentLTScreen.y - targetScreenY
+          }
+        });
+        
+        return {
+          x: currentLTScreen.x - targetScreenX,
+          y: currentLTScreen.y - targetScreenY
+        };
+      } catch (error) {
+        console.warn('Failed to calculate initial offset:', error);
+        return { x: 0, y: 0 };
+      }
+    }
+    return { x: 0, y: 0 };
+  });
   const [isSpacePressed, setIsSpacePressed] = useState(false);
-  const [showGrid, setShowGrid] = useState(true);
+  const [showGrid, setShowGrid] = useState(() => {
+    const sessionData = loadSession();
+    return sessionData?.showGrid ?? true;
+  });
 
   // Dynamically measure CSS pixels per millimeter (accounts for DPI / zoom)
   const [pxPerMm, setPxPerMm] = useState(96 / 25.4); // fallback default
 
-  const [showInfo, setShowInfo] = useState(true);
-  const [showShortcuts, setShowShortcuts] = useState(true);
-  const [showTextBox, setShowTextBox] = useState(true);
-  const [theme, setTheme] = useState<Theme>('light');
+  const [showInfo, setShowInfo] = useState(() => {
+    const sessionData = loadSession();
+    return sessionData?.showInfo ?? true;
+  });
+  const [showShortcuts, setShowShortcuts] = useState(() => {
+    const sessionData = loadSession();
+    return sessionData?.showShortcuts ?? true;
+  });
+  const [showTextBox, setShowTextBox] = useState(() => {
+    const sessionData = loadSession();
+    return sessionData?.showTextBox ?? true;
+  });
+  const [theme, setTheme] = useState<Theme>(() => {
+    const sessionData = loadSession();
+    return sessionData?.theme || 'light';
+  });
 
-  const [maxCharsPerLine, setMaxCharsPerLine] = useState(80); // 한글 기준 80자, 동적 변경
-  const [baseFontSize, setBaseFontSize] = useState(INITIAL_UI_FONT_SIZE_PX); // UI 폰트 크기 (픽셀)
-  const [baseFontSizePt, setBaseFontSizePt] = useState(INITIAL_BASE_FONT_SIZE_PT); // Base 폰트 크기 (포인트)
+  const [maxCharsPerLine, setMaxCharsPerLine] = useState(() => {
+    const sessionData = loadSession();
+    return sessionData?.maxCharsPerLine || 80;
+  }); // 한글 기준 80자, 동적 변경
+  const [baseFontSize, setBaseFontSize] = useState(() => {
+    const sessionData = loadSession();
+    return sessionData?.baseFontSize || INITIAL_UI_FONT_SIZE_PX;
+  }); // UI 폰트 크기 (픽셀)
+  const [baseFontSizePt, setBaseFontSizePt] = useState(() => {
+    const sessionData = loadSession();
+    return sessionData?.baseFontSizePt || INITIAL_BASE_FONT_SIZE_PT;
+  }); // Base 폰트 크기 (포인트)
+  const [needsLTPositionRestore, setNeedsLTPositionRestore] = useState<{ x: number; y: number } | null>(null); // LT 위치 복구 플래그
   const [typewriterPosition, setTypewriterPosition] = useState({ 
     x: window.innerWidth / 2, 
     y: (window.innerHeight - 64) / 2 
@@ -120,7 +194,6 @@ const InfiniteTypewriterCanvas = () => {
       
       // Restore canvas state
       setCanvasObjects(sessionData.canvasObjects);
-      setCanvasOffset(sessionData.canvasOffset);
       setScale(sessionData.scale);
       setCurrentTypingText(sessionData.currentTypingText);
       setBaseFontSize(sessionData.baseFontSize);
@@ -129,33 +202,15 @@ const InfiniteTypewriterCanvas = () => {
       }
       setMaxCharsPerLine(sessionData.maxCharsPerLine);
       
-      // Restore typewriter LT position if available (윈도우 크기 변경 대응)
+      // LT 월드 좌표를 기반으로 캔버스 오프셋 계산하여 타이프라이터 위치 복구
       if (sessionData.typewriterLTWorldPosition) {
-        // maintainTypewriterLTWorldPosition와 동일한 방식으로 복구
-        const measureTextWidthFn = createMeasureTextWidthFn();
-        const textBoxWidth = measureTextWidthFn('A'.repeat(sessionData.maxCharsPerLine), sessionData.baseFontSize);
+        console.log('Restoring typewriter LT position:', sessionData.typewriterLTWorldPosition);
         
-        // 현재 윈도우 크기 기준 타이프라이터 중앙 위치
-        const currentTypewriterX = window.innerWidth / 2;
-        const currentTypewriterY = (window.innerHeight - 64) / 2;
-        
-        // 현재 LT 스크린 좌표
-        const currentLTScreen = {
-          x: currentTypewriterX - textBoxWidth / 2,
-          y: currentTypewriterY - sessionData.baseFontSize / 2
-        };
-        
-        // 복구하고자 하는 LT 월드 좌표를 현재 스크린 좌표로 변환
-        const targetScreenX = sessionData.typewriterLTWorldPosition.x * sessionData.scale;
-        const targetScreenY = sessionData.typewriterLTWorldPosition.y * sessionData.scale;
-        
-        // 오프셋 계산: 현재 LT 위치가 목표 위치가 되도록
-        const restoredOffset = {
-          x: currentLTScreen.x - targetScreenX,
-          y: currentLTScreen.y - targetScreenY
-        };
-        
-        setCanvasOffset(restoredOffset);
+        // LT 위치 복구를 위한 플래그 설정 (별도 useEffect에서 처리)
+        setNeedsLTPositionRestore(sessionData.typewriterLTWorldPosition);
+      } else {
+        // LT 위치 정보가 없으면 저장된 오프셋 사용 (기존 방식)
+        setCanvasOffset(sessionData.canvasOffset);
       }
       
       // Restore UI state
@@ -174,9 +229,11 @@ const InfiniteTypewriterCanvas = () => {
       }
     } else {
       // No session found, use initial centering
+      console.log('No session found, centering typewriter');
       setTimeout(centerTypewriter, 0);
     }
   }, []);
+
 
   // Typewriter settings
   const typewriterX = canvasWidth / 2;
@@ -375,6 +432,34 @@ const InfiniteTypewriterCanvas = () => {
     };
   }, [getTextBoxWidth, typewriterX, typewriterY, baseFontSize, canvasOffset, scale]);
 
+  // LT 위치 복구 처리 (모든 상태가 설정된 후)
+  useEffect(() => {
+    if (needsLTPositionRestore && fontLoaded && getTextBoxWidth) {
+      console.log('Restoring LT position after state initialization:', needsLTPositionRestore);
+      
+      // getCurrentLTWorldPosition과 정확히 동일한 방식으로 계산 (누적 오차 방지)
+      const textBoxWidth = getTextBoxWidth();
+      const currentLTScreen = {
+        x: typewriterX - textBoxWidth / 2,
+        y: typewriterY - baseFontSize / 2
+      };
+      
+      // 저장된 LT 월드 좌표를 스크린 좌표로 변환
+      const targetScreenX = needsLTPositionRestore.x * scale;
+      const targetScreenY = needsLTPositionRestore.y * scale;
+      
+      // 캔버스 오프셋 계산
+      const restoredOffset = {
+        x: currentLTScreen.x - targetScreenX,
+        y: currentLTScreen.y - targetScreenY
+      };
+      
+      console.log('LT restoration - currentLTScreen:', currentLTScreen, 'targetScreen:', { x: targetScreenX, y: targetScreenY }, 'offset:', restoredOffset);
+      setCanvasOffset(restoredOffset);
+      setNeedsLTPositionRestore(null); // 복구 완료 후 플래그 제거
+    }
+  }, [needsLTPositionRestore, fontLoaded, typewriterX, typewriterY, getTextBoxWidth, baseFontSize, scale]);
+
   const isPointInObjectLocal = useCallback((obj: CanvasObjectType, screenX: number, screenY: number) => {
     return isPointInObject(obj, screenX, screenY, scale, worldToScreenLocal, measureTextWidthLocal);
   }, [scale, worldToScreenLocal, measureTextWidthLocal]);
@@ -424,10 +509,7 @@ const InfiniteTypewriterCanvas = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, [getCurrentLTWorldPosition, getTextBoxWidth, baseFontSize, scale]);
 
-  // 초기 로드 시 캔버스 중앙 배치
-  useEffect(() => {
-    setTimeout(centerTypewriter, 0);
-  }, []); // 빈 의존성 배열로 초기 로드 시에만 실행
+  // 초기 중앙 배치는 세션 로드에서 처리 (중복 제거)
 
   const drawGridLocal = useCallback((ctx: CanvasRenderingContext2D) => {
     const baseGridSize = getCurrentLineHeight(selectedObject, baseFontSize, scale);
@@ -857,18 +939,46 @@ const InfiniteTypewriterCanvas = () => {
         e.preventDefault();
         const moveDistance = getCurrentLineHeight(selectedObject, baseFontSize, scale);
         setCanvasOffset(prev => {
-          switch (e.key) {
-            case 'ArrowUp':
-              return { x: prev.x, y: prev.y + moveDistance };
-            case 'ArrowDown':
-              return { x: prev.x, y: prev.y - moveDistance };
-            case 'ArrowLeft':
-              return { x: prev.x + moveDistance, y: prev.y };
-            case 'ArrowRight':
-              return { x: prev.x - moveDistance, y: prev.y };
-            default:
-              return prev;
-          }
+          const newOffset = (() => {
+            switch (e.key) {
+              case 'ArrowUp':
+                return { x: prev.x, y: prev.y + moveDistance };
+              case 'ArrowDown':
+                return { x: prev.x, y: prev.y - moveDistance };
+              case 'ArrowLeft':
+                return { x: prev.x + moveDistance, y: prev.y };
+              case 'ArrowRight':
+                return { x: prev.x - moveDistance, y: prev.y };
+              default:
+                return prev;
+            }
+          })();
+
+          // 방향키 이동 후 세션 데이터 업데이트 (비동기)
+          setTimeout(() => {
+            const currentLTWorldPosition = getCurrentLTWorldPosition();
+            if (currentLTWorldPosition) {
+              saveSession({
+                canvasObjects,
+                canvasOffset: newOffset,
+                scale,
+                typewriterPosition: { x: typewriterX, y: typewriterY },
+                typewriterLTWorldPosition: currentLTWorldPosition,
+                currentTypingText,
+                baseFontSize,
+                baseFontSizePt,
+                maxCharsPerLine,
+                showGrid,
+                showTextBox,
+                showInfo,
+                showShortcuts,
+                theme,
+                selectedObjectId: selectedObject?.id
+              });
+            }
+          }, 0);
+
+          return newOffset;
         });
         return;
       }
