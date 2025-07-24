@@ -1263,7 +1263,18 @@ const InfiniteTypewriterCanvas = () => {
         setAIState(prev => ({ ...prev, lastResponse: response.content }));
         
         // 응답을 현재 타이프라이터 박스 폭에 맞게 줄바꿈 처리
-        const wrappedLines = wrapTextToLines(response.content, maxCharsPerLine);
+        // 월드 좌표계 기준으로 통일해서 UI 픽셀 크기와 무관하게 일관된 결과 보장
+        const worldFontSize = baseFontSize / scale;
+        const textBoxPixelWidth = getTextBoxWidth();
+        const worldBoxWidth = textBoxPixelWidth / scale; // 월드 좌표계 폭으로 변환
+        
+        const wrappedLines = wrapTextToLines(
+          response.content, 
+          maxCharsPerLine, 
+          worldBoxWidth, 
+          worldFontSize, 
+          (text: string, fontSize: number) => measureTextWidthLocal(text, fontSize) / scale
+        );
         const worldPos = getCurrentWorldPosition();
         
         pushUndo(); // 상태 변경 전 스냅샷 저장
