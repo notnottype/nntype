@@ -152,6 +152,8 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
         <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Objects</div>
         <div className="flex flex-col gap-0.5 pl-2">
           <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Object Count</span>: <span className="font-mono">{canvasObjects.length}</span></div>
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">AI Responses</span>: <span className="font-mono" style={{color: '#3b82f6'}}>{canvasObjects.filter(obj => obj.type === 'text' && obj.isAIResponse).length}</span></div>
+          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Regular Text</span>: <span className="font-mono">{canvasObjects.filter(obj => obj.type === 'text' && !obj.isAIResponse).length}</span></div>
         </div>
         <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Typewriter Box</div>
         <div className="flex flex-col gap-0.5 pl-2">
@@ -170,7 +172,9 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
         )}
         {hoveredObject && (
           <div className="pl-2 text-yellow-700 dark:text-yellow-300" style={{whiteSpace: 'nowrap'}}>
-            {hoveredObject.type === 'text' ? `Text: "${hoveredObject.content.substring(0, 15)}${hoveredObject.content.length > 15 ? '...' : ''}"` : 'A4 Guide'}
+            {hoveredObject.type === 'text' ? 
+              `${hoveredObject.isAIResponse ? 'AI Response' : 'Text'}: "${hoveredObject.content.substring(0, 15)}${hoveredObject.content.length > 15 ? '...' : ''}"` : 
+              'A4 Guide'}
           </div>
         )}
         {selectedObject && (
@@ -178,7 +182,9 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
         )}
         {selectedObject && (
           <div className="pl-2 text-green-700 dark:text-green-300" style={{whiteSpace: 'nowrap'}}>
-            {selectedObject.type === 'text' ? `Text: "${selectedObject.content.substring(0, 20)}${selectedObject.content.length > 20 ? '...' : ''}"` : 'A4 Guide'}
+            {selectedObject.type === 'text' ? 
+              `${selectedObject.isAIResponse ? 'AI Response' : 'Text'}: "${selectedObject.content.substring(0, 20)}${selectedObject.content.length > 20 ? '...' : ''}"` : 
+              'A4 Guide'}
           </div>
         )}
       </div>

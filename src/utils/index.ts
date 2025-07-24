@@ -86,6 +86,65 @@ export const isPointInObject = (
   return false;
 };
 
+export const wrapTextToLines = (text: string, maxCharsPerLine: number): string[] => {
+  const lines: string[] = [];
+  const paragraphs = text.split('\n');
+  
+  for (const paragraph of paragraphs) {
+    if (paragraph.trim() === '') {
+      // 연속된 빈 줄을 하나로 합치기: 마지막 줄이 빈 줄이 아닐 때만 빈 줄 추가
+      // if (lines.length > 0 && lines[lines.length - 1] !== '') {
+      //   lines.push('');
+      // }
+      continue;
+    }
+    
+    if (paragraph.length <= maxCharsPerLine) {
+      lines.push(paragraph);
+      continue;
+    }
+    
+    const words = paragraph.split(' ');
+    let currentLine = '';
+    
+    for (const word of words) {
+      if (word.length > maxCharsPerLine) {
+        // 단어가 너무 길면 강제로 잘라냄
+        if (currentLine) {
+          lines.push(currentLine.trim());
+          currentLine = '';
+        }
+        
+        let remainingWord = word;
+        while (remainingWord.length > maxCharsPerLine) {
+          lines.push(remainingWord.substring(0, maxCharsPerLine));
+          remainingWord = remainingWord.substring(maxCharsPerLine);
+        }
+        
+        if (remainingWord) {
+          currentLine = remainingWord + ' ';
+        }
+      } else {
+        const testLine = currentLine + word + ' ';
+        if (testLine.length <= maxCharsPerLine + 1) { // +1 for the trailing space
+          currentLine = testLine;
+        } else {
+          if (currentLine) {
+            lines.push(currentLine.trim());
+          }
+          currentLine = word + ' ';
+        }
+      }
+    }
+    
+    if (currentLine.trim()) {
+      lines.push(currentLine.trim());
+    }
+  }
+  
+  return lines;
+};
+
 export const calculateContentBoundingBox = (
   objects: CanvasObjectType[],
   currentTypingText: string,

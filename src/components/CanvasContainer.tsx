@@ -4,7 +4,7 @@ import { CanvasInfoOverlay } from './CanvasInfoOverlay'
 import { ShortcutsOverlay } from './ShortcutsOverlay'
 import { StatusMessages } from './StatusMessages'
 import { ZoomControls } from './ZoomControls'
-import { CanvasObjectType } from '../types'
+import { CanvasObjectType, AIState } from '../types'
 
 interface CanvasContainerProps {
   // Canvas props
@@ -35,6 +35,7 @@ interface CanvasContainerProps {
   selectedObject: any
   undoStack: any[]
   redoStack: any[]
+  aiState: AIState
   getTextBoxWidth: () => number
   getCurrentLineHeight: (selectedObject: any, baseFontSize: number, scale: number) => number
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void
@@ -87,6 +88,7 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
   selectedObject,
   undoStack,
   redoStack,
+  aiState,
   getTextBoxWidth,
   getCurrentLineHeight,
   handleInputChange,
@@ -155,6 +157,7 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
         selectedObject={selectedObject}
         undoStack={undoStack}
         redoStack={redoStack}
+        aiState={aiState}
         getTextBoxWidth={getTextBoxWidth}
         getCurrentLineHeight={getCurrentLineHeight}
         handleInputChange={handleInputChange}

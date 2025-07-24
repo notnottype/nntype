@@ -59,9 +59,22 @@ import {
   THEME_COLORS
 } from '../constants';
 import { pxToPoints, pointsToPx } from '../utils/units';
-import { CanvasObjectType, A4GuideObjectType, Theme } from '../types';
+import { CanvasObjectType, A4GuideObjectType, Theme, AICommand } from '../types';
+import { aiService } from '../services/aiService';
+import { wrapTextToLines } from '../utils';
 import { ExportMenu } from './ExportMenu';
 import { saveSession, loadSession, clearSession } from '../utils/sessionStorage';
+
+const parseCommand = (text: string): AICommand | null => {
+  const trimmedText = text.trim();
+  if (trimmedText.startsWith('/gpt ')) {
+    const question = trimmedText.substring(5).trim();
+    if (question) {
+      return { type: 'gpt', question };
+    }
+  }
+  return null;
+};
 
 const InfiniteTypewriterCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -155,6 +168,12 @@ const InfiniteTypewriterCanvas = () => {
   const [theme, setTheme] = useState<Theme>(() => {
     const sessionData = loadSession();
     return sessionData?.theme || 'light';
+  });
+
+  const [aiState, setAIState] = useState({
+    isProcessing: false,
+    error: null as string | null,
+    lastResponse: null as string | null
   });
 
   const [maxCharsPerLine, setMaxCharsPerLine] = useState(() => {
@@ -1233,6 +1252,54 @@ const InfiniteTypewriterCanvas = () => {
     });
   }, [applySnapshot, getSnapshot]);
 
+  // AI 처리 함수
+  const processAICommand = useCallback(async (command: AICommand) => {
+    setAIState(prev => ({ ...prev, isProcessing: true, error: null }));
+    
+    try {
+      const response = await aiService.askGPT(command.question);
+      
+      if (response.success && response.content) {
+        setAIState(prev => ({ ...prev, lastResponse: response.content }));
+        
+        // 응답을 현재 타이프라이터 박스 폭에 맞게 줄바꿈 처리
+        const wrappedLines = wrapTextToLines(response.content, maxCharsPerLine);
+        const worldPos = getCurrentWorldPosition();
+        
+        pushUndo(); // 상태 변경 전 스냅샷 저장
+        
+        // 각 줄을 별도의 텍스트 오브젝트로 생성 (현재 타이프라이터 위치에서 시작)
+        const newObjects = wrappedLines.map((line, index) => ({
+          type: 'text' as const,
+          content: line,
+          x: worldPos.x,
+          y: worldPos.y + ((index + 1) * getCurrentLineHeight(selectedObject, baseFontSize, scale)),
+          scale: 1,
+          fontSize: baseFontSize / scale,
+          id: Date.now() + index,
+          isAIResponse: true,
+          color: '#3b82f6'
+        }));
+        
+        setCanvasObjects(prev => [...prev, ...newObjects]);
+        
+        // 타이프라이터를 마지막 텍스트 아래로 이동
+        const totalHeight = wrappedLines.length * getCurrentLineHeight(selectedObject, baseFontSize, scale);
+        setCanvasOffset(prev => ({
+          x: prev.x,
+          y: prev.y - totalHeight - getCurrentLineHeight(selectedObject, baseFontSize, scale)
+        }));
+        
+      } else {
+        setAIState(prev => ({ ...prev, error: response.error || 'AI 처리 중 오류가 발생했습니다.' }));
+      }
+    } catch (error) {
+      setAIState(prev => ({ ...prev, error: 'AI 서비스 연결에 실패했습니다.' }));
+    } finally {
+      setAIState(prev => ({ ...prev, isProcessing: false }));
+    }
+  }, [baseFontSize, scale, selectedObject, getCurrentLineHeight, getCurrentWorldPosition, pushUndo, maxCharsPerLine]);
+
   // [UNDO/REDO] 상태 변경이 일어나는 주요 지점에 pushUndo() 호출
   // 예시: 텍스트 추가, 오브젝트 이동/삭제, 패닝, 줌, 전체 삭제 등
   // 텍스트 추가
@@ -1240,27 +1307,69 @@ const InfiniteTypewriterCanvas = () => {
     if (e.key === 'Enter') {
       if (!isComposing) {
         if (currentTypingText.trim() !== '') {
-          pushUndo(); // 상태 변경 전 스냅샷 저장
-          const worldPos = getCurrentWorldPosition();
-          setCanvasObjects(prev => [
-            ...prev,
-            {
-              type: 'text',
-              content: currentTypingText,
-              x: worldPos.x,
-              y: worldPos.y,
-              scale: 1,
-              fontSize: baseFontSize / scale, // 월드 px로 변환해서 저장!
-              id: Date.now()
-            }
-          ]);
-          setCurrentTypingText('');
+          // AI 명령어 감지
+          const command = parseCommand(currentTypingText);
+          
+          if (command && command.type === 'gpt') {
+            // AI 명령어 처리
+            pushUndo(); // 상태 변경 전 스냅샷 저장
+            
+            // 질문을 먼저 텍스트 오브젝트로 추가
+            const worldPos = getCurrentWorldPosition();
+            setCanvasObjects(prev => [
+              ...prev,
+              {
+                type: 'text',
+                content: currentTypingText,
+                x: worldPos.x,
+                y: worldPos.y,
+                scale: 1,
+                fontSize: baseFontSize / scale,
+                id: Date.now()
+              }
+            ]);
+            
+            setCurrentTypingText('');
+            
+            // 캔버스 오프셋을 한 줄 아래로 이동
+            setCanvasOffset(prev => ({
+              x: prev.x,
+              y: prev.y - getCurrentLineHeight(selectedObject, baseFontSize, scale)
+            }));
+            
+            // AI 처리 시작
+            processAICommand(command);
+          } else {
+            // 일반 텍스트 처리
+            pushUndo(); // 상태 변경 전 스냅샷 저장
+            const worldPos = getCurrentWorldPosition();
+            setCanvasObjects(prev => [
+              ...prev,
+              {
+                type: 'text',
+                content: currentTypingText,
+                x: worldPos.x,
+                y: worldPos.y,
+                scale: 1,
+                fontSize: baseFontSize / scale, // 월드 px로 변환해서 저장!
+                id: Date.now()
+              }
+            ]);
+            setCurrentTypingText('');
+            
+            // 오브젝트 생성 여부와 상관없이 줄바꿈(캔버스 오프셋 이동)은 항상 실행
+            setCanvasOffset(prev => ({
+              x: prev.x,
+              y: prev.y - getCurrentLineHeight(selectedObject, baseFontSize, scale)
+            }));
+          }
+        } else {
+          // 빈 텍스트일 때도 줄바꿈
+          setCanvasOffset(prev => ({
+            x: prev.x,
+            y: prev.y - getCurrentLineHeight(selectedObject, baseFontSize, scale)
+          }));
         }
-        // 오브젝트 생성 여부와 상관없이 줄바꿈(캔버스 오프셋 이동)은 항상 실행
-        setCanvasOffset(prev => ({
-          x: prev.x,
-          y: prev.y - getCurrentLineHeight(selectedObject, baseFontSize, scale)
-        }));
       }
       e.preventDefault();
     } else if (e.key === 'Escape') {
@@ -1556,6 +1665,7 @@ const InfiniteTypewriterCanvas = () => {
         selectedObject={selectedObject}
         undoStack={undoStack}
         redoStack={redoStack}
+        aiState={aiState}
         getTextBoxWidth={getTextBoxWidth}
         getCurrentLineHeight={getCurrentLineHeight}
         handleInputChange={handleInputChange}

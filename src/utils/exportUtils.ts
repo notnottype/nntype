@@ -12,7 +12,6 @@ export const drawContentForExport = (
   colors: any
 ) => {
   ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = colors[theme].text;
 
   canvasObjects.filter(obj => obj.type === 'text').forEach(obj => {
     const textObj = obj as TextObjectType;
@@ -21,6 +20,7 @@ export const drawContentForExport = (
 
     const fontSize = textObj.fontSize * currentScale;
     ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
+    ctx.fillStyle = textObj.color || colors[theme].text;
     ctx.fillText(textObj.content, screenX, screenY);
   });
 
