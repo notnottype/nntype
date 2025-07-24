@@ -58,95 +58,268 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
 
   return (
     <>
-      {/* Input Field */}
-      <input
-        id="typewriter-input"
-        type="text"
-        value={currentTypingText}
-        onChange={handleInputChange}
-        onKeyDown={handleInputKeyDown}
-        onCompositionStart={handleCompositionStart}
-        onCompositionEnd={handleCompositionEnd}
-        onClick={(e) => {
-          e.stopPropagation();
-          e.currentTarget.focus();
-        }}
-        disabled={aiState.isProcessing}
+      {/* Main Typewriter Container */}
+      <div
         style={{
           position: 'absolute',
           left: typewriterX - getTextBoxWidth() / 2,
           top: typewriterY - baseFontSize / 2,
           width: getTextBoxWidth(),
-          height: Math.max(getCurrentLineHeight(selectedObject, baseFontSize, scale), baseFontSize + 16),
-          fontFamily: '"JetBrains Mono", monospace',
-          fontSize: baseFontSize,
-          background: THEME_COLORS[theme].inputBg,
-          border: `1px solid ${THEME_COLORS[theme].inputBorder}`,
-          outline: 'none',
-          color: THEME_COLORS[theme].text,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
           zIndex: 20,
-          backdropFilter: 'blur(1px)',
-          borderRadius: '4px',
-          padding: 0,
-          lineHeight: `${getCurrentLineHeight(selectedObject, baseFontSize, scale)}px`,
-          boxSizing: 'border-box',
-          opacity: aiState.isProcessing ? 0.6 : 1,
-          cursor: aiState.isProcessing ? 'not-allowed' : 'text'
+          pointerEvents: 'auto',
         }}
-      />
-
-      {/* AI Status Indicator - Loading ring overlay without background */}
-      {aiState.isProcessing && (
-        <div
+      >
+        {/* Input Field */}
+        <input
+          id="typewriter-input"
+          type="text"
+          value={currentTypingText}
+          onChange={handleInputChange}
+          onKeyDown={handleInputKeyDown}
+          onCompositionStart={handleCompositionStart}
+          onCompositionEnd={handleCompositionEnd}
+          onClick={(e) => {
+            e.stopPropagation();
+            e.currentTarget.focus();
+          }}
+          disabled={aiState.isProcessing}
           style={{
-            position: 'absolute',
-            left: typewriterX - getTextBoxWidth() / 2,
-            top: typewriterY - baseFontSize / 2,
-            width: getTextBoxWidth(),
+            width: '100%',
             height: Math.max(getCurrentLineHeight(selectedObject, baseFontSize, scale), baseFontSize + 16),
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            paddingLeft: '8px',
-            zIndex: 25,
-            userSelect: 'none',
-            pointerEvents: 'none'
+            fontFamily: '"JetBrains Mono", monospace',
+            fontSize: baseFontSize,
+            background: THEME_COLORS[theme].inputBg,
+            border: `1px solid ${THEME_COLORS[theme].inputBorder}`,
+            outline: 'none',
+            color: THEME_COLORS[theme].text,
+            backdropFilter: 'blur(1px)',
+            borderRadius: '4px',
+            padding: 0,
+            lineHeight: `${getCurrentLineHeight(selectedObject, baseFontSize, scale)}px`,
+            boxSizing: 'border-box',
+            opacity: aiState.isProcessing ? 0.6 : 1,
+            cursor: aiState.isProcessing ? 'not-allowed' : 'text'
           }}
-        >
-          <Loader2 className="w-4 h-4 animate-spin" color={theme === 'dark' ? '#60a5fa' : '#3b82f6'} />
-        </div>
-      )}
-      
-      {/* AI Error Indicator */}
-      {aiState.error && (
+        />
+
+        {/* AI Status Indicator - Loading ring overlay without background */}
+        {aiState.isProcessing && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: Math.max(getCurrentLineHeight(selectedObject, baseFontSize, scale), baseFontSize + 16),
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+              paddingLeft: '8px',
+              zIndex: 25,
+              userSelect: 'none',
+              pointerEvents: 'none'
+            }}
+          >
+            <Loader2 className="w-4 h-4 animate-spin" color={theme === 'dark' ? '#60a5fa' : '#3b82f6'} />
+          </div>
+        )}
+        
+        {/* AI Error Indicator */}
+        {aiState.error && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: '-16px',
+              display: 'flex',
+              alignItems: 'center',
+              zIndex: 25,
+              userSelect: 'none',
+              pointerEvents: 'none'
+            }}
+          >
+            <AlertCircle className="w-3 h-3" color="rgba(239, 68, 68, 0.6)" />
+            <span style={{ 
+              marginLeft: '6px', 
+              fontSize: '10px', 
+              color: 'rgba(239, 68, 68, 0.5)',
+              fontFamily: '"JetBrains Mono", monospace',
+              fontWeight: 400,
+              maxWidth: '200px',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              {aiState.error}
+            </span>
+          </div>
+        )}
+
+        {/* Controls Container */}
         <div
           style={{
-            position: 'absolute',
-            left: typewriterX + getTextBoxWidth() / 2 + 16,
-            top: typewriterY - baseFontSize / 2,
+            width: '100%',
             display: 'flex',
+            justifyContent: 'space-between',
             alignItems: 'center',
-            zIndex: 25,
-            userSelect: 'none',
-            pointerEvents: 'none'
+            marginTop: '4px',
+            zIndex: 30,
+            pointerEvents: 'auto',
           }}
         >
-          <AlertCircle className="w-3 h-3" color="rgba(239, 68, 68, 0.6)" />
-          <span style={{ 
-            marginLeft: '6px', 
-            fontSize: '10px', 
-            color: 'rgba(239, 68, 68, 0.5)',
-            fontFamily: '"JetBrains Mono", monospace',
-            fontWeight: 400,
-            maxWidth: '200px',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis'
-          }}>
-            {aiState.error}
-          </span>
+          {/* Left side spacer for balance */}
+          <div style={{ width: '68px' }} />
+
+          {/* Width Selection Buttons */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            {[40, 60, 80, 100, 120].map((chars, idx, arr) => {
+              const fontWeight = maxCharsPerLine === chars ? 600 : 400;
+              
+              return (
+                <React.Fragment key={chars}>
+                  <button
+                    onClick={() => handleMaxCharsChange(chars)}
+                    disabled={maxCharsPerLine === chars}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      outline: 'none',
+                      color: maxCharsPerLine === chars
+                        ? '#60a5fa'
+                        : (theme === 'dark' ? '#bfc9d1' : '#6b7280'),
+                      fontWeight: fontWeight,
+                      fontFamily: 'JetBrains Mono, monospace',
+                      fontSize: '12px',
+                      padding: '2px 6px',
+                      cursor: maxCharsPerLine === chars ? 'default' : 'pointer',
+                      opacity: maxCharsPerLine === chars ? 1 : 0.7,
+                      transition: 'all 0.2s ease',
+                      borderRadius: '4px',
+                      textAlign: 'center',
+                    }}
+                    title={`${chars}자 폭으로 변경`}
+                    onMouseOver={e => {
+                      if (maxCharsPerLine !== chars) {
+                        e.currentTarget.style.opacity = '1';
+                        e.currentTarget.style.color = theme === 'dark' ? '#ffffff' : '#374151';
+                      }
+                    }}
+                    onMouseOut={e => {
+                      if (maxCharsPerLine !== chars) {
+                        e.currentTarget.style.opacity = '0.7';
+                        e.currentTarget.style.color = theme === 'dark' ? '#bfc9d1' : '#6b7280';
+                      }
+                    }}
+                  >
+                    {chars}
+                  </button>
+                  {idx < arr.length - 1 && (
+                    <span style={{ 
+                      color: theme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)', 
+                      fontSize: '10px', 
+                      fontWeight: 300,
+                      userSelect: 'none',
+                    }}>
+                      •
+                    </span>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+
+          {/* Undo/Redo Buttons */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'row',
+              gap: '8px',
+              alignItems: 'center',
+            }}
+          >
+            <button
+              onClick={handleUndo}
+              disabled={undoStack.length === 0}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                borderRadius: '50%',
+                width: 28,
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: undoStack.length === 0 
+                  ? (theme === 'dark' ? '#4a5568' : '#d1d5db') 
+                  : (theme === 'dark' ? '#bfc9d1' : '#6b7280'),
+                cursor: undoStack.length === 0 ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s ease',
+                opacity: undoStack.length === 0 ? 0.4 : 0.8,
+              }}
+              title="실행 취소 (Undo)"
+              onMouseOver={e => {
+                if (undoStack.length > 0) {
+                  e.currentTarget.style.opacity = '1';
+                  e.currentTarget.style.color = theme === 'dark' ? '#ffffff' : '#374151';
+                }
+              }}
+              onMouseOut={e => {
+                if (undoStack.length > 0) {
+                  e.currentTarget.style.opacity = '0.8';
+                  e.currentTarget.style.color = theme === 'dark' ? '#bfc9d1' : '#6b7280';
+                }
+              }}
+            >
+              <CornerUpLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleRedo}
+              disabled={redoStack.length === 0}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                borderRadius: '50%',
+                width: 28,
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: redoStack.length === 0 
+                  ? (theme === 'dark' ? '#4a5568' : '#d1d5db') 
+                  : (theme === 'dark' ? '#bfc9d1' : '#6b7280'),
+                cursor: redoStack.length === 0 ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s ease',
+                opacity: redoStack.length === 0 ? 0.4 : 0.8,
+              }}
+              title="다시 실행 (Redo)"
+              onMouseOver={e => {
+                if (redoStack.length > 0) {
+                  e.currentTarget.style.opacity = '1';
+                  e.currentTarget.style.color = theme === 'dark' ? '#ffffff' : '#374151';
+                }
+              }}
+              onMouseOut={e => {
+                if (redoStack.length > 0) {
+                  e.currentTarget.style.opacity = '0.8';
+                  e.currentTarget.style.color = theme === 'dark' ? '#bfc9d1' : '#6b7280';
+                }
+              }}
+            >
+              <CornerUpRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-      )}
+      </div>
       
       {/* Font Size Indicator */}
       <div
@@ -171,116 +344,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
         </div>
       </div>
 
-      {/* Width Selection Buttons */}
-      <div
-        style={{
-          position: 'absolute',
-          left: typewriterX - getTextBoxWidth() / 2,
-          top: typewriterY + baseFontSize / 2 + 24,
-          width: getTextBoxWidth(),
-          display: 'flex',
-          justifyContent: 'center',
-          zIndex: 30,
-          pointerEvents: 'auto',
-        }}
-      >
-        {[40, 60, 80, 100, 120].map((chars, idx, arr) => (
-          <React.Fragment key={chars}>
-            <button
-              onClick={() => handleMaxCharsChange(chars)}
-              disabled={maxCharsPerLine === chars}
-              style={{
-                background: 'none',
-                border: 'none',
-                outline: 'none',
-                color: maxCharsPerLine === chars
-                  ? '#60a5fa'
-                  : (theme === 'dark' ? '#bfc9d1' : '#bfc9d1'),
-                fontWeight: maxCharsPerLine === chars ? 500 : 400,
-                fontFamily: 'JetBrains Mono, monospace',
-                fontSize: 13,
-                padding: '1px 8px',
-                cursor: maxCharsPerLine === chars ? 'default' : 'pointer',
-                opacity: maxCharsPerLine === chars ? 1 : 0.7,
-                transition: 'color 0.15s, opacity 0.15s',
-              }}
-              title={`${chars}자 폭으로 변경`}
-            >
-              {chars}
-            </button>
-            {idx < arr.length - 1 && (
-              <span style={{ 
-                color: theme === 'dark' ? '#bfc9d1' : '#bfc9d1', 
-                fontSize: 13, 
-                margin: '0 2px' 
-              }}>
-                -
-              </span>
-            )}
-          </React.Fragment>
-        ))}
-      </div>
 
-      {/* Undo/Redo Buttons */}
-      <div
-        style={{
-          position: 'absolute',
-          left: typewriterX + getTextBoxWidth() / 2 - 68,
-          top: typewriterY + baseFontSize / 2 + 12,
-          display: 'flex',
-          flexDirection: 'row',
-          gap: '8px',
-          zIndex: 30,
-          padding: '4px 20px 4px 4px',
-          borderRadius: '10px',
-          background: 'transparent',
-        }}
-      >
-        <button
-          onClick={handleUndo}
-          disabled={undoStack.length === 0}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            borderRadius: '50%',
-            width: 28,
-            height: 28,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#aaa',
-            cursor: undoStack.length === 0 ? 'not-allowed' : 'pointer',
-            transition: 'background 0.2s',
-          }}
-          title="실행 취소 (Undo)"
-          onMouseOver={e => e.currentTarget.style.background = theme === 'dark' ? 'rgba(200,200,200,0.08)' : 'rgba(200,200,200,0.15)'}
-          onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-        >
-          <CornerUpLeft className="w-4 h-4" color="#aaa" />
-        </button>
-        <button
-          onClick={handleRedo}
-          disabled={redoStack.length === 0}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            borderRadius: '50%',
-            width: 28,
-            height: 28,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#aaa',
-            cursor: redoStack.length === 0 ? 'not-allowed' : 'pointer',
-            transition: 'background 0.2s',
-          }}
-          title="다시 실행 (Redo)"
-          onMouseOver={e => e.currentTarget.style.background = theme === 'dark' ? 'rgba(200,200,200,0.08)' : 'rgba(200,200,200,0.15)'}
-          onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-        >
-          <CornerUpRight className="w-4 h-4" color="#aaa" />
-        </button>
-      </div>
     </>
   )
 }
