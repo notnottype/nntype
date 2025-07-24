@@ -1282,11 +1282,12 @@ const InfiniteTypewriterCanvas = () => {
         pushUndo(); // 상태 변경 전 스냅샷 저장
         
         // 각 줄을 별도의 텍스트 오브젝트로 생성 (현재 타이프라이터 위치에서 시작)
+        const worldLineHeight = getCurrentLineHeight(selectedObject, baseFontSize, scale) / scale;
         const newObjects = wrappedLines.map((line, index) => ({
           type: 'text' as const,
           content: line,
           x: worldPos.x,
-          y: worldPos.y + ((index + 1) * getCurrentLineHeight(selectedObject, baseFontSize, scale)),
+          y: worldPos.y + ((index + 1) * worldLineHeight),
           scale: 1,
           fontSize: baseFontSize / scale,
           id: Date.now() + index,
@@ -1297,7 +1298,7 @@ const InfiniteTypewriterCanvas = () => {
         setCanvasObjects(prev => [...prev, ...newObjects]);
         
         // 타이프라이터를 마지막 텍스트 아래로 이동
-        const totalHeight = wrappedLines.length * getCurrentLineHeight(selectedObject, baseFontSize, scale);
+        const totalHeight = wrappedLines.length * worldLineHeight * scale;
         setCanvasOffset(prev => ({
           x: prev.x,
           y: prev.y - totalHeight
