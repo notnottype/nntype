@@ -179,7 +179,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
           pointerEvents: 'auto',
         }}
       >
-        {[40, 60, 80].map((chars, idx, arr) => (
+        {[40, 60, 80, 100, 120].map((chars, idx, arr) => (
           <React.Fragment key={chars}>
             <button
               onClick={() => handleMaxCharsChange(chars)}

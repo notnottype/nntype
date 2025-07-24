@@ -86,9 +86,26 @@ export const isPointInObject = (
   return false;
 };
 
-export const wrapTextToLines = (text: string, maxCharsPerLine: number): string[] => {
+export const wrapTextToLines = (
+  text: string, 
+  maxCharsPerLine: number, 
+  maxPixelWidth?: number, 
+  fontSize?: number, 
+  measureTextFn?: (text: string, fontSize: number) => number
+): string[] => {
   const lines: string[] = [];
   const paragraphs = text.split('\n');
+  
+  // 픽셀 기반 측정이 가능한 경우 사용
+  const usePixelMeasurement = maxPixelWidth && fontSize && measureTextFn;
+  
+  const checkLineWidth = (line: string): boolean => {
+    if (usePixelMeasurement) {
+      return measureTextFn!(line, fontSize!) <= maxPixelWidth!;
+    } else {
+      return line.length <= maxCharsPerLine;
+    }
+  };
   
   for (const paragraph of paragraphs) {
     if (paragraph.trim() === '') {
@@ -99,7 +116,7 @@ export const wrapTextToLines = (text: string, maxCharsPerLine: number): string[]
       continue;
     }
     
-    if (paragraph.length <= maxCharsPerLine) {
+    if (checkLineWidth(paragraph)) {
       lines.push(paragraph);
       continue;
     }
@@ -108,17 +125,36 @@ export const wrapTextToLines = (text: string, maxCharsPerLine: number): string[]
     let currentLine = '';
     
     for (const word of words) {
-      if (word.length > maxCharsPerLine) {
-        // 단어가 너무 길면 강제로 잘라냄
+      // 단어가 너무 긴 경우 처리
+      if (!checkLineWidth(word)) {
+        // 현재 줄이 있으면 먼저 추가
         if (currentLine) {
           lines.push(currentLine.trim());
           currentLine = '';
         }
         
+        // 긴 단어를 강제로 잘라냄
         let remainingWord = word;
-        while (remainingWord.length > maxCharsPerLine) {
-          lines.push(remainingWord.substring(0, maxCharsPerLine));
-          remainingWord = remainingWord.substring(maxCharsPerLine);
+        while (!checkLineWidth(remainingWord) && remainingWord.length > 1) {
+          // 이진 탐색으로 최적 길이 찾기
+          let left = 1;
+          let right = remainingWord.length - 1;
+          let bestLength = 1;
+          
+          while (left <= right) {
+            const mid = Math.floor((left + right) / 2);
+            const testChunk = remainingWord.substring(0, mid);
+            
+            if (checkLineWidth(testChunk)) {
+              bestLength = mid;
+              left = mid + 1;
+            } else {
+              right = mid - 1;
+            }
+          }
+          
+          lines.push(remainingWord.substring(0, bestLength));
+          remainingWord = remainingWord.substring(bestLength);
         }
         
         if (remainingWord) {
@@ -126,7 +162,7 @@ export const wrapTextToLines = (text: string, maxCharsPerLine: number): string[]
         }
       } else {
         const testLine = currentLine + word + ' ';
-        if (testLine.length <= maxCharsPerLine + 1) { // +1 for the trailing space
+        if (checkLineWidth(testLine)) {
           currentLine = testLine;
         } else {
           if (currentLine) {
