@@ -95,54 +95,56 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
         }}
       />
 
-      {/* AI Status Indicator */}
-      {(aiState.isProcessing || aiState.error) && (
+      {/* AI Status Indicator - Loading ring overlay without background */}
+      {aiState.isProcessing && (
         <div
           style={{
             position: 'absolute',
-            left: typewriterX + getTextBoxWidth() / 2 + 8,
+            left: typewriterX - getTextBoxWidth() / 2,
             top: typewriterY - baseFontSize / 2,
+            width: getTextBoxWidth(),
             height: Math.max(getCurrentLineHeight(selectedObject, baseFontSize, scale), baseFontSize + 16),
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            background: theme === 'dark' ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.9)',
-            border: `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)'}`,
-            borderRadius: '4px',
-            padding: '0 8px',
+            justifyContent: 'flex-start',
+            paddingLeft: '8px',
             zIndex: 25,
-            backdropFilter: 'blur(8px)',
+            userSelect: 'none',
+            pointerEvents: 'none'
           }}
         >
-          {aiState.isProcessing ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" color={theme === 'dark' ? '#60a5fa' : '#3b82f6'} />
-              <span style={{ 
-                marginLeft: '6px', 
-                fontSize: '12px', 
-                color: theme === 'dark' ? '#60a5fa' : '#3b82f6',
-                fontFamily: '"JetBrains Mono", monospace'
-              }}>
-                AI 처리 중...
-              </span>
-            </>
-          ) : aiState.error ? (
-            <>
-              <AlertCircle className="w-4 h-4" color="#ef4444" />
-              <span style={{ 
-                marginLeft: '6px', 
-                fontSize: '12px', 
-                color: '#ef4444',
-                fontFamily: '"JetBrains Mono", monospace',
-                maxWidth: '200px',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}>
-                {aiState.error}
-              </span>
-            </>
-          ) : null}
+          <Loader2 className="w-4 h-4 animate-spin" color={theme === 'dark' ? '#60a5fa' : '#3b82f6'} />
+        </div>
+      )}
+      
+      {/* AI Error Indicator */}
+      {aiState.error && (
+        <div
+          style={{
+            position: 'absolute',
+            left: typewriterX + getTextBoxWidth() / 2 + 16,
+            top: typewriterY - baseFontSize / 2,
+            display: 'flex',
+            alignItems: 'center',
+            zIndex: 25,
+            userSelect: 'none',
+            pointerEvents: 'none'
+          }}
+        >
+          <AlertCircle className="w-3 h-3" color="rgba(239, 68, 68, 0.6)" />
+          <span style={{ 
+            marginLeft: '6px', 
+            fontSize: '10px', 
+            color: 'rgba(239, 68, 68, 0.5)',
+            fontFamily: '"JetBrains Mono", monospace',
+            fontWeight: 400,
+            maxWidth: '200px',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
+          }}>
+            {aiState.error}
+          </span>
         </div>
       )}
       
@@ -150,20 +152,23 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
       <div
         style={{
           position: 'absolute',
-          left: typewriterX - getTextBoxWidth() / 2,
-          top: typewriterY - baseFontSize / 2 + 45, // 타이프라이터 박스 위쪽으로 이동
-          fontSize: '11px',
-          color: theme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)',
-          background: theme === 'dark' ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.8)',
-          padding: '6px 10px',
-          borderRadius: '4px',
+          left: typewriterX - getTextBoxWidth() / 2 - 16, // 타이프라이터 박스 왼쪽에 위치, 폭 변화에 따라 자동 조정
+          top: typewriterY - baseFontSize / 2,
+          fontSize: '10px',
+          color: theme === 'dark' ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.4)',
+          fontFamily: '"JetBrains Mono", monospace',
+          fontWeight: 400,
           zIndex: 20,
           whiteSpace: 'nowrap',
-          backdropFilter: 'blur(8px)',
-          border: `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`
+          transform: 'translateX(-100%)', // 오른쪽 끝을 기준으로 정렬
+          userSelect: 'none',
+          pointerEvents: 'none'
         }}
       >
-        UI: {baseFontSize}px ({pxToPoints(baseFontSize).toFixed(1)}pt) | Base: {baseFontSizePt.toFixed(1)}pt
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+          <div>Display&nbsp;&nbsp;{baseFontSize}px({pxToPoints(baseFontSize).toFixed(0)}pt)</div>
+          <div>Logical&nbsp;&nbsp;{baseFontSizePt.toFixed(0)}pt</div>
+        </div>
       </div>
 
       {/* Width Selection Buttons */}
