@@ -96,7 +96,8 @@ export const useCanvasRenderer = ({
           ctx.fillRect(screenPos.x - 4, screenPos.y - fontSize, textWidth + 8, fontSize + 8);
         }
         
-        ctx.fillStyle = theme.text;
+        // 텍스트 색상 설정: 객체에 색상이 지정되어 있으면 해당 색상 사용, 없으면 테마 기본 색상 사용
+        ctx.fillStyle = textObj.color || theme.text;
         ctx.fillText(textObj.content, screenPos.x, screenPos.y);
       }
     });

@@ -1,6 +1,7 @@
 import React from 'react'
-import { CornerUpLeft, CornerUpRight } from 'lucide-react'
+import { CornerUpLeft, CornerUpRight, Loader2, AlertCircle } from 'lucide-react'
 import { pxToPoints } from '../utils/units'
+import { AIState } from '../types'
 
 interface TypewriterInputProps {
   showTextBox: boolean
@@ -15,6 +16,7 @@ interface TypewriterInputProps {
   selectedObject: any
   undoStack: any[]
   redoStack: any[]
+  aiState: AIState
   getTextBoxWidth: () => number
   getCurrentLineHeight: (selectedObject: any, baseFontSize: number, scale: number) => number
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void
@@ -40,6 +42,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
   selectedObject,
   undoStack,
   redoStack,
+  aiState,
   getTextBoxWidth,
   getCurrentLineHeight,
   handleInputChange,
@@ -68,6 +71,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
           e.stopPropagation();
           e.currentTarget.focus();
         }}
+        disabled={aiState.isProcessing}
         style={{
           position: 'absolute',
           left: typewriterX - getTextBoxWidth() / 2,
@@ -85,9 +89,62 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
           borderRadius: '4px',
           padding: 0,
           lineHeight: `${getCurrentLineHeight(selectedObject, baseFontSize, scale)}px`,
-          boxSizing: 'border-box'
+          boxSizing: 'border-box',
+          opacity: aiState.isProcessing ? 0.6 : 1,
+          cursor: aiState.isProcessing ? 'not-allowed' : 'text'
         }}
       />
+
+      {/* AI Status Indicator */}
+      {(aiState.isProcessing || aiState.error) && (
+        <div
+          style={{
+            position: 'absolute',
+            left: typewriterX + getTextBoxWidth() / 2 + 8,
+            top: typewriterY - baseFontSize / 2,
+            height: Math.max(getCurrentLineHeight(selectedObject, baseFontSize, scale), baseFontSize + 16),
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: theme === 'dark' ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.9)',
+            border: `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)'}`,
+            borderRadius: '4px',
+            padding: '0 8px',
+            zIndex: 25,
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          {aiState.isProcessing ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" color={theme === 'dark' ? '#60a5fa' : '#3b82f6'} />
+              <span style={{ 
+                marginLeft: '6px', 
+                fontSize: '12px', 
+                color: theme === 'dark' ? '#60a5fa' : '#3b82f6',
+                fontFamily: '"JetBrains Mono", monospace'
+              }}>
+                AI 처리 중...
+              </span>
+            </>
+          ) : aiState.error ? (
+            <>
+              <AlertCircle className="w-4 h-4" color="#ef4444" />
+              <span style={{ 
+                marginLeft: '6px', 
+                fontSize: '12px', 
+                color: '#ef4444',
+                fontFamily: '"JetBrains Mono", monospace',
+                maxWidth: '200px',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+                {aiState.error}
+              </span>
+            </>
+          ) : null}
+        </div>
+      )}
       
       {/* Font Size Indicator */}
       <div
@@ -122,7 +179,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
           pointerEvents: 'auto',
         }}
       >
-        {[40, 60, 80].map((chars, idx, arr) => (
+        {[40, 60, 80, 100, 120].map((chars, idx, arr) => (
           <React.Fragment key={chars}>
             <button
               onClick={() => handleMaxCharsChange(chars)}

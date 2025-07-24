@@ -103,7 +103,7 @@ export const drawCanvasObjects = (
         ctx.fillRect(screenPos.x - 4, screenPos.y - textHeight, textWidth + 8, textHeight + 8);
       }
       
-      ctx.fillStyle = colors[theme].text;
+      ctx.fillStyle = textObj.color || colors[theme].text;
       ctx.fillText(textObj.content, screenPos.x, screenPos.y);
     }
   });

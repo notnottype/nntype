@@ -6,6 +6,8 @@ export interface TextObjectType {
   y: number;
   scale: number;
   fontSize: number; // 월드 단위 폰트 크기
+  isAIResponse?: boolean; // AI 답변 여부
+  color?: string; // 텍스트 색상
 }
 
 export interface A4GuideObjectType {
@@ -68,4 +70,15 @@ export interface ExportData {
     showTextBox: boolean;
     theme: Theme;
   };
+}
+
+export interface AIState {
+  isProcessing: boolean;
+  error: string | null;
+  lastResponse: string | null;
+}
+
+export interface AICommand {
+  type: 'gpt';
+  question: string;
 }
