@@ -260,10 +260,17 @@ const InfiniteTypewriterCanvas = () => {
   const typewriterX = canvasWidth / 2;
   const typewriterY = canvasHeight / 2;
 
-  // Auto-save session when state changes
+  // Auto-save session when state changes (optimized)
+  const saveTimeoutRef = useRef<number | null>(null);
+  
   useEffect(() => {
     // Don't save during initial load
     if (!fontLoaded) return;
+    
+    // Clear previous timeout to debounce
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
     
     const saveCurrentSession = () => {
       // 실시간 LT 월드 좌표 사용
@@ -286,13 +293,19 @@ const InfiniteTypewriterCanvas = () => {
         theme,
         selectedObjectId: selectedObject?.id
       });
+      saveTimeoutRef.current = null;
     };
-
 
     // Debounce saving to avoid too frequent saves (객체 수에 따라 저장 빈도 조절)
     const saveDelay = canvasObjects.length > 100 ? 5000 : canvasObjects.length > 50 ? 3000 : 1000;
-    const timeoutId = setTimeout(saveCurrentSession, saveDelay);
-    return () => clearTimeout(timeoutId);
+    saveTimeoutRef.current = setTimeout(saveCurrentSession, saveDelay);
+    
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
+    };
   }, [
     canvasObjects, // 실제 콘텐츠 변경 시에만 LT 위치 업데이트
     currentTypingText, // 타이핑 중인 텍스트 변경
@@ -344,9 +357,16 @@ const InfiniteTypewriterCanvas = () => {
     selectedObject
   ]);
 
-  // UI 상태 변경 시 저장 (LT 위치는 유지)  
+  // UI 상태 변경 시 저장 (LT 위치는 유지) - optimized  
+  const uiSaveTimeoutRef = useRef<number | null>(null);
+  
   useEffect(() => {
     if (!fontLoaded) return;
+    
+    // Clear previous timeout to prevent accumulation
+    if (uiSaveTimeoutRef.current) {
+      clearTimeout(uiSaveTimeoutRef.current);
+    }
     
     const saveUIState = () => {
       // UI 상태 변경 시에도 현재 실시간 LT 위치 사용 (더 정확한 위치 추적)
@@ -369,10 +389,17 @@ const InfiniteTypewriterCanvas = () => {
         theme,
         selectedObjectId: selectedObject?.id
       });
+      uiSaveTimeoutRef.current = null;
     };
 
-    const timeoutId = setTimeout(saveUIState, 1000);
-    return () => clearTimeout(timeoutId);
+    uiSaveTimeoutRef.current = setTimeout(saveUIState, 1000);
+    
+    return () => {
+      if (uiSaveTimeoutRef.current) {
+        clearTimeout(uiSaveTimeoutRef.current);
+        uiSaveTimeoutRef.current = null;
+      }
+    };
   }, [
     scale,
     baseFontSize,
@@ -581,15 +608,25 @@ const InfiniteTypewriterCanvas = () => {
   }, [canvasWidth, canvasHeight, theme, showGrid, drawGridLocal, drawCanvasObjectsLocal, hoveredObject, scale, worldToScreenLocal, measureTextWidthLocal]);
 
   const animationRef = useRef<number | null>(null);
+  const renderTriggeredRef = useRef(false);
 
+  // Only render when needed instead of continuous animation loop
   useEffect(() => {
-    const animate = () => {
-      render();
-      animationRef.current = requestAnimationFrame(animate);
-    };
-    animationRef.current = requestAnimationFrame(animate);
+    if (!renderTriggeredRef.current) {
+      renderTriggeredRef.current = true;
+      const renderFrame = () => {
+        render();
+        renderTriggeredRef.current = false;
+      };
+      animationRef.current = requestAnimationFrame(renderFrame);
+    }
+    
     return () => {
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
+      renderTriggeredRef.current = false;
     };
   }, [render]);
 
@@ -597,9 +634,18 @@ const InfiniteTypewriterCanvas = () => {
 
 
 
+  // Reuse canvas for text measurement to prevent memory leaks
+  const tempCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const getTempCanvas = useCallback(() => {
+    if (!tempCanvasRef.current) {
+      tempCanvasRef.current = document.createElement('canvas');
+    }
+    return tempCanvasRef.current;
+  }, []);
+
   const calculateBounds = useCallback(() => {
     const measureText = (text: string, fontSize: number) => {
-      const tempCanvas = document.createElement('canvas');
+      const tempCanvas = getTempCanvas();
       const tempCtx = tempCanvas.getContext('2d');
       if (!tempCtx) return text.length * 12;
       tempCtx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
@@ -613,7 +659,7 @@ const InfiniteTypewriterCanvas = () => {
       getCurrentWorldPosition,
       measureText
     );
-  }, [canvasObjects, currentTypingText, baseFontSize, getCurrentWorldPosition]);
+  }, [canvasObjects, currentTypingText, baseFontSize, getCurrentWorldPosition, getTempCanvas]);
 
   const exportAsPNG = useMemo(() => 
     createPNGExporter(
