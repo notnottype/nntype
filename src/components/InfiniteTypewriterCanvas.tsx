@@ -1298,7 +1298,7 @@ const InfiniteTypewriterCanvas = () => {
         const totalHeight = wrappedLines.length * getCurrentLineHeight(selectedObject, baseFontSize, scale);
         setCanvasOffset(prev => ({
           x: prev.x,
-          y: prev.y - totalHeight - getCurrentLineHeight(selectedObject, baseFontSize, scale)
+          y: prev.y - totalHeight
         }));
         
       } else {
