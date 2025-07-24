@@ -533,9 +533,9 @@ const InfiniteTypewriterCanvas = () => {
   // 초기 중앙 배치는 세션 로드에서 처리 (중복 제거)
 
   const drawGridLocal = useCallback((ctx: CanvasRenderingContext2D) => {
-    const baseGridSize = getCurrentLineHeight(selectedObject, baseFontSize, scale);
+    const baseGridSize = baseFontSize * 1.8;
     drawGrid(ctx, canvasWidth, canvasHeight, canvasOffset, baseGridSize, THEME_COLORS[theme].grid);
-  }, [canvasOffset, canvasWidth, canvasHeight, theme, selectedObject, baseFontSize, scale]);
+  }, [canvasOffset, canvasWidth, canvasHeight, theme, baseFontSize]);
 
 
 
