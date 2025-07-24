@@ -1022,7 +1022,8 @@ const InfiniteTypewriterCanvas = () => {
       setSelectedObject(clickedObject);
       setIsDraggingText(true);
       setDragStart({ x: mouseX, y: mouseY });
-    } else if (isSpacePressed) {
+    } else if (isSpacePressed || e.metaKey) {
+      // Space 키 또는 Cmd 키가 눌린 상태에서 드래그
       setSelectedObject(null);
       setIsDragging(true);
       setDragStart({ x: e.clientX, y: e.clientY });
@@ -1109,13 +1110,13 @@ const InfiniteTypewriterCanvas = () => {
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
       
-      // 캔버스 패닝도 그리드 단위로 스냅
-      const currentLineHeight = getCurrentLineHeight(selectedObject, baseFontSize, scale);
-      const snappedDeltaX = snapToGrid(deltaX, currentLineHeight);
-      const snappedDeltaY = snapToGrid(deltaY, currentLineHeight);
+      // 그리드 단위로 스냅 (UI 폰트 크기 기반)
+      const gridSize = baseFontSize * 1.8;
+      const snappedDeltaX = snapToGrid(deltaX, gridSize);
+      const snappedDeltaY = snapToGrid(deltaY, gridSize);
       
       // 실제로 이동할 거리가 있을 때만 업데이트
-      if (Math.abs(snappedDeltaX) >= currentLineHeight || Math.abs(snappedDeltaY) >= currentLineHeight) {
+      if (Math.abs(snappedDeltaX) >= gridSize || Math.abs(snappedDeltaY) >= gridSize) {
         setCanvasOffset(prev => ({
           x: prev.x + snappedDeltaX,
           y: prev.y + snappedDeltaY
