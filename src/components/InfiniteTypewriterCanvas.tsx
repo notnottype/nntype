@@ -1352,8 +1352,20 @@ const InfiniteTypewriterCanvas = () => {
       setAIState(prev => ({ ...prev, error: 'AI 서비스 연결에 실패했습니다.' }));
     } finally {
       setAIState(prev => ({ ...prev, isProcessing: false }));
+      
+      // AI 응답 처리 완료 후 입력창에 포커스를 다시 주고 /gpt 프리픽스 설정
+      setTimeout(() => {
+        const input = document.getElementById('typewriter-input') as HTMLInputElement | null;
+        if (input && showTextBox) {
+          // AI 명령어였다면 /gpt 를 입력창에 미리 입력해둠
+          setCurrentTypingText('/gpt ');
+          input.focus();
+          // 커서를 맨 끝으로 이동
+          input.setSelectionRange(input.value.length, input.value.length);
+        }
+      }, 0);
     }
-  }, [baseFontSize, scale, selectedObject, getCurrentLineHeight, getCurrentWorldPosition, pushUndo, maxCharsPerLine]);
+  }, [baseFontSize, scale, selectedObject, getCurrentLineHeight, getCurrentWorldPosition, pushUndo, maxCharsPerLine, showTextBox]);
 
   // [UNDO/REDO] 상태 변경이 일어나는 주요 지점에 pushUndo() 호출
   // 예시: 텍스트 추가, 오브젝트 이동/삭제, 패닝, 줌, 전체 삭제 등
