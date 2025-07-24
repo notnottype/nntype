@@ -260,10 +260,17 @@ const InfiniteTypewriterCanvas = () => {
   const typewriterX = canvasWidth / 2;
   const typewriterY = canvasHeight / 2;
 
-  // Auto-save session when state changes
+  // Auto-save session when state changes (optimized)
+  const saveTimeoutRef = useRef<number | null>(null);
+  
   useEffect(() => {
     // Don't save during initial load
     if (!fontLoaded) return;
+    
+    // Clear previous timeout to debounce
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
     
     const saveCurrentSession = () => {
       // 실시간 LT 월드 좌표 사용
@@ -286,13 +293,19 @@ const InfiniteTypewriterCanvas = () => {
         theme,
         selectedObjectId: selectedObject?.id
       });
+      saveTimeoutRef.current = null;
     };
-
 
     // Debounce saving to avoid too frequent saves (객체 수에 따라 저장 빈도 조절)
     const saveDelay = canvasObjects.length > 100 ? 5000 : canvasObjects.length > 50 ? 3000 : 1000;
-    const timeoutId = setTimeout(saveCurrentSession, saveDelay);
-    return () => clearTimeout(timeoutId);
+    saveTimeoutRef.current = setTimeout(saveCurrentSession, saveDelay);
+    
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
+    };
   }, [
     canvasObjects, // 실제 콘텐츠 변경 시에만 LT 위치 업데이트
     currentTypingText, // 타이핑 중인 텍스트 변경
@@ -344,9 +357,16 @@ const InfiniteTypewriterCanvas = () => {
     selectedObject
   ]);
 
-  // UI 상태 변경 시 저장 (LT 위치는 유지)  
+  // UI 상태 변경 시 저장 (LT 위치는 유지) - optimized  
+  const uiSaveTimeoutRef = useRef<number | null>(null);
+  
   useEffect(() => {
     if (!fontLoaded) return;
+    
+    // Clear previous timeout to prevent accumulation
+    if (uiSaveTimeoutRef.current) {
+      clearTimeout(uiSaveTimeoutRef.current);
+    }
     
     const saveUIState = () => {
       // UI 상태 변경 시에도 현재 실시간 LT 위치 사용 (더 정확한 위치 추적)
@@ -369,10 +389,17 @@ const InfiniteTypewriterCanvas = () => {
         theme,
         selectedObjectId: selectedObject?.id
       });
+      uiSaveTimeoutRef.current = null;
     };
 
-    const timeoutId = setTimeout(saveUIState, 1000);
-    return () => clearTimeout(timeoutId);
+    uiSaveTimeoutRef.current = setTimeout(saveUIState, 1000);
+    
+    return () => {
+      if (uiSaveTimeoutRef.current) {
+        clearTimeout(uiSaveTimeoutRef.current);
+        uiSaveTimeoutRef.current = null;
+      }
+    };
   }, [
     scale,
     baseFontSize,
@@ -533,9 +560,9 @@ const InfiniteTypewriterCanvas = () => {
   // 초기 중앙 배치는 세션 로드에서 처리 (중복 제거)
 
   const drawGridLocal = useCallback((ctx: CanvasRenderingContext2D) => {
-    const baseGridSize = getCurrentLineHeight(selectedObject, baseFontSize, scale);
+    const baseGridSize = baseFontSize * 1.8;
     drawGrid(ctx, canvasWidth, canvasHeight, canvasOffset, baseGridSize, THEME_COLORS[theme].grid);
-  }, [canvasOffset, canvasWidth, canvasHeight, theme, selectedObject, baseFontSize, scale]);
+  }, [canvasOffset, canvasWidth, canvasHeight, theme, baseFontSize]);
 
 
 
@@ -581,15 +608,25 @@ const InfiniteTypewriterCanvas = () => {
   }, [canvasWidth, canvasHeight, theme, showGrid, drawGridLocal, drawCanvasObjectsLocal, hoveredObject, scale, worldToScreenLocal, measureTextWidthLocal]);
 
   const animationRef = useRef<number | null>(null);
+  const renderTriggeredRef = useRef(false);
 
+  // Only render when needed instead of continuous animation loop
   useEffect(() => {
-    const animate = () => {
-      render();
-      animationRef.current = requestAnimationFrame(animate);
-    };
-    animationRef.current = requestAnimationFrame(animate);
+    if (!renderTriggeredRef.current) {
+      renderTriggeredRef.current = true;
+      const renderFrame = () => {
+        render();
+        renderTriggeredRef.current = false;
+      };
+      animationRef.current = requestAnimationFrame(renderFrame);
+    }
+    
     return () => {
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
+      renderTriggeredRef.current = false;
     };
   }, [render]);
 
@@ -597,9 +634,18 @@ const InfiniteTypewriterCanvas = () => {
 
 
 
+  // Reuse canvas for text measurement to prevent memory leaks
+  const tempCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const getTempCanvas = useCallback(() => {
+    if (!tempCanvasRef.current) {
+      tempCanvasRef.current = document.createElement('canvas');
+    }
+    return tempCanvasRef.current;
+  }, []);
+
   const calculateBounds = useCallback(() => {
     const measureText = (text: string, fontSize: number) => {
-      const tempCanvas = document.createElement('canvas');
+      const tempCanvas = getTempCanvas();
       const tempCtx = tempCanvas.getContext('2d');
       if (!tempCtx) return text.length * 12;
       tempCtx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
@@ -613,7 +659,7 @@ const InfiniteTypewriterCanvas = () => {
       getCurrentWorldPosition,
       measureText
     );
-  }, [canvasObjects, currentTypingText, baseFontSize, getCurrentWorldPosition]);
+  }, [canvasObjects, currentTypingText, baseFontSize, getCurrentWorldPosition, getTempCanvas]);
 
   const exportAsPNG = useMemo(() => 
     createPNGExporter(
@@ -1022,7 +1068,8 @@ const InfiniteTypewriterCanvas = () => {
       setSelectedObject(clickedObject);
       setIsDraggingText(true);
       setDragStart({ x: mouseX, y: mouseY });
-    } else if (isSpacePressed) {
+    } else if (isSpacePressed || e.metaKey) {
+      // Space 키 또는 Cmd 키가 눌린 상태에서 드래그
       setSelectedObject(null);
       setIsDragging(true);
       setDragStart({ x: e.clientX, y: e.clientY });
@@ -1109,13 +1156,13 @@ const InfiniteTypewriterCanvas = () => {
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
       
-      // 캔버스 패닝도 그리드 단위로 스냅
-      const currentLineHeight = getCurrentLineHeight(selectedObject, baseFontSize, scale);
-      const snappedDeltaX = snapToGrid(deltaX, currentLineHeight);
-      const snappedDeltaY = snapToGrid(deltaY, currentLineHeight);
+      // 그리드 단위로 스냅 (UI 폰트 크기 기반)
+      const gridSize = baseFontSize * 1.8;
+      const snappedDeltaX = snapToGrid(deltaX, gridSize);
+      const snappedDeltaY = snapToGrid(deltaY, gridSize);
       
       // 실제로 이동할 거리가 있을 때만 업데이트
-      if (Math.abs(snappedDeltaX) >= currentLineHeight || Math.abs(snappedDeltaY) >= currentLineHeight) {
+      if (Math.abs(snappedDeltaX) >= gridSize || Math.abs(snappedDeltaY) >= gridSize) {
         setCanvasOffset(prev => ({
           x: prev.x + snappedDeltaX,
           y: prev.y + snappedDeltaY
@@ -1143,26 +1190,20 @@ const InfiniteTypewriterCanvas = () => {
   };
 
   const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
-    // Ctrl/Cmd 키와 함께 사용할 때만 줌
+    // Ctrl/Cmd 키와 함께 사용할 때만 UI Size 변경
     if (!(e.ctrlKey || e.metaKey)) return;
     
     e.preventDefault();
-    const zoomLevels = [
-      0.1, 0.15, 0.2, 0.25, 0.33, 0.4, 0.5, 0.6, 0.75, 0.85, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5, 6, 8, 10
-    ];
-    const currentIndex = findZoomLevel(scale, zoomLevels);
     
-    let newIndex;
+    // UI Size를 이산적으로 변경
     if (e.deltaY > 0) {
-      newIndex = Math.max(0, currentIndex - 1);
+      // 휠을 아래로 스크롤하면 UI Size 감소
+      handleUISizeChange(false);
     } else {
-      newIndex = Math.min(zoomLevels.length - 1, currentIndex + 1);
+      // 휠을 위로 스크롤하면 UI Size 증가
+      handleUISizeChange(true);
     }
-    
-    if (newIndex !== currentIndex) {
-      zoomToLevel(zoomLevels[newIndex]);
-    }
-  }, [scale, zoomToLevel]);
+  }, [handleUISizeChange]);
 
   // const resetCanvas = useCallback(() => {
   //   setScale(1);
@@ -1282,11 +1323,12 @@ const InfiniteTypewriterCanvas = () => {
         pushUndo(); // 상태 변경 전 스냅샷 저장
         
         // 각 줄을 별도의 텍스트 오브젝트로 생성 (현재 타이프라이터 위치에서 시작)
+        const worldLineHeight = getCurrentLineHeight(selectedObject, baseFontSize, scale) / scale;
         const newObjects = wrappedLines.map((line, index) => ({
           type: 'text' as const,
           content: line,
           x: worldPos.x,
-          y: worldPos.y + ((index + 1) * getCurrentLineHeight(selectedObject, baseFontSize, scale)),
+          y: worldPos.y + ((index + 1) * worldLineHeight),
           scale: 1,
           fontSize: baseFontSize / scale,
           id: Date.now() + index,
@@ -1297,7 +1339,7 @@ const InfiniteTypewriterCanvas = () => {
         setCanvasObjects(prev => [...prev, ...newObjects]);
         
         // 타이프라이터를 마지막 텍스트 아래로 이동
-        const totalHeight = wrappedLines.length * getCurrentLineHeight(selectedObject, baseFontSize, scale);
+        const totalHeight = wrappedLines.length * worldLineHeight * scale;
         setCanvasOffset(prev => ({
           x: prev.x,
           y: prev.y - totalHeight
