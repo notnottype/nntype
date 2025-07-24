@@ -63,6 +63,7 @@ import { CanvasObjectType, A4GuideObjectType, Theme, AICommand } from '../types'
 import { aiService } from '../services/aiService';
 import { wrapTextToLines } from '../utils';
 import { ExportMenu } from './ExportMenu';
+import { ApiKeyInput } from './ApiKeyInput';
 import { saveSession, loadSession, clearSession } from '../utils/sessionStorage';
 
 const parseCommand = (text: string): AICommand | null => {
@@ -161,6 +162,7 @@ const InfiniteTypewriterCanvas = () => {
     const sessionData = loadSession();
     return sessionData?.showShortcuts ?? true;
   });
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const [showTextBox, setShowTextBox] = useState(() => {
     const sessionData = loadSession();
     return sessionData?.showTextBox ?? true;
@@ -1640,6 +1642,7 @@ const InfiniteTypewriterCanvas = () => {
         onShowGridToggle={() => setShowGrid(prev => !prev)}
         onShowInfoToggle={() => setShowInfo(prev => !prev)}
         onShowShortcutsToggle={() => setShowShortcuts(prev => !prev)}
+        onApiKeyClick={() => setShowApiKeyInput(true)}
         onImportFile={importFile}
         onExportPNG={exportAsPNG}
         onExportSVG={exportAsSVG}
@@ -1721,6 +1724,14 @@ const InfiniteTypewriterCanvas = () => {
           }
         }}
       />
+
+      {/* API Key Input Modal */}
+      {showApiKeyInput && (
+        <ApiKeyInput
+          theme={theme}
+          onClose={() => setShowApiKeyInput(false)}
+        />
+      )}
     </div>
   );
 };

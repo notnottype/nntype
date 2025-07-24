@@ -32,10 +32,32 @@ class AIService {
   private baseURL: string = 'https://api.openai.com/v1';
 
   constructor() {
-    this.apiKey = import.meta.env.VITE_OPENAI_API_KEY || '';
-    if (!this.apiKey) {
-      console.warn('OpenAI API key not found. Set VITE_OPENAI_API_KEY environment variable.');
+    // 기본 API 키는 사용하지 않음 - 사용자가 직접 입력해야 함
+    // this.apiKey = import.meta.env.VITE_OPENAI_API_KEY || '';
+    this.apiKey = '';
+    
+    // 로컬 스토리지에서 사용자 API 키 확인
+    const userApiKey = localStorage.getItem('openai_api_key');
+    if (userApiKey) {
+      this.apiKey = userApiKey;
     }
+    
+    if (!this.apiKey) {
+      console.warn('OpenAI API key not found. Please provide your own API key using the key button in the header.');
+    }
+  }
+
+  setApiKey(apiKey: string) {
+    this.apiKey = apiKey;
+    if (apiKey) {
+      localStorage.setItem('openai_api_key', apiKey);
+    } else {
+      localStorage.removeItem('openai_api_key');
+    }
+  }
+
+  getApiKey(): string {
+    return this.apiKey;
   }
 
   async askGPT(question: string): Promise<AIResponse> {
@@ -43,7 +65,7 @@ class AIService {
       return {
         content: '',
         success: false,
-        error: 'OpenAI API key not configured. Please set VITE_OPENAI_API_KEY environment variable.'
+        error: 'OpenAI API key not configured. Please click the key button in the header to add your API key.'
       };
     }
 

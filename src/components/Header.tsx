@@ -1,5 +1,5 @@
 import React from 'react'
-import { Type, Import, Grid, NotepadTextDashed, Trash2, Sun, Moon, Info, Layers } from 'lucide-react'
+import { Type, Import, Grid, NotepadTextDashed, Trash2, Sun, Moon, Info, Layers, Key } from 'lucide-react'
 import { ExportMenu } from './ExportMenu'
 import { Button } from './ui/Button'
 
@@ -19,6 +19,7 @@ interface HeaderProps {
   onExportJSON: () => void
   onAddA4Guide: () => void
   onClearAll: () => void
+  onApiKeyClick: () => void
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -36,7 +37,8 @@ export const Header: React.FC<HeaderProps> = ({
   onExportSVG,
   onExportJSON,
   onAddA4Guide,
-  onClearAll
+  onClearAll,
+  onApiKeyClick
 }) => {
   return (
     <div className={`${
@@ -112,6 +114,15 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right: Settings */}
       <div className="flex items-center gap-2 min-w-[180px] justify-end">
+        <Button
+          variant="control"
+          theme={theme}
+          onClick={onApiKeyClick}
+          title="OpenAI API Key 설정"
+        >
+          <Key className="w-4 h-4" />
+        </Button>
+
         <Button
           variant="control"
           theme={theme}
