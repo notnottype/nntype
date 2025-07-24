@@ -1143,26 +1143,20 @@ const InfiniteTypewriterCanvas = () => {
   };
 
   const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
-    // Ctrl/Cmd 키와 함께 사용할 때만 줌
+    // Ctrl/Cmd 키와 함께 사용할 때만 UI Size 변경
     if (!(e.ctrlKey || e.metaKey)) return;
     
     e.preventDefault();
-    const zoomLevels = [
-      0.1, 0.15, 0.2, 0.25, 0.33, 0.4, 0.5, 0.6, 0.75, 0.85, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5, 6, 8, 10
-    ];
-    const currentIndex = findZoomLevel(scale, zoomLevels);
     
-    let newIndex;
+    // UI Size를 이산적으로 변경
     if (e.deltaY > 0) {
-      newIndex = Math.max(0, currentIndex - 1);
+      // 휠을 아래로 스크롤하면 UI Size 감소
+      handleUISizeChange(false);
     } else {
-      newIndex = Math.min(zoomLevels.length - 1, currentIndex + 1);
+      // 휠을 위로 스크롤하면 UI Size 증가
+      handleUISizeChange(true);
     }
-    
-    if (newIndex !== currentIndex) {
-      zoomToLevel(zoomLevels[newIndex]);
-    }
-  }, [scale, zoomToLevel]);
+  }, [handleUISizeChange]);
 
   // const resetCanvas = useCallback(() => {
   //   setScale(1);
