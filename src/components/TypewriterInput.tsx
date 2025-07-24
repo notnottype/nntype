@@ -88,7 +88,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
           disabled={aiState.isProcessing}
           style={{
             width: '100%',
-            height: Math.max(getCurrentLineHeight(selectedObject, baseFontSize, scale), baseFontSize + 16),
+            height: baseFontSize * 1.8,
             fontFamily: '"JetBrains Mono", monospace',
             fontSize: baseFontSize,
             background: THEME_COLORS[theme].inputBg,
@@ -98,7 +98,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
             backdropFilter: 'blur(1px)',
             borderRadius: '4px',
             padding: 0,
-            lineHeight: `${getCurrentLineHeight(selectedObject, baseFontSize, scale)}px`,
+            lineHeight: `${baseFontSize * 1.8}px`,
             boxSizing: 'border-box',
             opacity: aiState.isProcessing ? 0.6 : 1,
             cursor: aiState.isProcessing ? 'not-allowed' : 'text'
@@ -113,7 +113,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
               top: 0,
               left: 0,
               width: '100%',
-              height: Math.max(getCurrentLineHeight(selectedObject, baseFontSize, scale), baseFontSize + 16),
+              height: baseFontSize * 1.8,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-start',
