@@ -1,4 +1,4 @@
-import { CanvasObjectType, TextObjectType, A4GuideObjectType, Theme } from '../types';
+import { CanvasObjectType, TextObjectType, A4GuideObjectType, Theme, SelectionRectangle } from '../types';
 
 export const worldToScreen = (
   worldX: number, 
@@ -153,4 +153,132 @@ export const setupCanvasHiDPI = (canvas: HTMLCanvasElement, width: number, heigh
   const ctx = canvas.getContext('2d');
   if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   return ctx;
+};
+
+// Multi-select utility functions
+export const createSelectionRectangle = (
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number
+): SelectionRectangle => {
+  const x = Math.min(startX, endX);
+  const y = Math.min(startY, endY);
+  const width = Math.abs(endX - startX);
+  const height = Math.abs(endY - startY);
+  
+  return { x, y, width, height };
+};
+
+export const isObjectInSelectionRect = (
+  object: CanvasObjectType,
+  selectionRect: SelectionRectangle,
+  scale: number,
+  canvasOffset: { x: number; y: number },
+  measureText: (text: string, fontSize: number) => number
+): boolean => {
+  if (object.type === 'text') {
+    const textObj = object as TextObjectType;
+    const screenPos = worldToScreen(textObj.x, textObj.y, scale, canvasOffset);
+    const fontSize = textObj.fontSize * scale;
+    const textWidth = measureText(textObj.content, fontSize);
+    const textHeight = fontSize;
+    
+    // Check if text object intersects with selection rectangle
+    const textLeft = screenPos.x;
+    const textTop = screenPos.y - textHeight;
+    const textRight = screenPos.x + textWidth;
+    const textBottom = screenPos.y;
+    
+    const rectLeft = selectionRect.x;
+    const rectTop = selectionRect.y;
+    const rectRight = selectionRect.x + selectionRect.width;
+    const rectBottom = selectionRect.y + selectionRect.height;
+    
+    return !(textRight < rectLeft || textLeft > rectRight || textBottom < rectTop || textTop > rectBottom);
+  }
+  
+  if (object.type === 'a4guide') {
+    const guideObj = object as A4GuideObjectType;
+    const screenPos = worldToScreen(guideObj.x, guideObj.y, scale, canvasOffset);
+    const guideWidth = guideObj.width * scale;
+    const guideHeight = guideObj.height * scale;
+    
+    // Check if A4 guide intersects with selection rectangle
+    const guideLeft = screenPos.x;
+    const guideTop = screenPos.y;
+    const guideRight = screenPos.x + guideWidth;
+    const guideBottom = screenPos.y + guideHeight;
+    
+    const rectLeft = selectionRect.x;
+    const rectTop = selectionRect.y;
+    const rectRight = selectionRect.x + selectionRect.width;
+    const rectBottom = selectionRect.y + selectionRect.height;
+    
+    return !(guideRight < rectLeft || guideLeft > rectRight || guideBottom < rectTop || guideTop > rectBottom);
+  }
+  
+  return false;
+};
+
+export const getObjectsInSelectionRect = (
+  objects: CanvasObjectType[],
+  selectionRect: SelectionRectangle,
+  scale: number,
+  canvasOffset: { x: number; y: number },
+  measureText: (text: string, fontSize: number) => number
+): CanvasObjectType[] => {
+  return objects.filter(obj => 
+    isObjectInSelectionRect(obj, selectionRect, scale, canvasOffset, measureText)
+  );
+};
+
+export const drawSelectionRectangle = (
+  ctx: CanvasRenderingContext2D,
+  selectionRect: SelectionRectangle,
+  theme: Theme
+) => {
+  const selectionColor = theme === 'dark' ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.2)';
+  const borderColor = theme === 'dark' ? 'rgba(59, 130, 246, 0.8)' : 'rgba(59, 130, 246, 0.6)';
+  
+  // Fill selection rectangle
+  ctx.fillStyle = selectionColor;
+  ctx.fillRect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
+  
+  // Draw selection rectangle border
+  ctx.strokeStyle = borderColor;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5, 5]);
+  ctx.strokeRect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
+  ctx.setLineDash([]);
+};
+
+export const drawMultiSelectHighlight = (
+  ctx: CanvasRenderingContext2D,
+  objects: CanvasObjectType[],
+  scale: number,
+  canvasOffset: { x: number; y: number },
+  measureText: (text: string, fontSize: number) => number,
+  theme: Theme
+) => {
+  const highlightColor = theme === 'dark' ? 'rgba(59, 130, 246, 0.4)' : 'rgba(59, 130, 246, 0.3)';
+  
+  objects.forEach(obj => {
+    if (obj.type === 'text') {
+      const textObj = obj as TextObjectType;
+      const screenPos = worldToScreen(textObj.x, textObj.y, scale, canvasOffset);
+      const fontSize = textObj.fontSize * scale;
+      const textWidth = measureText(textObj.content, fontSize);
+      const textHeight = fontSize;
+      
+      const padding = 4;
+      ctx.fillStyle = highlightColor;
+      ctx.fillRect(
+        screenPos.x - padding,
+        screenPos.y - textHeight - padding,
+        textWidth + padding * 2,
+        textHeight + padding * 2
+      );
+    }
+  });
 };
