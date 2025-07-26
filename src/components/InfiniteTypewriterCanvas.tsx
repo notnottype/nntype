@@ -1113,23 +1113,60 @@ const InfiniteTypewriterCanvas = () => {
     const clickedObject = canvasObjects.find(obj => isPointInObjectLocal(obj, mouseX, mouseY));
     
     if (clickedObject) {
-      // Check if clicked object is part of multi-selection
-      const isClickedObjectSelected = selectedObjects.some(obj => obj.id === clickedObject.id);
-      
-      if (isClickedObjectSelected && selectedObjects.length > 1) {
-        // If clicked object is part of multi-selection, drag all selected objects
-        setIsDraggingText(true);
-        setDragStart({ x: mouseX, y: mouseY });
-        // Keep current multi-selection
+      // Check if Cmd key is pressed for additive selection
+      if (e.metaKey && !isSpacePressed) {
+        // Cmd+click: Add/remove from multi-selection without dragging
+        const isClickedObjectSelected = selectedObjects.some(obj => obj.id === clickedObject.id);
+        
+        if (isClickedObjectSelected) {
+          // Remove from selection
+          const newSelectedObjects = selectedObjects.filter(obj => obj.id !== clickedObject.id);
+          setSelectedObjects(newSelectedObjects);
+          
+          // If only one object left, make it the single selected object
+          if (newSelectedObjects.length === 1) {
+            setSelectedObject(newSelectedObjects[0]);
+            setSelectedObjects([]);
+          } else if (newSelectedObjects.length === 0) {
+            setSelectedObject(null);
+          } else {
+            setSelectedObject(null);
+          }
+        } else {
+          // Add to selection
+          if (selectedObjects.length === 0 && selectedObject) {
+            // If there's a single selected object, start multi-selection with it
+            setSelectedObjects([selectedObject, clickedObject]);
+            setSelectedObject(null);
+          } else if (selectedObjects.length > 0) {
+            // Add to existing multi-selection
+            setSelectedObjects([...selectedObjects, clickedObject]);
+            setSelectedObject(null);
+          } else {
+            // First object selection
+            setSelectedObject(clickedObject);
+            setSelectedObjects([]);
+          }
+        }
       } else {
-        // Single object selection and drag
-        setSelectedObject(clickedObject);
-        setSelectedObjects([]);
-        setIsDraggingText(true);
-        setDragStart({ x: mouseX, y: mouseY });
+        // Normal click: Check if clicked object is part of multi-selection
+        const isClickedObjectSelected = selectedObjects.some(obj => obj.id === clickedObject.id);
+        
+        if (isClickedObjectSelected && selectedObjects.length > 1) {
+          // If clicked object is part of multi-selection, drag all selected objects
+          setIsDraggingText(true);
+          setDragStart({ x: mouseX, y: mouseY });
+          // Keep current multi-selection
+        } else {
+          // Single object selection and drag
+          setSelectedObject(clickedObject);
+          setSelectedObjects([]);
+          setIsDraggingText(true);
+          setDragStart({ x: mouseX, y: mouseY });
+        }
       }
-    } else if (isSpacePressed || e.metaKey) {
-      // Space 키 또는 Cmd 키가 눌린 상태에서 드래그
+    } else if (isSpacePressed || (e.metaKey && !clickedObject)) {
+      // Space 키가 눌렸거나, Cmd 키가 눌렸지만 클릭된 객체가 없을 때 캔버스 드래그
       setSelectedObject(null);
       setSelectedObjects([]);
       setIsDragging(true);
