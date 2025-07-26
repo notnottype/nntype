@@ -43,7 +43,11 @@ import {
   addA4GuideToSVG,
   addCurrentTypingTextToSVG,
   calculateSVGOutputSize,
-  serializeSVG
+  serializeSVG,
+  createSelectionRectangle,
+  getObjectsInSelectionRect,
+  drawSelectionRectangle,
+  drawMultiSelectHighlight
 } from '../utils';
 import { 
   INITIAL_UI_FONT_SIZE_PX,
@@ -59,7 +63,7 @@ import {
   THEME_COLORS
 } from '../constants';
 import { pxToPoints, pointsToPx } from '../utils/units';
-import { CanvasObjectType, A4GuideObjectType, Theme, AICommand } from '../types';
+import { CanvasObjectType, A4GuideObjectType, Theme, AICommand, SelectionRectangle } from '../types';
 import { aiService } from '../services/aiService';
 import { wrapTextToLines } from '../utils';
 import { ExportMenu } from './ExportMenu';
@@ -98,6 +102,9 @@ const InfiniteTypewriterCanvas = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [fontLoaded, setFontLoaded] = useState(false);
   const [selectedObject, setSelectedObject] = useState<CanvasObjectType | null>(null);
+  const [selectedObjects, setSelectedObjects] = useState<CanvasObjectType[]>([]);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectionRect, setSelectionRect] = useState<SelectionRectangle | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isMouseInTextBox, setIsMouseInTextBox] = useState(false);
   const [hoveredObject, setHoveredObject] = useState<CanvasObjectType | null>(null);
@@ -605,7 +612,17 @@ const InfiniteTypewriterCanvas = () => {
       drawHoverHighlight(ctx, hoveredObject, scale, worldToScreenLocal, measureTextWidthLocal);
     }
     
-  }, [canvasWidth, canvasHeight, theme, showGrid, drawGridLocal, drawCanvasObjectsLocal, hoveredObject, scale, worldToScreenLocal, measureTextWidthLocal]);
+    // 멀티 셀렉트된 오브젝트 하이라이트 표시
+    if (selectedObjects.length > 0) {
+      drawMultiSelectHighlight(ctx, selectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
+    }
+    
+    // 셀렉션 사각형 표시
+    if (selectionRect && isSelecting) {
+      drawSelectionRectangle(ctx, selectionRect, theme);
+    }
+    
+  }, [canvasWidth, canvasHeight, theme, showGrid, drawGridLocal, drawCanvasObjectsLocal, hoveredObject, selectedObjects, selectionRect, isSelecting, scale, worldToScreenLocal, canvasOffset, measureTextWidthLocal]);
 
   const animationRef = useRef<number | null>(null);
   const renderTriggeredRef = useRef(false);
@@ -951,6 +968,28 @@ const InfiniteTypewriterCanvas = () => {
           e.preventDefault();
           resetCanvas();
           return;
+        } else if (e.key === 'c' || e.key === 'C') {
+          e.preventDefault();
+          // Copy functionality for multi-selected objects
+          if (selectedObjects.length > 0) {
+            const textContent = selectedObjects
+              .filter(obj => obj.type === 'text')
+              .map(obj => (obj as any).content)
+              .join('\n');
+            
+            if (textContent) {
+              navigator.clipboard.writeText(textContent).catch(err => {
+                console.error('Failed to copy to clipboard:', err);
+              });
+            }
+          } else if (selectedObject && selectedObject.type === 'text') {
+            // Fallback for single selected object
+            const textObj = selectedObject as any;
+            navigator.clipboard.writeText(textObj.content).catch(err => {
+              console.error('Failed to copy to clipboard:', err);
+            });
+          }
+          return;
         }
       }
       // Base Font Size: Alt/Option + +/- (텍스트 객체 논리적 크기 조정)
@@ -996,10 +1035,19 @@ const InfiniteTypewriterCanvas = () => {
         }
       }
       // Delete key
-      if (e.key === 'Delete' && selectedObject && !isInputFocused) {
+      if (e.key === 'Delete' && !isInputFocused) {
         e.preventDefault();
-        setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
-        setSelectedObject(null);
+        if (selectedObjects.length > 0) {
+          // Delete multi-selected objects
+          const selectedIds = selectedObjects.map(obj => obj.id);
+          setCanvasObjects(prev => prev.filter(obj => !selectedIds.includes(obj.id)));
+          setSelectedObjects([]);
+          setSelectedObject(null);
+        } else if (selectedObject) {
+          // Delete single selected object
+          setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
+          setSelectedObject(null);
+        }
         return;
       }
       if (e.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
@@ -1052,7 +1100,7 @@ const InfiniteTypewriterCanvas = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [scale, selectedObject, getCurrentLineHeight, zoomToLevel, setCanvasObjects, setSelectedObject, setCanvasOffset, handleUISizeChange, handleBaseFontSizeChange, resetUIZoom, resetBaseFont, resetCanvas]);
+  }, [scale, selectedObject, selectedObjects, getCurrentLineHeight, zoomToLevel, setCanvasObjects, setSelectedObject, setSelectedObjects, setCanvasOffset, handleUISizeChange, handleBaseFontSizeChange, resetUIZoom, resetBaseFont, resetCanvas]);
 
   // Mouse events
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1065,18 +1113,73 @@ const InfiniteTypewriterCanvas = () => {
     const clickedObject = canvasObjects.find(obj => isPointInObjectLocal(obj, mouseX, mouseY));
     
     if (clickedObject) {
-      setSelectedObject(clickedObject);
-      setIsDraggingText(true);
-      setDragStart({ x: mouseX, y: mouseY });
-    } else if (isSpacePressed || e.metaKey) {
-      // Space 키 또는 Cmd 키가 눌린 상태에서 드래그
+      // Check if Cmd key is pressed for additive selection
+      if (e.metaKey && !isSpacePressed) {
+        // Cmd+click: Add/remove from multi-selection without dragging
+        const isClickedObjectSelected = selectedObjects.some(obj => obj.id === clickedObject.id);
+        
+        if (isClickedObjectSelected) {
+          // Remove from selection
+          const newSelectedObjects = selectedObjects.filter(obj => obj.id !== clickedObject.id);
+          setSelectedObjects(newSelectedObjects);
+          
+          // If only one object left, make it the single selected object
+          if (newSelectedObjects.length === 1) {
+            setSelectedObject(newSelectedObjects[0]);
+            setSelectedObjects([]);
+          } else if (newSelectedObjects.length === 0) {
+            setSelectedObject(null);
+          } else {
+            setSelectedObject(null);
+          }
+        } else {
+          // Add to selection
+          if (selectedObjects.length === 0 && selectedObject) {
+            // If there's a single selected object, start multi-selection with it
+            setSelectedObjects([selectedObject, clickedObject]);
+            setSelectedObject(null);
+          } else if (selectedObjects.length > 0) {
+            // Add to existing multi-selection
+            setSelectedObjects([...selectedObjects, clickedObject]);
+            setSelectedObject(null);
+          } else {
+            // First object selection
+            setSelectedObject(clickedObject);
+            setSelectedObjects([]);
+          }
+        }
+      } else {
+        // Normal click: Check if clicked object is part of multi-selection
+        const isClickedObjectSelected = selectedObjects.some(obj => obj.id === clickedObject.id);
+        
+        if (isClickedObjectSelected && selectedObjects.length > 1) {
+          // If clicked object is part of multi-selection, drag all selected objects
+          setIsDraggingText(true);
+          setDragStart({ x: mouseX, y: mouseY });
+          // Keep current multi-selection
+        } else {
+          // Single object selection and drag
+          setSelectedObject(clickedObject);
+          setSelectedObjects([]);
+          setIsDraggingText(true);
+          setDragStart({ x: mouseX, y: mouseY });
+        }
+      }
+    } else if (isSpacePressed || (e.metaKey && !clickedObject)) {
+      // Space 키가 눌렸거나, Cmd 키가 눌렸지만 클릭된 객체가 없을 때 캔버스 드래그
       setSelectedObject(null);
+      setSelectedObjects([]);
       setIsDragging(true);
       setDragStart({ x: e.clientX, y: e.clientY });
     } else {
+      // Start multi-select if no object clicked and not panning
       setSelectedObject(null);
+      setSelectedObjects([]);
+      setIsSelecting(true);
+      setSelectionRect(null);
       setIsDragging(false);
       setIsDraggingText(false);
+      setDragStart({ x: mouseX, y: mouseY });
     }
   };
 
@@ -1118,31 +1221,49 @@ const InfiniteTypewriterCanvas = () => {
       setHoveredObject(objectUnderMouse || null);
     }
     
-    if (isDraggingText && selectedObject) {
-      
+    if (isDraggingText) {
       const deltaX = mouseX - dragStart.x;
       const deltaY = mouseY - dragStart.y;
       
       // 월드 단위로 변환한 이동 거리를 그리드 단위로 스냅
       const worldDeltaX = deltaX / scale;
       const worldDeltaY = deltaY / scale;
-      const worldGridSize = getCurrentLineHeight(selectedObject, baseFontSize, scale) / scale; // 월드 단위 그리드 크기
+      const referenceObject = selectedObject || (selectedObjects.length > 0 ? selectedObjects[0] : null);
+      const worldGridSize = referenceObject ? getCurrentLineHeight(referenceObject, baseFontSize, scale) / scale : baseFontSize / scale;
       
       const snappedWorldDeltaX = snapToGrid(worldDeltaX, worldGridSize);
       const snappedWorldDeltaY = snapToGrid(worldDeltaY, worldGridSize);
       
       // 실제로 이동할 거리가 있을 때만 업데이트
       if (Math.abs(snappedWorldDeltaX) >= worldGridSize || Math.abs(snappedWorldDeltaY) >= worldGridSize) {
-        setCanvasObjects(prev => prev.map(obj => 
-          obj.id === selectedObject.id 
-            ? { ...obj, x: obj.x + snappedWorldDeltaX, y: obj.y + snappedWorldDeltaY }
-            : obj
-        ));
-        
-        setSelectedObject(prev => prev ? 
-          { ...prev, x: prev.x + snappedWorldDeltaX, y: prev.y + snappedWorldDeltaY } 
-          : null
-        );
+        if (selectedObjects.length > 1) {
+          // Group drag: move all selected objects
+          const selectedIds = selectedObjects.map(obj => obj.id);
+          setCanvasObjects(prev => prev.map(obj => 
+            selectedIds.includes(obj.id)
+              ? { ...obj, x: obj.x + snappedWorldDeltaX, y: obj.y + snappedWorldDeltaY }
+              : obj
+          ));
+          
+          // Update selectedObjects array
+          setSelectedObjects(prev => prev.map(obj => ({
+            ...obj, 
+            x: obj.x + snappedWorldDeltaX, 
+            y: obj.y + snappedWorldDeltaY
+          })));
+        } else if (selectedObject) {
+          // Single object drag
+          setCanvasObjects(prev => prev.map(obj => 
+            obj.id === selectedObject.id 
+              ? { ...obj, x: obj.x + snappedWorldDeltaX, y: obj.y + snappedWorldDeltaY }
+              : obj
+          ));
+          
+          setSelectedObject(prev => prev ? 
+            { ...prev, x: prev.x + snappedWorldDeltaX, y: prev.y + snappedWorldDeltaY } 
+            : null
+          );
+        }
         
         // 스냅된 이동량만큼 dragStart 업데이트
         const screenDeltaX = snappedWorldDeltaX * scale;
@@ -1173,12 +1294,38 @@ const InfiniteTypewriterCanvas = () => {
           y: dragStart.y + snappedDeltaY 
         });
       }
+    } else if (isSelecting) {
+      // Update selection rectangle during drag
+      const currentRect = createSelectionRectangle(
+        dragStart.x,
+        dragStart.y,
+        mouseX,
+        mouseY
+      );
+      setSelectionRect(currentRect);
+      
+      // Find objects in selection area
+      const selectedObjs = getObjectsInSelectionRect(
+        canvasObjects,
+        currentRect,
+        scale,
+        canvasOffset,
+        (text: string, fontSize: number) => measureTextWidth(text, fontSize, canvasRef.current, fontLoaded)
+      );
+      setSelectedObjects(selectedObjs);
     }
   };
 
   const handleMouseUp = () => {
     setIsDragging(false);
     setIsDraggingText(false);
+    
+    // End multi-select
+    if (isSelecting) {
+      setIsSelecting(false);
+      setSelectionRect(null);
+      // selectedObjects는 이미 설정되어 있음
+    }
     
     // 드래그가 끝난 후 텍스트 입력 필드에 포커스 복원 (텍스트 박스가 보일 때만)
     if (showTextBox) {

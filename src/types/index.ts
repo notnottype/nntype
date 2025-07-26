@@ -33,6 +33,13 @@ export interface ThemeColors {
   inputBorder: string;
 }
 
+export interface SelectionRectangle {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface CanvasState {
   canvasObjects: CanvasObjectType[];
   currentTypingText: string;
@@ -43,6 +50,9 @@ export interface CanvasState {
   scale: number;
   isTyping: boolean;
   selectedObject: CanvasObjectType | null;
+  selectedObjects: CanvasObjectType[];
+  isSelecting: boolean;
+  selectionRect: SelectionRectangle | null;
   isExportMenuOpen: boolean;
   canvasWidth: number;
   canvasHeight: number;

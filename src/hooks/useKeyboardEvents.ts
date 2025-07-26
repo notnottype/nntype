@@ -1,16 +1,18 @@
 import { useEffect } from 'react';
 import { CanvasObjectType } from '../types';
-import { ZOOM_LEVELS, FONT_SIZE_LEVELS } from '../constants';
+import { CANVAS_ZOOM_LEVELS } from '../constants';
 
 interface UseKeyboardEventsProps {
   scale: number;
   selectedObject: CanvasObjectType | null;
+  selectedObjects: CanvasObjectType[];
   baseFontSize: number;
   canvasOffset: { x: number; y: number };
   getCurrentLineHeight: () => number;
   zoomToLevel: (scale: number) => void;
   setCanvasObjects: React.Dispatch<React.SetStateAction<CanvasObjectType[]>>;
   setSelectedObject: React.Dispatch<React.SetStateAction<CanvasObjectType | null>>;
+  setSelectedObjects: React.Dispatch<React.SetStateAction<CanvasObjectType[]>>;
   setCanvasOffset: React.Dispatch<React.SetStateAction<{ x: number; y: number }>>;
   setIsExportMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsSpacePressed: React.Dispatch<React.SetStateAction<boolean>>;
@@ -23,12 +25,14 @@ interface UseKeyboardEventsProps {
 export const useKeyboardEvents = ({
   scale,
   selectedObject,
+  selectedObjects,
   baseFontSize,
   canvasOffset,
   getCurrentLineHeight,
   zoomToLevel,
   setCanvasObjects,
   setSelectedObject,
+  setSelectedObjects,
   setCanvasOffset,
   setIsExportMenuOpen,
   setIsSpacePressed,
@@ -70,21 +74,21 @@ export const useKeyboardEvents = ({
         setIsExportMenuOpen(false);
       }
       
-      const currentIndex = ZOOM_LEVELS.findIndex(level => Math.abs(level - scale) < 0.01);
+      const currentIndex = CANVAS_ZOOM_LEVELS.findIndex((level: number) => Math.abs(level - scale) < 0.01);
       
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
         if (e.key === '=' || e.key === '+') {
           e.preventDefault();
-          const newIndex = Math.min(ZOOM_LEVELS.length - 1, currentIndex + 1);
+          const newIndex = Math.min(CANVAS_ZOOM_LEVELS.length - 1, currentIndex + 1);
           if (newIndex !== currentIndex) {
-            zoomToLevel(ZOOM_LEVELS[newIndex]);
+            zoomToLevel(CANVAS_ZOOM_LEVELS[newIndex]);
           }
           return;
         } else if (e.key === '-') {
           e.preventDefault();
           const newIndex = Math.max(0, currentIndex - 1);
           if (newIndex !== currentIndex) {
-            zoomToLevel(ZOOM_LEVELS[newIndex]);
+            zoomToLevel(CANVAS_ZOOM_LEVELS[newIndex]);
           }
           return;
         } else if (e.key === '0') {
@@ -96,6 +100,28 @@ export const useKeyboardEvents = ({
         } else if (e.key === 'Home' || e.key === 'r' || e.key === 'R') {
           e.preventDefault();
           resetCanvas();
+          return;
+        } else if (e.key === 'c' || e.key === 'C') {
+          e.preventDefault();
+          // Copy functionality for multi-selected objects
+          if (selectedObjects.length > 0) {
+            const textContent = selectedObjects
+              .filter(obj => obj.type === 'text')
+              .map(obj => (obj as any).content)
+              .join('\n');
+            
+            if (textContent) {
+              navigator.clipboard.writeText(textContent).catch(err => {
+                console.error('Failed to copy to clipboard:', err);
+              });
+            }
+          } else if (selectedObject && selectedObject.type === 'text') {
+            // Fallback for single selected object
+            const textObj = selectedObject as any;
+            navigator.clipboard.writeText(textObj.content).catch(err => {
+              console.error('Failed to copy to clipboard:', err);
+            });
+          }
           return;
         }
       }
@@ -112,10 +138,19 @@ export const useKeyboardEvents = ({
         }
       }
       
-      if (e.key === 'Delete' && selectedObject && !isInputFocused) {
+      if (e.key === 'Delete' && !isInputFocused) {
         e.preventDefault();
-        setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
-        setSelectedObject(null);
+        if (selectedObjects.length > 0) {
+          // Delete multi-selected objects
+          const selectedIds = selectedObjects.map(obj => obj.id);
+          setCanvasObjects(prev => prev.filter(obj => !selectedIds.includes(obj.id)));
+          setSelectedObjects([]);
+          setSelectedObject(null);
+        } else if (selectedObject) {
+          // Delete single selected object
+          setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
+          setSelectedObject(null);
+        }
         return;
       }
       
@@ -146,10 +181,12 @@ export const useKeyboardEvents = ({
   }, [
     scale,
     selectedObject,
+    selectedObjects,
     getCurrentLineHeight,
     zoomToLevel,
     setCanvasObjects,
     setSelectedObject,
+    setSelectedObjects,
     setCanvasOffset,
     setIsExportMenuOpen,
     handleUISizeChange,
