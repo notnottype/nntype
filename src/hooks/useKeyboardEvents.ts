@@ -5,12 +5,14 @@ import { CANVAS_ZOOM_LEVELS } from '../constants';
 interface UseKeyboardEventsProps {
   scale: number;
   selectedObject: CanvasObjectType | null;
+  selectedObjects: CanvasObjectType[];
   baseFontSize: number;
   canvasOffset: { x: number; y: number };
   getCurrentLineHeight: () => number;
   zoomToLevel: (scale: number) => void;
   setCanvasObjects: React.Dispatch<React.SetStateAction<CanvasObjectType[]>>;
   setSelectedObject: React.Dispatch<React.SetStateAction<CanvasObjectType | null>>;
+  setSelectedObjects: React.Dispatch<React.SetStateAction<CanvasObjectType[]>>;
   setCanvasOffset: React.Dispatch<React.SetStateAction<{ x: number; y: number }>>;
   setIsExportMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsSpacePressed: React.Dispatch<React.SetStateAction<boolean>>;
@@ -23,12 +25,14 @@ interface UseKeyboardEventsProps {
 export const useKeyboardEvents = ({
   scale,
   selectedObject,
+  selectedObjects,
   baseFontSize,
   canvasOffset,
   getCurrentLineHeight,
   zoomToLevel,
   setCanvasObjects,
   setSelectedObject,
+  setSelectedObjects,
   setCanvasOffset,
   setIsExportMenuOpen,
   setIsSpacePressed,
@@ -97,6 +101,28 @@ export const useKeyboardEvents = ({
           e.preventDefault();
           resetCanvas();
           return;
+        } else if (e.key === 'c' || e.key === 'C') {
+          e.preventDefault();
+          // Copy functionality for multi-selected objects
+          if (selectedObjects.length > 0) {
+            const textContent = selectedObjects
+              .filter(obj => obj.type === 'text')
+              .map(obj => (obj as any).content)
+              .join('\n');
+            
+            if (textContent) {
+              navigator.clipboard.writeText(textContent).catch(err => {
+                console.error('Failed to copy to clipboard:', err);
+              });
+            }
+          } else if (selectedObject && selectedObject.type === 'text') {
+            // Fallback for single selected object
+            const textObj = selectedObject as any;
+            navigator.clipboard.writeText(textObj.content).catch(err => {
+              console.error('Failed to copy to clipboard:', err);
+            });
+          }
+          return;
         }
       }
 
@@ -112,10 +138,19 @@ export const useKeyboardEvents = ({
         }
       }
       
-      if (e.key === 'Delete' && selectedObject && !isInputFocused) {
+      if (e.key === 'Delete' && !isInputFocused) {
         e.preventDefault();
-        setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
-        setSelectedObject(null);
+        if (selectedObjects.length > 0) {
+          // Delete multi-selected objects
+          const selectedIds = selectedObjects.map(obj => obj.id);
+          setCanvasObjects(prev => prev.filter(obj => !selectedIds.includes(obj.id)));
+          setSelectedObjects([]);
+          setSelectedObject(null);
+        } else if (selectedObject) {
+          // Delete single selected object
+          setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
+          setSelectedObject(null);
+        }
         return;
       }
       
@@ -146,10 +181,12 @@ export const useKeyboardEvents = ({
   }, [
     scale,
     selectedObject,
+    selectedObjects,
     getCurrentLineHeight,
     zoomToLevel,
     setCanvasObjects,
     setSelectedObject,
+    setSelectedObjects,
     setCanvasOffset,
     setIsExportMenuOpen,
     handleUISizeChange,

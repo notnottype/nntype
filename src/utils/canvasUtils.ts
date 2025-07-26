@@ -261,7 +261,16 @@ export const drawMultiSelectHighlight = (
   measureText: (text: string, fontSize: number) => number,
   theme: Theme
 ) => {
-  const highlightColor = theme === 'dark' ? 'rgba(59, 130, 246, 0.4)' : 'rgba(59, 130, 246, 0.3)';
+  if (objects.length === 0) return;
+  
+  const highlightColor = theme === 'dark' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.1)';
+  const borderColor = theme === 'dark' ? 'rgba(59, 130, 246, 0.8)' : 'rgba(59, 130, 246, 0.6)';
+  
+  // Calculate bounding box for all selected objects
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
   
   objects.forEach(obj => {
     if (obj.type === 'text') {
@@ -271,14 +280,49 @@ export const drawMultiSelectHighlight = (
       const textWidth = measureText(textObj.content, fontSize);
       const textHeight = fontSize;
       
-      const padding = 4;
-      ctx.fillStyle = highlightColor;
-      ctx.fillRect(
-        screenPos.x - padding,
-        screenPos.y - textHeight - padding,
-        textWidth + padding * 2,
-        textHeight + padding * 2
-      );
+      const left = screenPos.x;
+      const top = screenPos.y - textHeight;
+      const right = screenPos.x + textWidth;
+      const bottom = screenPos.y;
+      
+      minX = Math.min(minX, left);
+      minY = Math.min(minY, top);
+      maxX = Math.max(maxX, right);
+      maxY = Math.max(maxY, bottom);
+    } else if (obj.type === 'a4guide') {
+      const guideObj = obj as A4GuideObjectType;
+      const screenPos = worldToScreen(guideObj.x, guideObj.y, scale, canvasOffset);
+      const guideWidth = guideObj.width * scale;
+      const guideHeight = guideObj.height * scale;
+      
+      const left = screenPos.x;
+      const top = screenPos.y;
+      const right = screenPos.x + guideWidth;
+      const bottom = screenPos.y + guideHeight;
+      
+      minX = Math.min(minX, left);
+      minY = Math.min(minY, top);
+      maxX = Math.max(maxX, right);
+      maxY = Math.max(maxY, bottom);
     }
   });
+  
+  if (minX !== Infinity && minY !== Infinity && maxX !== -Infinity && maxY !== -Infinity) {
+    const padding = 8;
+    const boundingBoxX = minX - padding;
+    const boundingBoxY = minY - padding;
+    const boundingBoxWidth = maxX - minX + padding * 2;
+    const boundingBoxHeight = maxY - minY + padding * 2;
+    
+    // Fill bounding box with highlight color
+    ctx.fillStyle = highlightColor;
+    ctx.fillRect(boundingBoxX, boundingBoxY, boundingBoxWidth, boundingBoxHeight);
+    
+    // Draw bounding box border
+    ctx.strokeStyle = borderColor;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 5]);
+    ctx.strokeRect(boundingBoxX, boundingBoxY, boundingBoxWidth, boundingBoxHeight);
+    ctx.setLineDash([]);
+  }
 };

@@ -968,6 +968,28 @@ const InfiniteTypewriterCanvas = () => {
           e.preventDefault();
           resetCanvas();
           return;
+        } else if (e.key === 'c' || e.key === 'C') {
+          e.preventDefault();
+          // Copy functionality for multi-selected objects
+          if (selectedObjects.length > 0) {
+            const textContent = selectedObjects
+              .filter(obj => obj.type === 'text')
+              .map(obj => (obj as any).content)
+              .join('\n');
+            
+            if (textContent) {
+              navigator.clipboard.writeText(textContent).catch(err => {
+                console.error('Failed to copy to clipboard:', err);
+              });
+            }
+          } else if (selectedObject && selectedObject.type === 'text') {
+            // Fallback for single selected object
+            const textObj = selectedObject as any;
+            navigator.clipboard.writeText(textObj.content).catch(err => {
+              console.error('Failed to copy to clipboard:', err);
+            });
+          }
+          return;
         }
       }
       // Base Font Size: Alt/Option + +/- (텍스트 객체 논리적 크기 조정)
@@ -1013,10 +1035,19 @@ const InfiniteTypewriterCanvas = () => {
         }
       }
       // Delete key
-      if (e.key === 'Delete' && selectedObject && !isInputFocused) {
+      if (e.key === 'Delete' && !isInputFocused) {
         e.preventDefault();
-        setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
-        setSelectedObject(null);
+        if (selectedObjects.length > 0) {
+          // Delete multi-selected objects
+          const selectedIds = selectedObjects.map(obj => obj.id);
+          setCanvasObjects(prev => prev.filter(obj => !selectedIds.includes(obj.id)));
+          setSelectedObjects([]);
+          setSelectedObject(null);
+        } else if (selectedObject) {
+          // Delete single selected object
+          setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
+          setSelectedObject(null);
+        }
         return;
       }
       if (e.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
@@ -1069,7 +1100,7 @@ const InfiniteTypewriterCanvas = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [scale, selectedObject, getCurrentLineHeight, zoomToLevel, setCanvasObjects, setSelectedObject, setCanvasOffset, handleUISizeChange, handleBaseFontSizeChange, resetUIZoom, resetBaseFont, resetCanvas]);
+  }, [scale, selectedObject, selectedObjects, getCurrentLineHeight, zoomToLevel, setCanvasObjects, setSelectedObject, setSelectedObjects, setCanvasOffset, handleUISizeChange, handleBaseFontSizeChange, resetUIZoom, resetBaseFont, resetCanvas]);
 
   // Mouse events
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1082,10 +1113,21 @@ const InfiniteTypewriterCanvas = () => {
     const clickedObject = canvasObjects.find(obj => isPointInObjectLocal(obj, mouseX, mouseY));
     
     if (clickedObject) {
-      setSelectedObject(clickedObject);
-      setSelectedObjects([]);
-      setIsDraggingText(true);
-      setDragStart({ x: mouseX, y: mouseY });
+      // Check if clicked object is part of multi-selection
+      const isClickedObjectSelected = selectedObjects.some(obj => obj.id === clickedObject.id);
+      
+      if (isClickedObjectSelected && selectedObjects.length > 1) {
+        // If clicked object is part of multi-selection, drag all selected objects
+        setIsDraggingText(true);
+        setDragStart({ x: mouseX, y: mouseY });
+        // Keep current multi-selection
+      } else {
+        // Single object selection and drag
+        setSelectedObject(clickedObject);
+        setSelectedObjects([]);
+        setIsDraggingText(true);
+        setDragStart({ x: mouseX, y: mouseY });
+      }
     } else if (isSpacePressed || e.metaKey) {
       // Space 키 또는 Cmd 키가 눌린 상태에서 드래그
       setSelectedObject(null);
@@ -1142,31 +1184,49 @@ const InfiniteTypewriterCanvas = () => {
       setHoveredObject(objectUnderMouse || null);
     }
     
-    if (isDraggingText && selectedObject) {
-      
+    if (isDraggingText) {
       const deltaX = mouseX - dragStart.x;
       const deltaY = mouseY - dragStart.y;
       
       // 월드 단위로 변환한 이동 거리를 그리드 단위로 스냅
       const worldDeltaX = deltaX / scale;
       const worldDeltaY = deltaY / scale;
-      const worldGridSize = getCurrentLineHeight(selectedObject, baseFontSize, scale) / scale; // 월드 단위 그리드 크기
+      const referenceObject = selectedObject || (selectedObjects.length > 0 ? selectedObjects[0] : null);
+      const worldGridSize = referenceObject ? getCurrentLineHeight(referenceObject, baseFontSize, scale) / scale : baseFontSize / scale;
       
       const snappedWorldDeltaX = snapToGrid(worldDeltaX, worldGridSize);
       const snappedWorldDeltaY = snapToGrid(worldDeltaY, worldGridSize);
       
       // 실제로 이동할 거리가 있을 때만 업데이트
       if (Math.abs(snappedWorldDeltaX) >= worldGridSize || Math.abs(snappedWorldDeltaY) >= worldGridSize) {
-        setCanvasObjects(prev => prev.map(obj => 
-          obj.id === selectedObject.id 
-            ? { ...obj, x: obj.x + snappedWorldDeltaX, y: obj.y + snappedWorldDeltaY }
-            : obj
-        ));
-        
-        setSelectedObject(prev => prev ? 
-          { ...prev, x: prev.x + snappedWorldDeltaX, y: prev.y + snappedWorldDeltaY } 
-          : null
-        );
+        if (selectedObjects.length > 1) {
+          // Group drag: move all selected objects
+          const selectedIds = selectedObjects.map(obj => obj.id);
+          setCanvasObjects(prev => prev.map(obj => 
+            selectedIds.includes(obj.id)
+              ? { ...obj, x: obj.x + snappedWorldDeltaX, y: obj.y + snappedWorldDeltaY }
+              : obj
+          ));
+          
+          // Update selectedObjects array
+          setSelectedObjects(prev => prev.map(obj => ({
+            ...obj, 
+            x: obj.x + snappedWorldDeltaX, 
+            y: obj.y + snappedWorldDeltaY
+          })));
+        } else if (selectedObject) {
+          // Single object drag
+          setCanvasObjects(prev => prev.map(obj => 
+            obj.id === selectedObject.id 
+              ? { ...obj, x: obj.x + snappedWorldDeltaX, y: obj.y + snappedWorldDeltaY }
+              : obj
+          ));
+          
+          setSelectedObject(prev => prev ? 
+            { ...prev, x: prev.x + snappedWorldDeltaX, y: prev.y + snappedWorldDeltaY } 
+            : null
+          );
+        }
         
         // 스냅된 이동량만큼 dragStart 업데이트
         const screenDeltaX = snappedWorldDeltaX * scale;
