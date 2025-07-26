@@ -52,6 +52,14 @@ excalitype/
 - Zoom: Option/Alt + +/-, UI size: Ctrl/Cmd + +/-
 - Export/import: use header menu
 
+## Documentation
+
+For comprehensive documentation, see the [Documentation Index](docs/INDEX.md):
+
+- 📚 [Documentation Index](docs/INDEX.md) - Complete documentation hub
+- 🏗️ [Project Structure](docs/PROJECT_STRUCTURE.md) - Architecture deep dive
+- 🔧 [API Documentation](docs/API.md) - Components and utilities reference
+
 ## License
 This project is licensed under the GNU General Public License v3.0. For details, see the [LICENSE](LICENSE) file.
 

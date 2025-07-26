@@ -1,5 +1,10 @@
 export { default as InfiniteTypewriterCanvas } from './InfiniteTypewriterCanvas';
 export { Header } from './Header';
-// ShortcutsOverlay는 theme, onClose, onDebug props를 지원합니다.
 export { ShortcutsOverlay } from './ShortcutsOverlay';
 export { CanvasInfoOverlay } from './CanvasInfoOverlay';
+export { ExportMenu } from './ExportMenu';
+export { ApiKeyInput } from './ApiKeyInput';
+export { CanvasContainer } from './CanvasContainer';
+export { StatusMessages } from './StatusMessages';
+export { TypewriterInput } from './TypewriterInput';
+export { ZoomControls } from './ZoomControls';

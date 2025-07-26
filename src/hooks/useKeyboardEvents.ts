@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { CanvasObjectType } from '../types';
-import { ZOOM_LEVELS, FONT_SIZE_LEVELS } from '../constants';
+import { CANVAS_ZOOM_LEVELS } from '../constants';
 
 interface UseKeyboardEventsProps {
   scale: number;
@@ -70,21 +70,21 @@ export const useKeyboardEvents = ({
         setIsExportMenuOpen(false);
       }
       
-      const currentIndex = ZOOM_LEVELS.findIndex(level => Math.abs(level - scale) < 0.01);
+      const currentIndex = CANVAS_ZOOM_LEVELS.findIndex((level: number) => Math.abs(level - scale) < 0.01);
       
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
         if (e.key === '=' || e.key === '+') {
           e.preventDefault();
-          const newIndex = Math.min(ZOOM_LEVELS.length - 1, currentIndex + 1);
+          const newIndex = Math.min(CANVAS_ZOOM_LEVELS.length - 1, currentIndex + 1);
           if (newIndex !== currentIndex) {
-            zoomToLevel(ZOOM_LEVELS[newIndex]);
+            zoomToLevel(CANVAS_ZOOM_LEVELS[newIndex]);
           }
           return;
         } else if (e.key === '-') {
           e.preventDefault();
           const newIndex = Math.max(0, currentIndex - 1);
           if (newIndex !== currentIndex) {
-            zoomToLevel(ZOOM_LEVELS[newIndex]);
+            zoomToLevel(CANVAS_ZOOM_LEVELS[newIndex]);
           }
           return;
         } else if (e.key === '0') {
