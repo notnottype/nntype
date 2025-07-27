@@ -97,14 +97,47 @@ export const drawCanvasObjects = (
       ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
       
       if (selectedObject && selectedObject.id === textObj.id) {
+        // Handle multi-line text for selection highlight
+        const lines = textObj.content.split('\n');
+        const lineHeight = fontSize * 1.6;
+        let maxWidth = 0;
+        
+        // Calculate the maximum width among all lines
+        lines.forEach(line => {
+          const lineWidth = measureTextWidth(line, fontSize);
+          maxWidth = Math.max(maxWidth, lineWidth);
+        });
+        
+        // 마지막 줄은 fontSize만, 나머지 줄들은 lineHeight 적용
+        const totalHeight = lines.length > 1 
+          ? (lines.length - 1) * lineHeight + fontSize 
+          : fontSize;
+        
+        const rectX = screenPos.x;
+        const rectY = screenPos.y - fontSize;
+        const rectWidth = maxWidth;
+        const rectHeight = totalHeight;
+        
+        // Draw background fill first
         ctx.fillStyle = colors[theme].selection;
-        const textWidth = measureTextWidth(textObj.content, fontSize);
-        const textHeight = fontSize;
-        ctx.fillRect(screenPos.x - 4, screenPos.y - textHeight, textWidth + 8, textHeight + 8);
+        ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
+        
+        // Draw border on top
+        ctx.strokeStyle = colors[theme].selectionBorder;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([]);
+        ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
       }
       
       ctx.fillStyle = textObj.color || colors[theme].text;
-      ctx.fillText(textObj.content, screenPos.x, screenPos.y);
+      
+      // Handle multi-line text
+      const lines = textObj.content.split('\n');
+      const lineHeight = fontSize * 1.6;
+      
+      lines.forEach((line, index) => {
+        ctx.fillText(line, screenPos.x, screenPos.y + (index * lineHeight));
+      });
     }
   });
 };
@@ -114,9 +147,10 @@ export const drawHoverHighlight = (
   hoveredObject: CanvasObjectType,
   scale: number,
   worldToScreenFn: (x: number, y: number) => { x: number; y: number },
-  measureTextWidth: (text: string, fontSize: number) => number
+  measureTextWidth: (text: string, fontSize: number) => number,
+  theme: Theme,
+  colors: any
 ) => {
-  ctx.strokeStyle = 'rgba(135, 206, 235, 0.8)';
   ctx.lineWidth = 1;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
@@ -126,20 +160,47 @@ export const drawHoverHighlight = (
     const textObj = hoveredObject as TextObjectType;
     const screenPos = worldToScreenFn(textObj.x, textObj.y);
     const fontSize = textObj.fontSize * scale;
-    const textWidth = measureTextWidth(textObj.content, fontSize);
-    const textHeight = fontSize;
-    const padding = 4;
-    ctx.strokeRect(
-      screenPos.x - padding, 
-      screenPos.y - textHeight - padding, 
-      textWidth + padding * 2, 
-      textHeight + padding * 2
-    );
+    
+    // Handle multi-line text for hover highlight
+    const lines = textObj.content.split('\n');
+    const lineHeight = fontSize * 1.6;
+    let maxWidth = 0;
+    
+    // Calculate the maximum width among all lines
+    lines.forEach(line => {
+      const lineWidth = measureTextWidth(line, fontSize);
+      maxWidth = Math.max(maxWidth, lineWidth);
+    });
+    
+    // 마지막 줄은 fontSize만, 나머지 줄들은 lineHeight 적용
+    const totalHeight = lines.length > 1 
+      ? (lines.length - 1) * lineHeight + fontSize 
+      : fontSize;
+    
+    const rectX = screenPos.x;
+    const rectY = screenPos.y - fontSize;
+    const rectWidth = maxWidth;
+    const rectHeight = totalHeight;
+    
+    // Draw background fill first
+    ctx.fillStyle = colors[theme].hover;
+    ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
+    
+    // Draw border on top
+    ctx.strokeStyle = colors[theme].hoverBorder;
+    ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
   } else if (hoveredObject.type === 'a4guide') {
     const a4Obj = hoveredObject as A4GuideObjectType;
     const screenPos = worldToScreenFn(a4Obj.x, a4Obj.y);
     const screenWidth = a4Obj.width * scale;
     const screenHeight = a4Obj.height * scale;
+    
+    // Draw background fill first
+    ctx.fillStyle = colors[theme].hover;
+    ctx.fillRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
+    
+    // Draw border on top
+    ctx.strokeStyle = colors[theme].hoverBorder;
     ctx.strokeRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
   }
 };
@@ -181,14 +242,28 @@ export const isObjectInSelectionRect = (
     const textObj = object as TextObjectType;
     const screenPos = worldToScreen(textObj.x, textObj.y, scale, canvasOffset);
     const fontSize = textObj.fontSize * scale;
-    const textWidth = measureText(textObj.content, fontSize);
-    const textHeight = fontSize;
+    
+    // Handle multi-line text for selection rectangle intersection
+    const lines = textObj.content.split('\n');
+    const lineHeight = fontSize * 1.6;
+    let maxWidth = 0;
+    
+    // Calculate the maximum width among all lines
+    lines.forEach(line => {
+      const lineWidth = measureText(line, fontSize);
+      maxWidth = Math.max(maxWidth, lineWidth);
+    });
+    
+    // 마지막 줄은 fontSize만, 나머지 줄들은 lineHeight 적용
+    const totalHeight = lines.length > 1 
+      ? (lines.length - 1) * lineHeight + fontSize 
+      : fontSize;
     
     // Check if text object intersects with selection rectangle
     const textLeft = screenPos.x;
-    const textTop = screenPos.y - textHeight;
-    const textRight = screenPos.x + textWidth;
-    const textBottom = screenPos.y;
+    const textTop = screenPos.y - fontSize;
+    const textRight = screenPos.x + maxWidth;
+    const textBottom = screenPos.y + totalHeight - fontSize;
     
     const rectLeft = selectionRect.x;
     const rectTop = selectionRect.y;
@@ -277,13 +352,27 @@ export const drawMultiSelectHighlight = (
       const textObj = obj as TextObjectType;
       const screenPos = worldToScreen(textObj.x, textObj.y, scale, canvasOffset);
       const fontSize = textObj.fontSize * scale;
-      const textWidth = measureText(textObj.content, fontSize);
-      const textHeight = fontSize;
+      
+      // Handle multi-line text for multi-select highlight
+      const lines = textObj.content.split('\n');
+      const lineHeight = fontSize * 1.6;
+      let maxWidth = 0;
+      
+      // Calculate the maximum width among all lines
+      lines.forEach(line => {
+        const lineWidth = measureText(line, fontSize);
+        maxWidth = Math.max(maxWidth, lineWidth);
+      });
+      
+      // 마지막 줄은 fontSize만, 나머지 줄들은 lineHeight 적용
+      const totalHeight = lines.length > 1 
+        ? (lines.length - 1) * lineHeight + fontSize 
+        : fontSize;
       
       const left = screenPos.x;
-      const top = screenPos.y - textHeight;
-      const right = screenPos.x + textWidth;
-      const bottom = screenPos.y;
+      const top = screenPos.y - fontSize;
+      const right = screenPos.x + maxWidth;
+      const bottom = screenPos.y + totalHeight - fontSize;
       
       minX = Math.min(minX, left);
       minY = Math.min(minY, top);
@@ -308,11 +397,11 @@ export const drawMultiSelectHighlight = (
   });
   
   if (minX !== Infinity && minY !== Infinity && maxX !== -Infinity && maxY !== -Infinity) {
-    const padding = 8;
-    const boundingBoxX = minX - padding;
-    const boundingBoxY = minY - padding;
-    const boundingBoxWidth = maxX - minX + padding * 2;
-    const boundingBoxHeight = maxY - minY + padding * 2;
+    // 패딩 제거 - 정확한 텍스트 경계에 맞춘 하이라이트
+    const boundingBoxX = minX;
+    const boundingBoxY = minY;
+    const boundingBoxWidth = maxX - minX;
+    const boundingBoxHeight = maxY - minY;
     
     // Fill bounding box with highlight color
     ctx.fillStyle = highlightColor;

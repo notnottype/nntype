@@ -28,6 +28,9 @@ export interface ThemeColors {
   text: string;
   grid: string;
   selection: string;
+  selectionBorder: string;
+  hover: string;
+  hoverBorder: string;
   a4Guide: string;
   inputBg: string;
   inputBorder: string;

@@ -95,6 +95,7 @@ const InfiniteTypewriterCanvas = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [isDraggingText, setIsDraggingText] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [dragPreviewObjects, setDragPreviewObjects] = useState<CanvasObjectType[]>([]);
   const [scale, setScale] = useState(() => {
     const sessionData = loadSession();
     return sessionData?.scale || 1;
@@ -280,8 +281,16 @@ const InfiniteTypewriterCanvas = () => {
     }
     
     const saveCurrentSession = () => {
-      // 실시간 LT 월드 좌표 사용
-      const currentLTWorld = getCurrentLTWorldPosition();
+      // 실시간 LT 월드 좌표 직접 계산 (getTextBoxWidth 의존성 해결)
+      const textBoxWidth = measureTextWidth('A'.repeat(maxCharsPerLine), baseFontSize, canvasRef.current, fontLoaded);
+      const currentLTScreen = {
+        x: typewriterX - textBoxWidth / 2,
+        y: typewriterY - baseFontSize / 2
+      };
+      const currentLTWorld = {
+        x: (currentLTScreen.x - canvasOffset.x) / scale,
+        y: (currentLTScreen.y - canvasOffset.y) / scale
+      };
       
       saveSession({
         canvasObjects,
@@ -567,7 +576,8 @@ const InfiniteTypewriterCanvas = () => {
   // 초기 중앙 배치는 세션 로드에서 처리 (중복 제거)
 
   const drawGridLocal = useCallback((ctx: CanvasRenderingContext2D) => {
-    const baseGridSize = baseFontSize * 1.8;
+    // 고정된 기준 그리드 크기 사용 (선택된 객체와 무관)
+    const baseGridSize = baseFontSize;
     drawGrid(ctx, canvasWidth, canvasHeight, canvasOffset, baseGridSize, THEME_COLORS[theme].grid);
   }, [canvasOffset, canvasWidth, canvasHeight, theme, baseFontSize]);
 
@@ -587,6 +597,16 @@ const InfiniteTypewriterCanvas = () => {
       THEME_COLORS
     );
   }, [canvasObjects, scale, selectedObject, canvasWidth, canvasHeight, worldToScreenLocal, measureTextWidthLocal, theme]);
+
+  // 드래그 프리뷰 객체 렌더링 함수 (호버 스타일과 동일한 보더박스)
+  const drawDragPreviewObjects = useCallback((ctx: CanvasRenderingContext2D) => {
+    if (dragPreviewObjects.length === 0) return;
+    
+    dragPreviewObjects.forEach(obj => {
+      // 기존 hover highlight와 동일한 스타일 사용
+      drawHoverHighlight(ctx, obj, scale, worldToScreenLocal, measureTextWidthLocal, theme, THEME_COLORS);
+    });
+  }, [dragPreviewObjects, scale, worldToScreenLocal, measureTextWidthLocal, theme]);
 
   const render = useCallback(() => {
     const canvas = canvasRef.current;
@@ -609,12 +629,17 @@ const InfiniteTypewriterCanvas = () => {
     
     // 호버된 오브젝트 하이라이트 표시
     if (hoveredObject) {
-      drawHoverHighlight(ctx, hoveredObject, scale, worldToScreenLocal, measureTextWidthLocal);
+      drawHoverHighlight(ctx, hoveredObject, scale, worldToScreenLocal, measureTextWidthLocal, theme, THEME_COLORS);
     }
     
     // 멀티 셀렉트된 오브젝트 하이라이트 표시
     if (selectedObjects.length > 0) {
       drawMultiSelectHighlight(ctx, selectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
+    }
+    
+    // 드래그 프리뷰 표시 (드래그 중일 때만)
+    if (isDraggingText && dragPreviewObjects.length > 0) {
+      drawDragPreviewObjects(ctx);
     }
     
     // 셀렉션 사각형 표시
@@ -1052,7 +1077,7 @@ const InfiniteTypewriterCanvas = () => {
       }
       if (e.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
-        const moveDistance = getCurrentLineHeight(selectedObject, baseFontSize, scale);
+        const moveDistance = baseFontSize * 1.6;
         setCanvasOffset(prev => {
           const newOffset = (() => {
             switch (e.key) {
@@ -1225,52 +1250,79 @@ const InfiniteTypewriterCanvas = () => {
       const deltaX = mouseX - dragStart.x;
       const deltaY = mouseY - dragStart.y;
       
-      // 월드 단위로 변환한 이동 거리를 그리드 단위로 스냅
+      // 드래그 중에는 실시간으로 자유롭게 이동 (그리드 스냅 없음)
       const worldDeltaX = deltaX / scale;
       const worldDeltaY = deltaY / scale;
-      const referenceObject = selectedObject || (selectedObjects.length > 0 ? selectedObjects[0] : null);
-      const worldGridSize = referenceObject ? getCurrentLineHeight(referenceObject, baseFontSize, scale) / scale : baseFontSize / scale;
       
-      const snappedWorldDeltaX = snapToGrid(worldDeltaX, worldGridSize);
-      const snappedWorldDeltaY = snapToGrid(worldDeltaY, worldGridSize);
-      
-      // 실제로 이동할 거리가 있을 때만 업데이트
-      if (Math.abs(snappedWorldDeltaX) >= worldGridSize || Math.abs(snappedWorldDeltaY) >= worldGridSize) {
+      // 움직임이 있을 때만 업데이트
+      if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
+        // 드래그 프리뷰 계산: 최종 스냅될 위치 미리보기
+        const worldGridSize = baseFontSize / scale;
+        let previewObjects: CanvasObjectType[] = [];
+        
         if (selectedObjects.length > 1) {
           // Group drag: move all selected objects
           const selectedIds = selectedObjects.map(obj => obj.id);
           setCanvasObjects(prev => prev.map(obj => 
             selectedIds.includes(obj.id)
-              ? { ...obj, x: obj.x + snappedWorldDeltaX, y: obj.y + snappedWorldDeltaY }
+              ? { ...obj, x: obj.x + worldDeltaX, y: obj.y + worldDeltaY }
               : obj
           ));
           
           // Update selectedObjects array
           setSelectedObjects(prev => prev.map(obj => ({
             ...obj, 
-            x: obj.x + snappedWorldDeltaX, 
-            y: obj.y + snappedWorldDeltaY
+            x: obj.x + worldDeltaX, 
+            y: obj.y + worldDeltaY
           })));
+          
+          // 멀티 선택 프리뷰 계산
+          const referenceObj = selectedObjects[0];
+          const currentWorldX = referenceObj.x + worldDeltaX;
+          const currentWorldY = referenceObj.y + worldDeltaY;
+          const snappedWorldX = snapToGrid(currentWorldX, worldGridSize);
+          const snappedWorldY = snapToGrid(currentWorldY, worldGridSize);
+          const snapDeltaX = snappedWorldX - referenceObj.x;
+          const snapDeltaY = snappedWorldY - referenceObj.y;
+          
+          previewObjects = selectedObjects.map(obj => ({
+            ...obj,
+            x: obj.x + snapDeltaX,
+            y: obj.y + snapDeltaY
+          }));
         } else if (selectedObject) {
           // Single object drag
           setCanvasObjects(prev => prev.map(obj => 
             obj.id === selectedObject.id 
-              ? { ...obj, x: obj.x + snappedWorldDeltaX, y: obj.y + snappedWorldDeltaY }
+              ? { ...obj, x: obj.x + worldDeltaX, y: obj.y + worldDeltaY }
               : obj
           ));
           
           setSelectedObject(prev => prev ? 
-            { ...prev, x: prev.x + snappedWorldDeltaX, y: prev.y + snappedWorldDeltaY } 
+            { ...prev, x: prev.x + worldDeltaX, y: prev.y + worldDeltaY } 
             : null
           );
+          
+          // 단일 선택 프리뷰 계산
+          const currentWorldX = selectedObject.x + worldDeltaX;
+          const currentWorldY = selectedObject.y + worldDeltaY;
+          const snappedWorldX = snapToGrid(currentWorldX, worldGridSize);
+          const snappedWorldY = snapToGrid(currentWorldY, worldGridSize);
+          
+          previewObjects = [{
+            ...selectedObject,
+            x: snappedWorldX,
+            y: snappedWorldY
+          }];
         }
         
-        // 스냅된 이동량만큼 dragStart 업데이트
-        const screenDeltaX = snappedWorldDeltaX * scale;
-        const screenDeltaY = snappedWorldDeltaY * scale;
+        // 프리뷰 객체 업데이트
+        setDragPreviewObjects(previewObjects);
+        
+        // 이동량만큼 dragStart 업데이트 (누적 방지)
         setDragStart({ 
-          x: dragStart.x + screenDeltaX, 
-          y: dragStart.y + screenDeltaY 
+          x: mouseX, 
+          y: mouseY 
         });
       }
     } else if (isDragging) {
@@ -1317,8 +1369,57 @@ const InfiniteTypewriterCanvas = () => {
   };
 
   const handleMouseUp = () => {
+    // 드래그 완료 시 그리드 스냅 적용
+    if (isDraggingText) {
+      const worldGridSize = baseFontSize / scale;
+      
+      if (selectedObjects.length > 1) {
+        // 멀티 선택 그리드 스냅
+        const referenceObj = selectedObjects[0];
+        const snappedWorldX = snapToGrid(referenceObj.x, worldGridSize);
+        const snappedWorldY = snapToGrid(referenceObj.y, worldGridSize);
+        const snapDeltaX = snappedWorldX - referenceObj.x;
+        const snapDeltaY = snappedWorldY - referenceObj.y;
+        
+        if (snapDeltaX !== 0 || snapDeltaY !== 0) {
+          const selectedIds = selectedObjects.map(obj => obj.id);
+          setCanvasObjects(prev => prev.map(obj => 
+            selectedIds.includes(obj.id)
+              ? { ...obj, x: obj.x + snapDeltaX, y: obj.y + snapDeltaY }
+              : obj
+          ));
+          
+          setSelectedObjects(prev => prev.map(obj => ({
+            ...obj, 
+            x: obj.x + snapDeltaX, 
+            y: obj.y + snapDeltaY
+          })));
+        }
+      } else if (selectedObject) {
+        // 단일 선택 그리드 스냅
+        const snappedWorldX = snapToGrid(selectedObject.x, worldGridSize);
+        const snappedWorldY = snapToGrid(selectedObject.y, worldGridSize);
+        
+        if (snappedWorldX !== selectedObject.x || snappedWorldY !== selectedObject.y) {
+          setCanvasObjects(prev => prev.map(obj => 
+            obj.id === selectedObject.id 
+              ? { ...obj, x: snappedWorldX, y: snappedWorldY }
+              : obj
+          ));
+          
+          setSelectedObject(prev => prev ? 
+            { ...prev, x: snappedWorldX, y: snappedWorldY } 
+            : null
+          );
+        }
+      }
+    }
+    
     setIsDragging(false);
     setIsDraggingText(false);
+    
+    // 드래그 프리뷰 초기화
+    setDragPreviewObjects([]);
     
     // End multi-select
     if (isSelecting) {
@@ -1359,18 +1460,18 @@ const InfiniteTypewriterCanvas = () => {
   // }, [setScale, centerTypewriter, setSelectedObject]);
 
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setCurrentTypingText(e.target.value);
     setIsTyping(true);
     setTimeout(() => setIsTyping(false), 100);
   };
 
-  const handleCompositionStart = (e: React.CompositionEvent<HTMLInputElement>) => {
+  const handleCompositionStart = (e: React.CompositionEvent<HTMLTextAreaElement>) => {
     setIsComposing(true);
     isComposingRef.current = true;
   };
 
-  const handleCompositionEnd = (e: React.CompositionEvent<HTMLInputElement>) => {
+  const handleCompositionEnd = (e: React.CompositionEvent<HTMLTextAreaElement>) => {
     setIsComposing(false);
     isComposingRef.current = false;
     setCurrentTypingText(e.currentTarget.value); 
@@ -1470,7 +1571,7 @@ const InfiniteTypewriterCanvas = () => {
         pushUndo(); // 상태 변경 전 스냅샷 저장
         
         // 각 줄을 별도의 텍스트 오브젝트로 생성 (현재 타이프라이터 위치에서 시작)
-        const worldLineHeight = getCurrentLineHeight(selectedObject, baseFontSize, scale) / scale;
+        const worldLineHeight = (baseFontSize / scale) * 1.6;
         const newObjects = wrappedLines.map((line, index) => ({
           type: 'text' as const,
           content: line,
@@ -1517,8 +1618,33 @@ const InfiniteTypewriterCanvas = () => {
   // [UNDO/REDO] 상태 변경이 일어나는 주요 지점에 pushUndo() 호출
   // 예시: 텍스트 추가, 오브젝트 이동/삭제, 패닝, 줌, 전체 삭제 등
   // 텍스트 추가
-  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Handle backslash + Enter for line breaks (without adding text to canvas)
     if (e.key === 'Enter') {
+      // Check if the text ends with backslash and user pressed Enter
+      const textValue = e.currentTarget.value;
+      const cursorPosition = e.currentTarget.selectionStart || 0;
+      const textBeforeCursor = textValue.substring(0, cursorPosition);
+      
+      if (textBeforeCursor.endsWith('\\')) {
+        // Remove the backslash and add a line break
+        const newText = textValue.substring(0, cursorPosition - 1) + '\n' + textValue.substring(cursorPosition);
+        setCurrentTypingText(newText);
+        
+        // Prevent default Enter behavior
+        e.preventDefault();
+        
+        // Set cursor position after the newline
+        setTimeout(() => {
+          const textarea = e.currentTarget;
+          if (textarea) {
+            textarea.selectionStart = textarea.selectionEnd = cursorPosition;
+          }
+        }, 0);
+        return;
+      }
+      
+      // Regular Enter behavior - add text to canvas
       if (!isComposing) {
         if (currentTypingText.trim() !== '') {
           // AI 명령어 감지
@@ -1545,10 +1671,12 @@ const InfiniteTypewriterCanvas = () => {
             
             setCurrentTypingText('');
             
-            // 캔버스 오프셋을 한 줄 아래로 이동
+            // 캔버스 오프셋을 멀티라인 크기만큼 이동
+            const lines = currentTypingText.split('\n');
+            const moveDistance = (baseFontSize * 1.6) * lines.length;
             setCanvasOffset(prev => ({
               x: prev.x,
-              y: prev.y - getCurrentLineHeight(selectedObject, baseFontSize, scale)
+              y: prev.y - moveDistance
             }));
             
             // AI 처리 시작
@@ -1572,16 +1700,19 @@ const InfiniteTypewriterCanvas = () => {
             setCurrentTypingText('');
             
             // 오브젝트 생성 여부와 상관없이 줄바꿈(캔버스 오프셋 이동)은 항상 실행
+            // 멀티라인 텍스트의 줄 수만큼 이동
+            const lines = currentTypingText.split('\n');
+            const moveDistance = (baseFontSize * 1.6) * lines.length;
             setCanvasOffset(prev => ({
               x: prev.x,
-              y: prev.y - getCurrentLineHeight(selectedObject, baseFontSize, scale)
+              y: prev.y - moveDistance
             }));
           }
         } else {
           // 빈 텍스트일 때도 줄바꿈
           setCanvasOffset(prev => ({
             x: prev.x,
-            y: prev.y - getCurrentLineHeight(selectedObject, baseFontSize, scale)
+            y: prev.y - (baseFontSize * 1.6)
           }));
         }
       }

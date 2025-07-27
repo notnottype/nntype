@@ -35,14 +35,27 @@ export const isPointInTextObject = (
 ): boolean => {
   const screenPos = worldToScreen(obj.x, obj.y);
   const fontSize = obj.fontSize * scale;
-  const textWidth = measureText(obj.content, fontSize);
-  const textHeight = fontSize;
   
-  const padding = 5;
+  // Handle multi-line text
+  const lines = obj.content.split('\n');
+  const lineHeight = fontSize * 1.6;
+  let maxWidth = 0;
+  
+  lines.forEach(line => {
+    const lineWidth = measureText(line, fontSize);
+    maxWidth = Math.max(maxWidth, lineWidth);
+  });
+  
+  // 마지막 줄은 fontSize만, 나머지 줄들은 lineHeight 적용
+  const totalHeight = lines.length > 1 
+    ? (lines.length - 1) * lineHeight + fontSize 
+    : fontSize;
+  const padding = 2; // 클릭 감지를 위한 최소 패딩
+  
   return screenX >= screenPos.x - padding && 
-         screenX <= screenPos.x + textWidth + padding &&
-         screenY >= screenPos.y - textHeight - padding &&
-         screenY <= screenPos.y + padding;
+         screenX <= screenPos.x + maxWidth + padding &&
+         screenY >= screenPos.y - fontSize - padding &&
+         screenY <= screenPos.y + totalHeight - fontSize + padding;
 };
 
 export const isPointInA4GuideObject = (
