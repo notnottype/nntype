@@ -65,9 +65,8 @@ export const useCanvas = () => {
     const textBoxWidth = getTextBoxWidth();
     const textBoxLeft = typewriterX - textBoxWidth / 2;
     const textBoxTop = typewriterY - baseFontSize / 2;
-    // 타이프라이터 박스의 실제 높이를 기준으로 베이스라인 계산
-    const actualTypewriterHeight = baseFontSize * 1.6; // TypewriterInput의 실제 높이와 일치
-    const textBoxBaseline = textBoxTop + actualTypewriterHeight;
+    // 텍스트 베이스라인 계산 (LT에서 fontSize만큼 아래)
+    const textBoxBaseline = textBoxTop + baseFontSize;
     return screenToWorld(textBoxLeft, textBoxBaseline);
   }, [getTextBoxWidth, screenToWorld, typewriterX, typewriterY, baseFontSize]);
 

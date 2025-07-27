@@ -50,7 +50,7 @@ export const isPointInTextObject = (
   const totalHeight = lines.length > 1 
     ? (lines.length - 1) * lineHeight + fontSize 
     : fontSize;
-  const padding = 5;
+  const padding = 2; // 클릭 감지를 위한 최소 패딩
   
   return screenX >= screenPos.x - padding && 
          screenX <= screenPos.x + maxWidth + padding &&

@@ -397,11 +397,11 @@ export const drawMultiSelectHighlight = (
   });
   
   if (minX !== Infinity && minY !== Infinity && maxX !== -Infinity && maxY !== -Infinity) {
-    const padding = 8;
-    const boundingBoxX = minX - padding;
-    const boundingBoxY = minY - padding;
-    const boundingBoxWidth = maxX - minX + padding * 2;
-    const boundingBoxHeight = maxY - minY + padding * 2;
+    // 패딩 제거 - 정확한 텍스트 경계에 맞춘 하이라이트
+    const boundingBoxX = minX;
+    const boundingBoxY = minY;
+    const boundingBoxWidth = maxX - minX;
+    const boundingBoxHeight = maxY - minY;
     
     // Fill bounding box with highlight color
     ctx.fillStyle = highlightColor;

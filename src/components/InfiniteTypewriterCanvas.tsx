@@ -95,6 +95,7 @@ const InfiniteTypewriterCanvas = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [isDraggingText, setIsDraggingText] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [dragPreviewObjects, setDragPreviewObjects] = useState<CanvasObjectType[]>([]);
   const [scale, setScale] = useState(() => {
     const sessionData = loadSession();
     return sessionData?.scale || 1;
@@ -280,8 +281,16 @@ const InfiniteTypewriterCanvas = () => {
     }
     
     const saveCurrentSession = () => {
-      // 실시간 LT 월드 좌표 사용
-      const currentLTWorld = getCurrentLTWorldPosition();
+      // 실시간 LT 월드 좌표 직접 계산 (getTextBoxWidth 의존성 해결)
+      const textBoxWidth = measureTextWidth('A'.repeat(maxCharsPerLine), baseFontSize, canvasRef.current, fontLoaded);
+      const currentLTScreen = {
+        x: typewriterX - textBoxWidth / 2,
+        y: typewriterY - baseFontSize / 2
+      };
+      const currentLTWorld = {
+        x: (currentLTScreen.x - canvasOffset.x) / scale,
+        y: (currentLTScreen.y - canvasOffset.y) / scale
+      };
       
       saveSession({
         canvasObjects,
@@ -589,6 +598,16 @@ const InfiniteTypewriterCanvas = () => {
     );
   }, [canvasObjects, scale, selectedObject, canvasWidth, canvasHeight, worldToScreenLocal, measureTextWidthLocal, theme]);
 
+  // 드래그 프리뷰 객체 렌더링 함수 (호버 스타일과 동일한 보더박스)
+  const drawDragPreviewObjects = useCallback((ctx: CanvasRenderingContext2D) => {
+    if (dragPreviewObjects.length === 0) return;
+    
+    dragPreviewObjects.forEach(obj => {
+      // 기존 hover highlight와 동일한 스타일 사용
+      drawHoverHighlight(ctx, obj, scale, worldToScreenLocal, measureTextWidthLocal, theme, THEME_COLORS);
+    });
+  }, [dragPreviewObjects, scale, worldToScreenLocal, measureTextWidthLocal, theme]);
+
   const render = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -616,6 +635,11 @@ const InfiniteTypewriterCanvas = () => {
     // 멀티 셀렉트된 오브젝트 하이라이트 표시
     if (selectedObjects.length > 0) {
       drawMultiSelectHighlight(ctx, selectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
+    }
+    
+    // 드래그 프리뷰 표시 (드래그 중일 때만)
+    if (isDraggingText && dragPreviewObjects.length > 0) {
+      drawDragPreviewObjects(ctx);
     }
     
     // 셀렉션 사각형 표시
@@ -1226,52 +1250,79 @@ const InfiniteTypewriterCanvas = () => {
       const deltaX = mouseX - dragStart.x;
       const deltaY = mouseY - dragStart.y;
       
-      // 월드 단위로 변환한 이동 거리를 그리드 단위로 스냅
+      // 드래그 중에는 실시간으로 자유롭게 이동 (그리드 스냅 없음)
       const worldDeltaX = deltaX / scale;
       const worldDeltaY = deltaY / scale;
-      // 고정된 기준 그리드 크기 사용 (선택된 객체와 무관하게 일정한 이동 단위)
-      const worldGridSize = baseFontSize / scale;
       
-      const snappedWorldDeltaX = snapToGrid(worldDeltaX, worldGridSize);
-      const snappedWorldDeltaY = snapToGrid(worldDeltaY, worldGridSize);
-      
-      // 실제로 이동할 거리가 있을 때만 업데이트
-      if (Math.abs(snappedWorldDeltaX) >= worldGridSize || Math.abs(snappedWorldDeltaY) >= worldGridSize) {
+      // 움직임이 있을 때만 업데이트
+      if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
+        // 드래그 프리뷰 계산: 최종 스냅될 위치 미리보기
+        const worldGridSize = baseFontSize / scale;
+        let previewObjects: CanvasObjectType[] = [];
+        
         if (selectedObjects.length > 1) {
           // Group drag: move all selected objects
           const selectedIds = selectedObjects.map(obj => obj.id);
           setCanvasObjects(prev => prev.map(obj => 
             selectedIds.includes(obj.id)
-              ? { ...obj, x: obj.x + snappedWorldDeltaX, y: obj.y + snappedWorldDeltaY }
+              ? { ...obj, x: obj.x + worldDeltaX, y: obj.y + worldDeltaY }
               : obj
           ));
           
           // Update selectedObjects array
           setSelectedObjects(prev => prev.map(obj => ({
             ...obj, 
-            x: obj.x + snappedWorldDeltaX, 
-            y: obj.y + snappedWorldDeltaY
+            x: obj.x + worldDeltaX, 
+            y: obj.y + worldDeltaY
           })));
+          
+          // 멀티 선택 프리뷰 계산
+          const referenceObj = selectedObjects[0];
+          const currentWorldX = referenceObj.x + worldDeltaX;
+          const currentWorldY = referenceObj.y + worldDeltaY;
+          const snappedWorldX = snapToGrid(currentWorldX, worldGridSize);
+          const snappedWorldY = snapToGrid(currentWorldY, worldGridSize);
+          const snapDeltaX = snappedWorldX - referenceObj.x;
+          const snapDeltaY = snappedWorldY - referenceObj.y;
+          
+          previewObjects = selectedObjects.map(obj => ({
+            ...obj,
+            x: obj.x + snapDeltaX,
+            y: obj.y + snapDeltaY
+          }));
         } else if (selectedObject) {
           // Single object drag
           setCanvasObjects(prev => prev.map(obj => 
             obj.id === selectedObject.id 
-              ? { ...obj, x: obj.x + snappedWorldDeltaX, y: obj.y + snappedWorldDeltaY }
+              ? { ...obj, x: obj.x + worldDeltaX, y: obj.y + worldDeltaY }
               : obj
           ));
           
           setSelectedObject(prev => prev ? 
-            { ...prev, x: prev.x + snappedWorldDeltaX, y: prev.y + snappedWorldDeltaY } 
+            { ...prev, x: prev.x + worldDeltaX, y: prev.y + worldDeltaY } 
             : null
           );
+          
+          // 단일 선택 프리뷰 계산
+          const currentWorldX = selectedObject.x + worldDeltaX;
+          const currentWorldY = selectedObject.y + worldDeltaY;
+          const snappedWorldX = snapToGrid(currentWorldX, worldGridSize);
+          const snappedWorldY = snapToGrid(currentWorldY, worldGridSize);
+          
+          previewObjects = [{
+            ...selectedObject,
+            x: snappedWorldX,
+            y: snappedWorldY
+          }];
         }
         
-        // 스냅된 이동량만큼 dragStart 업데이트
-        const screenDeltaX = snappedWorldDeltaX * scale;
-        const screenDeltaY = snappedWorldDeltaY * scale;
+        // 프리뷰 객체 업데이트
+        setDragPreviewObjects(previewObjects);
+        
+        // 이동량만큼 dragStart 업데이트 (누적 방지)
         setDragStart({ 
-          x: dragStart.x + screenDeltaX, 
-          y: dragStart.y + screenDeltaY 
+          x: mouseX, 
+          y: mouseY 
         });
       }
     } else if (isDragging) {
@@ -1318,8 +1369,57 @@ const InfiniteTypewriterCanvas = () => {
   };
 
   const handleMouseUp = () => {
+    // 드래그 완료 시 그리드 스냅 적용
+    if (isDraggingText) {
+      const worldGridSize = baseFontSize / scale;
+      
+      if (selectedObjects.length > 1) {
+        // 멀티 선택 그리드 스냅
+        const referenceObj = selectedObjects[0];
+        const snappedWorldX = snapToGrid(referenceObj.x, worldGridSize);
+        const snappedWorldY = snapToGrid(referenceObj.y, worldGridSize);
+        const snapDeltaX = snappedWorldX - referenceObj.x;
+        const snapDeltaY = snappedWorldY - referenceObj.y;
+        
+        if (snapDeltaX !== 0 || snapDeltaY !== 0) {
+          const selectedIds = selectedObjects.map(obj => obj.id);
+          setCanvasObjects(prev => prev.map(obj => 
+            selectedIds.includes(obj.id)
+              ? { ...obj, x: obj.x + snapDeltaX, y: obj.y + snapDeltaY }
+              : obj
+          ));
+          
+          setSelectedObjects(prev => prev.map(obj => ({
+            ...obj, 
+            x: obj.x + snapDeltaX, 
+            y: obj.y + snapDeltaY
+          })));
+        }
+      } else if (selectedObject) {
+        // 단일 선택 그리드 스냅
+        const snappedWorldX = snapToGrid(selectedObject.x, worldGridSize);
+        const snappedWorldY = snapToGrid(selectedObject.y, worldGridSize);
+        
+        if (snappedWorldX !== selectedObject.x || snappedWorldY !== selectedObject.y) {
+          setCanvasObjects(prev => prev.map(obj => 
+            obj.id === selectedObject.id 
+              ? { ...obj, x: snappedWorldX, y: snappedWorldY }
+              : obj
+          ));
+          
+          setSelectedObject(prev => prev ? 
+            { ...prev, x: snappedWorldX, y: snappedWorldY } 
+            : null
+          );
+        }
+      }
+    }
+    
     setIsDragging(false);
     setIsDraggingText(false);
+    
+    // 드래그 프리뷰 초기화
+    setDragPreviewObjects([]);
     
     // End multi-select
     if (isSelecting) {
