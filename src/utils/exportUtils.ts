@@ -21,7 +21,14 @@ export const drawContentForExport = (
     const fontSize = textObj.fontSize * currentScale;
     ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
     ctx.fillStyle = textObj.color || colors[theme].text;
-    ctx.fillText(textObj.content, screenX, screenY);
+    
+    // Handle multi-line text
+    const lines = textObj.content.split('\n');
+    const lineHeight = fontSize * 1.6;
+    
+    lines.forEach((line, index) => {
+      ctx.fillText(line, screenX, screenY + (index * lineHeight));
+    });
   });
 
   if (currentTypingText.trim()) {
@@ -30,7 +37,14 @@ export const drawContentForExport = (
     const screenY = worldPos.y * currentScale + currentOffset.y;
     const fontSize = baseFontSize * currentScale;
     ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
-    ctx.fillText(currentTypingText, screenX, screenY);
+    
+    // Handle multi-line text
+    const lines = currentTypingText.split('\n');
+    const lineHeight = fontSize * 1.6;
+    
+    lines.forEach((line, index) => {
+      ctx.fillText(line, screenX, screenY + (index * lineHeight));
+    });
   }
 
   // A4Guide 오브젝트들 렌더링

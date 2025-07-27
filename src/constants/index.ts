@@ -35,17 +35,23 @@ export const THEME_COLORS: Record<'dark' | 'light', ThemeColors> = {
     text: 'rgba(255, 255, 255, 0.9)',
     grid: 'rgba(255, 255, 255, 0.05)',
     selection: 'rgba(59, 130, 246, 0.2)',
+    selectionBorder: 'rgba(59, 130, 246, 0.6)',
+    hover: 'rgba(135, 206, 235, 0.15)',
+    hoverBorder: 'rgba(135, 206, 235, 0.8)',
     a4Guide: 'rgba(59, 130, 246, 0.3)',
     inputBg: 'rgba(0, 0, 0, 0.01)', // 99% 투명
-    inputBorder: 'rgba(59, 130, 246, 0.2)',
+    inputBorder: 'rgba(59, 130, 246, 0.5)',
   },
   light: {
     background: '#ffffff',
     text: 'rgba(0, 0, 0, 0.9)',
     grid: 'rgba(0, 0, 0, 0.05)',
     selection: 'rgba(59, 130, 246, 0.2)',
+    selectionBorder: 'rgba(59, 130, 246, 0.6)',
+    hover: 'rgba(135, 206, 235, 0.1)',
+    hoverBorder: 'rgba(135, 206, 235, 0.7)',
     a4Guide: 'rgba(59, 130, 246, 0.4)',
     inputBg: 'rgba(255, 255, 255, 0.01)', // 99% 투명
-    inputBorder: 'rgba(59, 130, 246, 0.2)',
+    inputBorder: 'rgba(59, 130, 246, 0.5)',
   }
 };

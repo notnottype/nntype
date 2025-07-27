@@ -35,16 +35,22 @@ export const addTextObjectToSVG = (
   const svgNS = "http://www.w3.org/2000/svg";
   const fontSize = textObj.fontSize;
   
-  const text = document.createElementNS(svgNS, "text");
-  text.setAttribute("x", String(textObj.x));
-  text.setAttribute("y", String(textObj.y));
-  text.setAttribute("font-family", '"JetBrains Mono", monospace');
-  text.setAttribute("font-size", String(fontSize));
-  text.setAttribute("dominant-baseline", "alphabetic");
-  text.setAttribute("fill", fillColor);
-  text.textContent = textObj.content;
+  // Handle multi-line text
+  const lines = textObj.content.split('\n');
+  const lineHeight = fontSize * 1.6;
   
-  svg.appendChild(text);
+  lines.forEach((line, index) => {
+    const text = document.createElementNS(svgNS, "text");
+    text.setAttribute("x", String(textObj.x));
+    text.setAttribute("y", String(textObj.y + (index * lineHeight)));
+    text.setAttribute("font-family", '"JetBrains Mono", monospace');
+    text.setAttribute("font-size", String(fontSize));
+    text.setAttribute("dominant-baseline", "alphabetic");
+    text.setAttribute("fill", fillColor);
+    text.textContent = line;
+    
+    svg.appendChild(text);
+  });
 };
 
 export const addA4GuideToSVG = (svg: SVGSVGElement, a4Obj: A4GuideObjectType): void => {
@@ -82,16 +88,23 @@ export const addCurrentTypingTextToSVG = (
   if (!currentTypingText.trim()) return;
   
   const svgNS = "http://www.w3.org/2000/svg";
-  const text = document.createElementNS(svgNS, "text");
-  text.setAttribute("x", String(worldPos.x));
-  text.setAttribute("y", String(worldPos.y));
-  text.setAttribute("font-family", '"JetBrains Mono", monospace');
-  text.setAttribute("font-size", String(baseFontSize));
-  text.setAttribute("dominant-baseline", "alphabetic");
-  text.setAttribute("fill", fillColor);
-  text.textContent = currentTypingText;
   
-  svg.appendChild(text);
+  // Handle multi-line text
+  const lines = currentTypingText.split('\n');
+  const lineHeight = baseFontSize * 1.6;
+  
+  lines.forEach((line, index) => {
+    const text = document.createElementNS(svgNS, "text");
+    text.setAttribute("x", String(worldPos.x));
+    text.setAttribute("y", String(worldPos.y + (index * lineHeight)));
+    text.setAttribute("font-family", '"JetBrains Mono", monospace');
+    text.setAttribute("font-size", String(baseFontSize));
+    text.setAttribute("dominant-baseline", "alphabetic");
+    text.setAttribute("fill", fillColor);
+    text.textContent = line;
+    
+    svg.appendChild(text);
+  });
 };
 
 export const calculateSVGOutputSize = (

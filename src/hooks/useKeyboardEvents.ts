@@ -156,7 +156,8 @@ export const useKeyboardEvents = ({
       
       if (e.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
-        const moveDistance = getCurrentLineHeight();
+        // 고정된 기준 그리드 크기 사용 (선택된 객체와 무관하게 일정한 이동 단위)
+        const moveDistance = baseFontSize;
         
         setCanvasOffset(prev => {
           switch (e.key) {

@@ -567,7 +567,8 @@ const InfiniteTypewriterCanvas = () => {
   // 초기 중앙 배치는 세션 로드에서 처리 (중복 제거)
 
   const drawGridLocal = useCallback((ctx: CanvasRenderingContext2D) => {
-    const baseGridSize = baseFontSize * 1.8;
+    // 고정된 기준 그리드 크기 사용 (선택된 객체와 무관)
+    const baseGridSize = baseFontSize;
     drawGrid(ctx, canvasWidth, canvasHeight, canvasOffset, baseGridSize, THEME_COLORS[theme].grid);
   }, [canvasOffset, canvasWidth, canvasHeight, theme, baseFontSize]);
 
@@ -609,7 +610,7 @@ const InfiniteTypewriterCanvas = () => {
     
     // 호버된 오브젝트 하이라이트 표시
     if (hoveredObject) {
-      drawHoverHighlight(ctx, hoveredObject, scale, worldToScreenLocal, measureTextWidthLocal);
+      drawHoverHighlight(ctx, hoveredObject, scale, worldToScreenLocal, measureTextWidthLocal, theme, THEME_COLORS);
     }
     
     // 멀티 셀렉트된 오브젝트 하이라이트 표시
@@ -1052,7 +1053,7 @@ const InfiniteTypewriterCanvas = () => {
       }
       if (e.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
-        const moveDistance = getCurrentLineHeight(selectedObject, baseFontSize, scale);
+        const moveDistance = baseFontSize * 1.6;
         setCanvasOffset(prev => {
           const newOffset = (() => {
             switch (e.key) {
@@ -1228,8 +1229,8 @@ const InfiniteTypewriterCanvas = () => {
       // 월드 단위로 변환한 이동 거리를 그리드 단위로 스냅
       const worldDeltaX = deltaX / scale;
       const worldDeltaY = deltaY / scale;
-      const referenceObject = selectedObject || (selectedObjects.length > 0 ? selectedObjects[0] : null);
-      const worldGridSize = referenceObject ? getCurrentLineHeight(referenceObject, baseFontSize, scale) / scale : baseFontSize / scale;
+      // 고정된 기준 그리드 크기 사용 (선택된 객체와 무관하게 일정한 이동 단위)
+      const worldGridSize = baseFontSize / scale;
       
       const snappedWorldDeltaX = snapToGrid(worldDeltaX, worldGridSize);
       const snappedWorldDeltaY = snapToGrid(worldDeltaY, worldGridSize);
@@ -1359,18 +1360,18 @@ const InfiniteTypewriterCanvas = () => {
   // }, [setScale, centerTypewriter, setSelectedObject]);
 
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setCurrentTypingText(e.target.value);
     setIsTyping(true);
     setTimeout(() => setIsTyping(false), 100);
   };
 
-  const handleCompositionStart = (e: React.CompositionEvent<HTMLInputElement>) => {
+  const handleCompositionStart = (e: React.CompositionEvent<HTMLTextAreaElement>) => {
     setIsComposing(true);
     isComposingRef.current = true;
   };
 
-  const handleCompositionEnd = (e: React.CompositionEvent<HTMLInputElement>) => {
+  const handleCompositionEnd = (e: React.CompositionEvent<HTMLTextAreaElement>) => {
     setIsComposing(false);
     isComposingRef.current = false;
     setCurrentTypingText(e.currentTarget.value); 
@@ -1470,7 +1471,7 @@ const InfiniteTypewriterCanvas = () => {
         pushUndo(); // 상태 변경 전 스냅샷 저장
         
         // 각 줄을 별도의 텍스트 오브젝트로 생성 (현재 타이프라이터 위치에서 시작)
-        const worldLineHeight = getCurrentLineHeight(selectedObject, baseFontSize, scale) / scale;
+        const worldLineHeight = (baseFontSize / scale) * 1.6;
         const newObjects = wrappedLines.map((line, index) => ({
           type: 'text' as const,
           content: line,
@@ -1517,8 +1518,33 @@ const InfiniteTypewriterCanvas = () => {
   // [UNDO/REDO] 상태 변경이 일어나는 주요 지점에 pushUndo() 호출
   // 예시: 텍스트 추가, 오브젝트 이동/삭제, 패닝, 줌, 전체 삭제 등
   // 텍스트 추가
-  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Handle backslash + Enter for line breaks (without adding text to canvas)
     if (e.key === 'Enter') {
+      // Check if the text ends with backslash and user pressed Enter
+      const textValue = e.currentTarget.value;
+      const cursorPosition = e.currentTarget.selectionStart || 0;
+      const textBeforeCursor = textValue.substring(0, cursorPosition);
+      
+      if (textBeforeCursor.endsWith('\\')) {
+        // Remove the backslash and add a line break
+        const newText = textValue.substring(0, cursorPosition - 1) + '\n' + textValue.substring(cursorPosition);
+        setCurrentTypingText(newText);
+        
+        // Prevent default Enter behavior
+        e.preventDefault();
+        
+        // Set cursor position after the newline
+        setTimeout(() => {
+          const textarea = e.currentTarget;
+          if (textarea) {
+            textarea.selectionStart = textarea.selectionEnd = cursorPosition;
+          }
+        }, 0);
+        return;
+      }
+      
+      // Regular Enter behavior - add text to canvas
       if (!isComposing) {
         if (currentTypingText.trim() !== '') {
           // AI 명령어 감지
@@ -1545,10 +1571,12 @@ const InfiniteTypewriterCanvas = () => {
             
             setCurrentTypingText('');
             
-            // 캔버스 오프셋을 한 줄 아래로 이동
+            // 캔버스 오프셋을 멀티라인 크기만큼 이동
+            const lines = currentTypingText.split('\n');
+            const moveDistance = (baseFontSize * 1.6) * lines.length;
             setCanvasOffset(prev => ({
               x: prev.x,
-              y: prev.y - getCurrentLineHeight(selectedObject, baseFontSize, scale)
+              y: prev.y - moveDistance
             }));
             
             // AI 처리 시작
@@ -1572,16 +1600,19 @@ const InfiniteTypewriterCanvas = () => {
             setCurrentTypingText('');
             
             // 오브젝트 생성 여부와 상관없이 줄바꿈(캔버스 오프셋 이동)은 항상 실행
+            // 멀티라인 텍스트의 줄 수만큼 이동
+            const lines = currentTypingText.split('\n');
+            const moveDistance = (baseFontSize * 1.6) * lines.length;
             setCanvasOffset(prev => ({
               x: prev.x,
-              y: prev.y - getCurrentLineHeight(selectedObject, baseFontSize, scale)
+              y: prev.y - moveDistance
             }));
           }
         } else {
           // 빈 텍스트일 때도 줄바꿈
           setCanvasOffset(prev => ({
             x: prev.x,
-            y: prev.y - getCurrentLineHeight(selectedObject, baseFontSize, scale)
+            y: prev.y - (baseFontSize * 1.6)
           }));
         }
       }

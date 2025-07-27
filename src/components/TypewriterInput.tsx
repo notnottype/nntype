@@ -19,10 +19,10 @@ interface TypewriterInputProps {
   aiState: AIState
   getTextBoxWidth: () => number
   getCurrentLineHeight: (selectedObject: any, baseFontSize: number, scale: number) => number
-  handleInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-  handleInputKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
-  handleCompositionStart: (e: React.CompositionEvent<HTMLInputElement>) => void
-  handleCompositionEnd: (e: React.CompositionEvent<HTMLInputElement>) => void
+  handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
+  handleInputKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  handleCompositionStart: (e: React.CompositionEvent<HTMLTextAreaElement>) => void
+  handleCompositionEnd: (e: React.CompositionEvent<HTMLTextAreaElement>) => void
   handleMaxCharsChange: (chars: number) => void
   handleUndo: () => void
   handleRedo: () => void
@@ -73,9 +73,8 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
         }}
       >
         {/* Input Field */}
-        <input
+        <textarea
           id="typewriter-input"
-          type="text"
           value={currentTypingText}
           onChange={handleInputChange}
           onKeyDown={handleInputKeyDown}
@@ -86,9 +85,11 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
             e.currentTarget.focus();
           }}
           disabled={aiState.isProcessing}
+          rows={currentTypingText.split('\n').length}
           style={{
             width: '100%',
-            height: baseFontSize * 1.8,
+            minHeight: baseFontSize * 1.6,
+            height: Math.max(baseFontSize * 1.6, (currentTypingText.split('\n').length * baseFontSize * 1.6)),
             fontFamily: '"JetBrains Mono", monospace',
             fontSize: baseFontSize,
             background: THEME_COLORS[theme].inputBg,
@@ -97,11 +98,17 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
             color: THEME_COLORS[theme].text,
             backdropFilter: 'blur(1px)',
             borderRadius: '4px',
-            padding: 0,
-            lineHeight: `${baseFontSize * 1.8}px`,
+            padding: '0px',
+            paddingTop: '0px',
+            lineHeight: `${baseFontSize * 1.6}px`,
             boxSizing: 'border-box',
             opacity: aiState.isProcessing ? 0.6 : 1,
-            cursor: aiState.isProcessing ? 'not-allowed' : 'text'
+            cursor: aiState.isProcessing ? 'not-allowed' : 'text',
+            resize: 'none',
+            overflow: 'hidden',
+            whiteSpace: 'pre-wrap',
+            verticalAlign: 'baseline',
+            textAlign: 'left'
           }}
         />
 
@@ -113,7 +120,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
               top: 0,
               left: 0,
               width: '100%',
-              height: baseFontSize * 1.8,
+              height: Math.max(baseFontSize * 1.6, (currentTypingText.split('\n').length * baseFontSize * 1.6)),
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-start',

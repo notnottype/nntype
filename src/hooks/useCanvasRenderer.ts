@@ -11,6 +11,7 @@ interface UseCanvasRendererProps {
   selectedObject: CanvasObjectType | null;
   showGrid: boolean;
   theme: ThemeColors;
+  baseFontSize: number;
   getCurrentLineHeight: () => number;
   worldToScreen: (x: number, y: number) => { x: number; y: number };
   measureText: (text: string, fontSize: number) => number;
@@ -26,13 +27,15 @@ export const useCanvasRenderer = ({
   selectedObject,
   showGrid,
   theme,
+  baseFontSize,
   getCurrentLineHeight,
   worldToScreen,
   measureText,
 }: UseCanvasRendererProps) => {
 
   const drawGrid = useCallback((ctx: CanvasRenderingContext2D) => {
-    const baseGridSize = getCurrentLineHeight();
+    // 고정된 기준 그리드 크기 사용 (선택된 객체와 무관)
+    const baseGridSize = baseFontSize;
     const gridSize = baseGridSize;
     const offsetX = canvasOffset.x % gridSize;
     const offsetY = canvasOffset.y % gridSize;
@@ -53,7 +56,7 @@ export const useCanvasRenderer = ({
       ctx.lineTo(canvasWidth, y);
       ctx.stroke();
     }
-  }, [canvasOffset, canvasWidth, canvasHeight, theme, getCurrentLineHeight]);
+  }, [canvasOffset, canvasWidth, canvasHeight, theme, baseFontSize]);
 
   const drawCanvasObjects = useCallback((ctx: CanvasRenderingContext2D) => {
     ctx.textBaseline = 'alphabetic';
@@ -91,14 +94,47 @@ export const useCanvasRenderer = ({
         ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
         
         if (selectedObject && selectedObject.id === textObj.id) {
+          const lines = textObj.content.split('\n');
+          const lineHeight = fontSize * 1.6; // 현재 텍스트 객체의 실제 fontSize 사용
+          
+          // Calculate selection rectangle for multi-line text
+          let maxWidth = 0;
+          lines.forEach(line => {
+            const lineWidth = measureText(line, fontSize);
+            maxWidth = Math.max(maxWidth, lineWidth);
+          });
+          
+          // 마지막 줄은 fontSize만, 나머지 줄들은 lineHeight 적용
+          const totalHeight = lines.length > 1 
+            ? (lines.length - 1) * lineHeight + fontSize 
+            : fontSize;
+          
+          const rectX = screenPos.x;
+          const rectY = screenPos.y - fontSize;
+          const rectWidth = maxWidth;
+          const rectHeight = totalHeight;
+          
+          // Draw background fill first
           ctx.fillStyle = theme.selection;
-          const textWidth = measureText(textObj.content, fontSize);
-          ctx.fillRect(screenPos.x - 4, screenPos.y - fontSize, textWidth + 8, fontSize + 8);
+          ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
+          
+          // Draw border on top
+          ctx.strokeStyle = theme.selectionBorder;
+          ctx.lineWidth = 1;
+          ctx.setLineDash([]);
+          ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
         }
         
         // 텍스트 색상 설정: 객체에 색상이 지정되어 있으면 해당 색상 사용, 없으면 테마 기본 색상 사용
         ctx.fillStyle = textObj.color || theme.text;
-        ctx.fillText(textObj.content, screenPos.x, screenPos.y);
+        
+        // Handle multi-line text
+        const lines = textObj.content.split('\n');
+        const lineHeight = fontSize * 1.6; // 현재 텍스트 객체의 실제 fontSize 사용
+        
+        lines.forEach((line, index) => {
+          ctx.fillText(line, screenPos.x, screenPos.y + (index * lineHeight));
+        });
       }
     });
   }, [canvasObjects, scale, selectedObject, canvasWidth, canvasHeight, worldToScreen, measureText, theme]);

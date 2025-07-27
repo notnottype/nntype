@@ -51,16 +51,23 @@ export const useCanvas = () => {
 
   const getCurrentLineHeight = useCallback(() => {
     if (selectedObject && selectedObject.type === 'text') {
-      return selectedObject.fontSize * scale * 1.8;
+      return selectedObject.fontSize * scale * 1.2;
     }
-    return baseFontSize * 1.8;
+    return baseFontSize * 1.2;
   }, [selectedObject, baseFontSize, scale]);
+
+  // 타이프라이터 전용 라인 높이 함수 (외부 상태에 의존하지 않음)
+  const getTypewriterLineHeight = useCallback(() => {
+    return baseFontSize * 1.6;
+  }, [baseFontSize]);
 
   const getCurrentWorldPosition = useCallback(() => {
     const textBoxWidth = getTextBoxWidth();
     const textBoxLeft = typewriterX - textBoxWidth / 2;
     const textBoxTop = typewriterY - baseFontSize / 2;
-    const textBoxBaseline = textBoxTop + baseFontSize * 1.2;
+    // 타이프라이터 박스의 실제 높이를 기준으로 베이스라인 계산
+    const actualTypewriterHeight = baseFontSize * 1.6; // TypewriterInput의 실제 높이와 일치
+    const textBoxBaseline = textBoxTop + actualTypewriterHeight;
     return screenToWorld(textBoxLeft, textBoxBaseline);
   }, [getTextBoxWidth, screenToWorld, typewriterX, typewriterY, baseFontSize]);
 
@@ -172,6 +179,7 @@ export const useCanvas = () => {
     worldToScreen,
     screenToWorld,
     getCurrentLineHeight,
+    getTypewriterLineHeight,
     getCurrentWorldPosition,
     centerTypewriter,
     zoomToLevel,
