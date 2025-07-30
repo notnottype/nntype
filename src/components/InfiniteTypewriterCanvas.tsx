@@ -1437,7 +1437,7 @@ const InfiniteTypewriterCanvas = () => {
     }
   };
 
-  const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
+  const handleWheel = useCallback((e: WheelEvent) => {
     // Ctrl/Cmd 키와 함께 사용할 때만 UI Size 변경
     if (!(e.ctrlKey || e.metaKey)) return;
     
@@ -1452,6 +1452,18 @@ const InfiniteTypewriterCanvas = () => {
       handleUISizeChange(true);
     }
   }, [handleUISizeChange]);
+
+  // Non-passive wheel event listener setup
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      canvas.removeEventListener('wheel', handleWheel);
+    };
+  }, [handleWheel]);
 
   // const resetCanvas = useCallback(() => {
   //   setScale(1);
@@ -1999,7 +2011,6 @@ const InfiniteTypewriterCanvas = () => {
           setHoveredObject(null);
           setIsMouseInTextBox(false);
         }}
-        onWheel={handleWheel}
         showTextBox={showTextBox}
         currentTypingText={currentTypingText}
         typewriterX={typewriterX}
