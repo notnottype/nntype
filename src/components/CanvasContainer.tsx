@@ -21,7 +21,6 @@ interface CanvasContainerProps {
   onMouseMove: (e: React.MouseEvent<HTMLCanvasElement>) => void
   onMouseUp: () => void
   onMouseLeave: () => void
-  onWheel: (e: React.WheelEvent<HTMLCanvasElement>) => void
   
   // TypewriterInput props
   showTextBox: boolean
@@ -76,7 +75,6 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
   onMouseMove,
   onMouseUp,
   onMouseLeave,
-  onWheel,
   showTextBox,
   currentTypingText,
   typewriterX,
@@ -134,7 +132,6 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
         onMouseLeave={onMouseLeave}
-        onWheel={onWheel}
         tabIndex={0}
       />
       
