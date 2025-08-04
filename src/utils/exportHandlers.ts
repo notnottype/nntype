@@ -75,7 +75,7 @@ export const createPNGExporter = (
       THEME_COLORS
     );
 
-    downloadCanvas(tempCanvas, `typewriter-canvas-${new Date().toISOString().slice(0, 10)}.png`);
+    downloadCanvas(tempCanvas, `nntype-canvas-${new Date().toISOString().slice(0, 10)}.png`);
   };
 };
 
@@ -103,7 +103,7 @@ export const createJSONExporter = (
     
     downloadFile(
       JSON.stringify(data, null, 2),
-      `typewriter-canvas-${new Date().toISOString().slice(0, 10)}.json`,
+      `nntype-canvas-${new Date().toISOString().slice(0, 10)}.json`,
       'application/json'
     );
   };
@@ -161,6 +161,6 @@ export const createSVGExporter = (
     });
     
     const svgString = serializeSVG(svg);
-    downloadFile(svgString, `typewriter-canvas-${new Date().toISOString().slice(0, 10)}.svg`, 'image/svg+xml');
+    downloadFile(svgString, `nntype-canvas-${new Date().toISOString().slice(0, 10)}.svg`, 'image/svg+xml');
   };
 };

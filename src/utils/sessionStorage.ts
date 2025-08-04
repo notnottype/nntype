@@ -25,7 +25,7 @@ export interface SessionData {
   selectedObjectId?: number;
 }
 
-const SESSION_STORAGE_KEY = 'excalitype-session';
+const SESSION_STORAGE_KEY = 'nntype-session';
 const SESSION_VERSION = '1.1.0'; // Updated for LT position support
 const MAX_SESSION_SIZE = 2 * 1024 * 1024; // 2MB 제한
 

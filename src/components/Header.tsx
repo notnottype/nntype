@@ -52,7 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
           theme === 'dark' ? 'text-white' : 'text-gray-900'
         }`}>
           <Type className="w-5 h-5" />
-          Infinite Canvas Typewriter
+          NNType
         </h1>
       </div>
 

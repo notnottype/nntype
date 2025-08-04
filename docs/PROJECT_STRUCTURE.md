@@ -1,15 +1,15 @@
-# ExcaliType Project Structure
+# NNType Project Structure
 
 ## Overview
-ExcaliType is a React-based infinite canvas typewriter application with TypeScript, built using Vite for optimal development experience and performance.
+NNType is a React-based infinite canvas typewriter application with TypeScript, built using Vite for optimal development experience and performance.
 
 ## Directory Structure
 
 ```
-excalitype-1/
+nntype-1/
 ├── public/                     # Static assets
-│   ├── excalitype.png         # Logo image
-│   ├── excalitype-demo.gif    # Demo animation
+│   ├── nntype.png         # Logo image
+│   ├── nntype-demo.gif    # Demo animation
 │   └── favicon.svg            # Site favicon
 ├── src/                       # Source code
 │   ├── main.tsx              # Application entry point
@@ -258,8 +258,8 @@ dist/
 ├── assets/
 │   ├── index-*.js       # Main application bundle
 │   └── index-*.css      # Styles bundle
-├── excalitype.png       # Logo
-├── excalitype-demo.gif  # Demo
+├── nntype.png       # Logo
+├── nntype-demo.gif  # Demo
 └── favicon.svg          # Favicon
 ```
 

@@ -1,5 +1,5 @@
 /**
- * Testing utilities for ExcaliType canvas functionality
+ * Testing utilities for NNType canvas functionality
  * Provides programmatic testing and validation functions for MCP integration
  */
 

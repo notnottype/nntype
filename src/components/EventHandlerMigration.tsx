@@ -91,10 +91,10 @@ interface EventHandlerMigrationProps {
 // Feature flags for gradual rollout
 const FEATURE_FLAGS = {
   ENHANCED_EVENTS_ENABLED: typeof window !== 'undefined' && 
-    (localStorage.getItem('excalitype-enhanced-events') === 'true' || 
+    (localStorage.getItem('nntype-enhanced-events') === 'true' || 
      new URLSearchParams(window.location.search).get('enhanced-events') === 'true'),
   FORCE_LEGACY_EVENTS: typeof window !== 'undefined' && 
-    localStorage.getItem('excalitype-force-legacy') === 'true',
+    localStorage.getItem('nntype-force-legacy') === 'true',
   DEBUG_MODE: typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development'
 };
 
@@ -140,15 +140,15 @@ export const EventHandlerMigration: React.FC<EventHandlerMigrationProps> = ({
   useEffect(() => {
     if (FEATURE_FLAGS.DEBUG_MODE) {
       // Add global controls for testing
-      (window as any).excalitypeDebug = {
+      (window as any).nntypeDebug = {
         switchToEnhanced: () => {
           setShouldUseEnhanced(true);
           setHasError(false);
-          localStorage.setItem('excalitype-enhanced-events', 'true');
+          localStorage.setItem('nntype-enhanced-events', 'true');
         },
         switchToLegacy: () => {
           setShouldUseEnhanced(false);
-          localStorage.setItem('excalitype-enhanced-events', 'false');
+          localStorage.setItem('nntype-enhanced-events', 'false');
         },
         getEventSystemStatus: () => ({
           enhanced: shouldUseEnhanced,
@@ -158,7 +158,7 @@ export const EventHandlerMigration: React.FC<EventHandlerMigrationProps> = ({
         })
       };
       
-      console.log('ExcaliType Debug: Event system =', shouldUseEnhanced ? 'Enhanced' : 'Legacy');
+      console.log('NNType Debug: Event system =', shouldUseEnhanced ? 'Enhanced' : 'Legacy');
     }
   }, [shouldUseEnhanced, hasError, errorCount]);
   
@@ -263,12 +263,12 @@ export const EventHandlerMigration: React.FC<EventHandlerMigrationProps> = ({
 // Export utility functions for testing and migration
 export const EventSystemUtils = {
   enableEnhancedEvents: () => {
-    localStorage.setItem('excalitype-enhanced-events', 'true');
+    localStorage.setItem('nntype-enhanced-events', 'true');
     window.location.reload();
   },
   
   disableEnhancedEvents: () => {
-    localStorage.setItem('excalitype-enhanced-events', 'false');
+    localStorage.setItem('nntype-enhanced-events', 'false');
     window.location.reload();
   },
   

@@ -1,6 +1,6 @@
 /**
  * Master hook that integrates all enhanced features
- * Provides a unified interface for the enhanced ExcaliType experience
+ * Provides a unified interface for the enhanced NNType experience
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
@@ -12,7 +12,7 @@ import { CanvasObjectType, SelectionRectangle, Theme } from '../types';
 import { getAnalytics } from '../utils/analytics';
 import { throttle, debounce } from '../utils/eventUtils';
 
-interface UseExcaliTypeEnhancedProps {
+interface UseNNTypeEnhancedProps {
   // Canvas dimensions
   width: number;
   height: number;
@@ -56,7 +56,7 @@ interface UseExcaliTypeEnhancedProps {
   enablePerformanceMonitoring?: boolean;
 }
 
-export const useExcaliTypeEnhanced = ({
+export const useNNTypeEnhanced = ({
   width,
   height,
   canvasObjects,
@@ -85,7 +85,7 @@ export const useExcaliTypeEnhanced = ({
   enableTouchGestures = true,
   enableAnalytics = false,
   enablePerformanceMonitoring = true
-}: UseExcaliTypeEnhancedProps) => {
+}: UseNNTypeEnhancedProps) => {
   
   // Canvas container ref for the advanced rendering system
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -314,11 +314,11 @@ export const useExcaliTypeEnhanced = ({
 
   // Error boundary integration
   const handleError = useCallback((error: Error, errorInfo: any) => {
-    console.error('ExcaliType Enhanced Error:', error, errorInfo);
+    console.error('NNType Enhanced Error:', error, errorInfo);
     
     if (enableAnalytics) {
       getAnalytics()?.trackError(error, {
-        component: 'ExcaliTypeEnhanced',
+        component: 'NNTypeEnhanced',
         ...errorInfo
       });
     }

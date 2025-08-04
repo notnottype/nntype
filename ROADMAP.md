@@ -1,8 +1,8 @@
-# excalitype Project Roadmap
+# nntype Project Roadmap
 
 ## Project Overview
 
-excalitype is an Infinite Canvas Typewriter that reimagines the writing experience by combining the limitless freedom of infinite canvas with intuitive text creation. This roadmap tracks development progress from the current implementation to a feature-rich creative writing tool.
+nntype is an Infinite Canvas Typewriter that reimagines the writing experience by combining the limitless freedom of infinite canvas with intuitive text creation. This roadmap tracks development progress from the current implementation to a feature-rich creative writing tool.
 
 ## Current Status
 

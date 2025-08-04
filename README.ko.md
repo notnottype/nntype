@@ -1,18 +1,18 @@
 
 
 <p align="center">
-  <img src="public/excalitype.png" alt="excalitype Logo" width="220"/>
+  <img src="public/nntype.png" alt="nntype Logo" width="220"/>
 </p>
 
 <p align="center">
-  <img src="public/excalitype-demo.gif" alt="Infinite Canvas Typewriter 데모" width="800"/>
+  <img src="public/nntype-demo.gif" alt="Infinite Canvas Typewriter 데모" width="800"/>
 </p>
 
-# ExcaliType - Infinite Canvas Typewriter
+# NNType - Infinite Canvas Typewriter
 
 > 이 문서는 한국어 설명입니다. 영어 안내는 [README.md](./README.md)를 참고하세요.
 
-excalitype는 한글/영문 모노스페이스 폰트, 벡터/이미z지/JSON 내보내기, 무한 줌&패닝을 지원하는 현대적인 타입라이터 캔버스입니다.
+nntype는 한글/영문 모노스페이스 폰트, 벡터/이미지/JSON 내보내기, 무한 줌&패닝을 지원하는 현대적인 타입라이터 캔버스입니다.
 
 - React 기반
 - 주요 컴포넌트: `src/components/InfiniteTypewriterCanvas.tsx`
@@ -29,7 +29,7 @@ npm run dev
 ## 폴더 구조
 
 ```
-excalitype/
+nntype/
 ├── src/
 │   ├── main.tsx                # 앱 진입점
 │   ├── components/
@@ -37,7 +37,7 @@ excalitype/
 │   ├── index.css
 │   └── ...
 ├── public/
-│   └── excalitype.png
+│   └── nntype.png
 ├── README.md
 └── ...
 ```

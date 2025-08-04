@@ -1,5 +1,5 @@
 /**
- * MCP (Model Context Protocol) Interface for ExcaliType
+ * MCP (Model Context Protocol) Interface for NNType
  * Provides standardized functions for external AI integration
  */
 

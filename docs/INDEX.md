@@ -1,15 +1,15 @@
-# ExcaliType Documentation Index
+# NNType Documentation Index
 
 ## 📚 Documentation Overview
 
-Welcome to the ExcaliType documentation hub. This index provides quick access to all project documentation, organized by topic and audience.
+Welcome to the NNType documentation hub. This index provides quick access to all project documentation, organized by topic and audience.
 
 ## 🚀 Quick Start
 
 ### For Users
 - [README](../README.md) - Getting started guide
 - [README (Korean)](../README.ko.md) - 한국어 시작 가이드
-- [Demo](../public/excalitype-demo.gif) - Visual walkthrough
+- [Demo](../public/nntype-demo.gif) - Visual walkthrough
 
 ### For Developers
 - [Claude Code Guidance](../CLAUDE.md) - AI development assistant setup
@@ -44,7 +44,7 @@ Welcome to the ExcaliType documentation hub. This index provides quick access to
 ## 🏗️ Project Structure Quick Reference
 
 ```
-excalitype-1/
+nntype-1/
 ├── 📁 src/                    # Source code
 │   ├── 🎯 main.tsx           # App entry point
 │   ├── 📁 components/        # React components (13 files)
@@ -191,13 +191,13 @@ excalitype-1/
 ## 📞 Support & Contact
 
 ### Getting Help
-- **Issues**: [GitHub Issues](https://github.com/kimhxsong/excalitype/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/kimhxsong/excalitype/discussions)
+- **Issues**: [GitHub Issues](https://github.com/kimhxsong/nntype/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/kimhxsong/nntype/discussions)
 - **Email**: kimhxsong@gmail.com
 
 ### Contributing
 - Read [Contributing Guide](./CONTRIBUTING.md)
-- Check [GitHub Issues](https://github.com/kimhxsong/excalitype/issues) for tasks
+- Check [GitHub Issues](https://github.com/kimhxsong/nntype/issues) for tasks
 - Follow [Development Workflow](./CONTRIBUTING.md#development-workflow)
 
 ---

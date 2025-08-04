@@ -101,7 +101,7 @@ export class AnalyticsManager {
 
   private hasUserConsent(): boolean {
     // Check for user consent (GDPR compliance)
-    const consent = localStorage.getItem('excalitype-analytics-consent');
+    const consent = localStorage.getItem('nntype-analytics-consent');
     return consent === 'true';
   }
 
@@ -478,9 +478,9 @@ export class AnalyticsManager {
 
 // Privacy-focused consent management
 export class ConsentManager {
-  private static CONSENT_KEY = 'excalitype-analytics-consent';
+  private static CONSENT_KEY = 'nntype-analytics-consent';
   private static CONSENT_VERSION = '1.0';
-  private static CONSENT_VERSION_KEY = 'excalitype-consent-version';
+  private static CONSENT_VERSION_KEY = 'nntype-consent-version';
 
   static requestConsent(): Promise<boolean> {
     return new Promise((resolve) => {
@@ -505,7 +505,7 @@ export class ConsentManager {
   private static showConsentDialog(callback: (granted: boolean) => void): void {
     // Simple implementation - you should replace with proper UI
     const message = `
-      ExcaliType would like to collect anonymous usage data to improve the application.
+      NNType would like to collect anonymous usage data to improve the application.
       No personal information is collected. Would you like to enable analytics?
     `;
     

@@ -1,5 +1,5 @@
 /**
- * ExcaliType - Infinite Typewriter Canvas
+ * NNType - Infinite Typewriter Canvas
  * 
  * © 2025 Hyeonsong Kim (@kimhxsong)
  * Contact: kimhxsong@gmail.com

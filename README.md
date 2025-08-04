@@ -1,16 +1,16 @@
 <p align="center">
-  <img src="public/excalitype.png" alt="excalitype Logo" width="220"/>
+  <img src="public/nntype.png" alt="nntype Logo" width="220"/>
 </p>
 
 <p align="center">
-  <img src="public/excalitype-demo.gif" alt="Infinite Canvas Typewriter Demo" width="800"/>
+  <img src="public/nntype-demo.gif" alt="Infinite Canvas Typewriter Demo" width="800"/>
 </p>
 
-# ExcaliType - Infinite Canvas Typewriter
+# NNType - Infinite Canvas Typewriter
 
 > For Korean instructions, see [README.ko.md](./README.ko.md)
 
-excalitype is a modern infinite typewriter canvas supporting Korean/English monospaced fonts, vector/image/JSON export, and infinite zoom & pan.
+nntype is a modern infinite typewriter canvas supporting Korean/English monospaced fonts, vector/image/JSON export, and infinite zoom & pan.
 
 - Based on React
 - Main component: `src/components/InfiniteTypewriterCanvas.tsx`
@@ -27,7 +27,7 @@ npm run dev
 ## Folder Structure
 
 ```
-excalitype/
+nntype/
 ├── src/
 │   ├── main.tsx                # App entry
 │   ├── components/
@@ -35,7 +35,7 @@ excalitype/
 │   ├── index.css
 │   └── ...
 ├── public/
-│   └── excalitype.png
+│   └── nntype.png
 ├── README.md
 └── ...
 ```

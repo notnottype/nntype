@@ -1,4 +1,4 @@
-# ExcaliType API Documentation
+# NNType API Documentation
 
 ## Core Types & Interfaces
 

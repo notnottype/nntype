@@ -1,6 +1,6 @@
 # Enhanced Event Handling Implementation Guide
 
-This guide explains the improved event handling system inspired by Excalidraw's architecture, designed to enhance ExcaliType's event management with better performance, touch support, and maintainability.
+This guide explains the improved event handling system inspired by Excalidraw's architecture, designed to enhance NNType's event management with better performance, touch support, and maintainability.
 
 ## 🎯 Key Improvements
 
@@ -127,13 +127,13 @@ Enable/disable enhanced events using feature flags:
 
 ```javascript
 // Enable enhanced events
-localStorage.setItem('excalitype-enhanced-events', 'true');
+localStorage.setItem('nntype-enhanced-events', 'true');
 
 // Or use URL parameter
 // ?enhanced-events=true
 
 // Disable for troubleshooting
-localStorage.setItem('excalitype-force-legacy', 'true');
+localStorage.setItem('nntype-force-legacy', 'true');
 ```
 
 ### Step 5: Testing
@@ -142,9 +142,9 @@ The system includes comprehensive testing utilities:
 
 ```javascript
 // In browser console
-window.excalitypeDebug.switchToEnhanced();
-window.excalitypeDebug.switchToLegacy();
-window.excalitypeDebug.getEventSystemStatus();
+window.nntypeDebug.switchToEnhanced();
+window.nntypeDebug.switchToLegacy();
+window.nntypeDebug.getEventSystemStatus();
 ```
 
 ## 🎨 Enhanced Features
@@ -241,10 +241,10 @@ const PERFORMANCE_CONFIG = {
 
 ```javascript
 // Check event system status
-window.excalitypeDebug.getEventSystemStatus();
+window.nntypeDebug.getEventSystemStatus();
 
 // Force legacy mode for comparison
-window.excalitypeDebug.switchToLegacy();
+window.nntypeDebug.switchToLegacy();
 
 // Monitor performance
 console.log(getPerformanceMetrics());

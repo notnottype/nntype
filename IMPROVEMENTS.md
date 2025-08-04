@@ -1,4 +1,4 @@
-# ExcaliType 코드 개선 보고서
+# NNType 코드 개선 보고서
 
 ## 📈 적용된 개선사항 요약
 
@@ -183,4 +183,4 @@ const ctx = setupOptimizedCanvas(canvas, width, height);
 
 ---
 
-**결론**: 이번 개선으로 ExcaliType의 성능과 코드 품질이 대폭 향상될 것으로 예상됩니다. Excalidraw의 검증된 패키지들을 활용하여 안정성과 확장성을 동시에 확보했습니다.
+**결론**: 이번 개선으로 NNType의 성능과 코드 품질이 대폭 향상될 것으로 예상됩니다. Excalidraw의 검증된 패키지들을 활용하여 안정성과 확장성을 동시에 확보했습니다.
