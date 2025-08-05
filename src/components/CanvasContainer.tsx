@@ -4,7 +4,7 @@ import { CanvasInfoOverlay } from './CanvasInfoOverlay'
 import { ShortcutsOverlay } from './ShortcutsOverlay'
 import { StatusMessages } from './StatusMessages'
 import { ZoomControls } from './ZoomControls'
-import { CanvasObjectType, AIState } from '../types'
+import { CanvasObjectType, AIState, CanvasModeType, PinPosition, LinkState, SelectionState } from '../types'
 
 interface CanvasContainerProps {
   // Canvas props
@@ -61,6 +61,12 @@ interface CanvasContainerProps {
   // Zoom props
   onZoomIn: () => void
   onZoomOut: () => void
+  
+  // Multi-mode system props
+  currentMode: CanvasModeType
+  pinPosition: PinPosition
+  linkState: LinkState
+  selectionState: SelectionState
 }
 
 export const CanvasContainer: React.FC<CanvasContainerProps> = ({
@@ -106,7 +112,11 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
   screenToWorld,
   onDeleteSelected,
   onZoomIn,
-  onZoomOut
+  onZoomOut,
+  currentMode,
+  pinPosition,
+  linkState,
+  selectionState
 }) => {
   const getCursorClass = () => {
     if (isSpacePressed) {
@@ -165,6 +175,10 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
         handleUndo={handleUndo}
         handleRedo={handleRedo}
         THEME_COLORS={THEME_COLORS}
+        currentMode={currentMode}
+        pinPosition={pinPosition}
+        linkState={linkState}
+        selectionState={selectionState}
       />
 
       {showInfo && (

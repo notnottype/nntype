@@ -1,7 +1,8 @@
 import React from 'react'
 import { CornerUpLeft, CornerUpRight, Loader2, AlertCircle } from 'lucide-react'
 import { pxToPoints } from '../utils/units'
-import { AIState } from '../types'
+import { AIState, CanvasModeType, PinPosition, LinkState, SelectionState } from '../types'
+import { getModeDisplayProperties } from '../utils/modeUtils'
 
 interface TypewriterInputProps {
   showTextBox: boolean
@@ -27,6 +28,12 @@ interface TypewriterInputProps {
   handleUndo: () => void
   handleRedo: () => void
   THEME_COLORS: any
+  
+  // Multi-mode system props
+  currentMode: CanvasModeType
+  pinPosition: PinPosition
+  linkState: LinkState
+  selectionState: SelectionState
 }
 
 export const TypewriterInput: React.FC<TypewriterInputProps> = ({
@@ -52,9 +59,18 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
   handleMaxCharsChange,
   handleUndo,
   handleRedo,
-  THEME_COLORS
+  THEME_COLORS,
+  currentMode,
+  pinPosition,
+  linkState,
+  selectionState
 }) => {
   if (!showTextBox) return null
+
+  const modeProps = getModeDisplayProperties(currentMode);
+  
+  // In Link and Select modes, hide the textarea to prevent conflicts
+  const showTextArea = currentMode === 'typography';
 
   return (
     <>
@@ -72,10 +88,34 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
           pointerEvents: 'auto',
         }}
       >
-        {/* Input Field */}
+        {/* Mode Indicator */}
+        {currentMode !== 'typography' && (
+          <div
+            style={{
+              position: 'absolute',
+              top: -25,
+              left: 0,
+              fontSize: 12,
+              color: currentMode === 'link' ? '#ff6b6b' : '#4a9eff',
+              fontFamily: '"JetBrains Mono", monospace',
+              fontWeight: 'bold',
+              background: THEME_COLORS[theme].background,
+              padding: '2px 6px',
+              borderRadius: '3px',
+              border: `1px solid ${currentMode === 'link' ? '#ff6b6b' : '#4a9eff'}`,
+              zIndex: 21
+            }}
+          >
+            {modeProps.icon} {currentMode.toUpperCase()} MODE
+          </div>
+        )}
+
+        {/* Input Field - Only show in Typography mode */}
+        {showTextArea && (
         <textarea
           id="typewriter-input"
           value={currentTypingText}
+          placeholder={modeProps.placeholder}
           onChange={handleInputChange}
           onKeyDown={handleInputKeyDown}
           onCompositionStart={handleCompositionStart}
@@ -93,7 +133,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
             fontFamily: '"JetBrains Mono", monospace',
             fontSize: baseFontSize,
             background: THEME_COLORS[theme].inputBg,
-            border: `1px solid ${THEME_COLORS[theme].inputBorder}`,
+            border: `${modeProps.borderWidth} ${modeProps.borderStyle} ${THEME_COLORS[theme].inputBorder}`,
             outline: 'none',
             color: THEME_COLORS[theme].text,
             backdropFilter: 'blur(1px)',
@@ -111,9 +151,37 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
             textAlign: 'left'
           }}
         />
+        )}
+
+        {/* Mode Status Display for Link and Select modes */}
+        {!showTextArea && (
+          <div
+            style={{
+              width: '100%',
+              minHeight: baseFontSize * 1.6,
+              fontFamily: '"JetBrains Mono", monospace',
+              fontSize: baseFontSize * 0.9,
+              background: THEME_COLORS[theme].inputBg,
+              border: `${modeProps.borderWidth} ${modeProps.borderStyle} ${THEME_COLORS[theme].inputBorder}`,
+              outline: 'none',
+              color: THEME_COLORS[theme].text,
+              backdropFilter: 'blur(1px)',
+              borderRadius: '4px',
+              padding: '8px',
+              boxSizing: 'border-box',
+              textAlign: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: 0.8
+            }}
+          >
+            {modeProps.icon} {modeProps.description}
+          </div>
+        )}
 
         {/* AI Status Indicator - Loading ring overlay without background */}
-        {aiState.isProcessing && (
+        {showTextArea && aiState.isProcessing && (
           <div
             style={{
               position: 'absolute',
@@ -165,7 +233,8 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
           </div>
         )}
 
-        {/* Controls Container */}
+        {/* Controls Container - Only show in Typography mode */}
+        {showTextArea && (
         <div
           style={{
             width: '100%',
@@ -326,9 +395,11 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
             </button>
           </div>
         </div>
+        )}
       </div>
       
-      {/* Font Size Indicator */}
+      {/* Font Size Indicator - Only show in Typography mode */}
+      {showTextArea && (
       <div
         style={{
           position: 'absolute',
@@ -350,6 +421,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
           <div>Logical&nbsp;&nbsp;{baseFontSizePt.toFixed(0)}pt</div>
         </div>
       </div>
+      )}
 
 
     </>

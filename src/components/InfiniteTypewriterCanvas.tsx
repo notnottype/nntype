@@ -45,10 +45,27 @@ import {
   calculateSVGOutputSize,
   serializeSVG,
   createSelectionRectangle,
-  getObjectsInSelectionRect,
   drawSelectionRectangle,
   drawMultiSelectHighlight
 } from '../utils';
+import { 
+  getNextMode, 
+  getModeDisplayProperties, 
+  createInitialPinPosition, 
+  updatePinPosition, 
+  findObjectAtPin,
+  createLink,
+  areObjectsLinked 
+} from '../utils/modeUtils';
+import { renderLink, renderLinkPreview } from '../utils/linkUtils';
+import { 
+  renderSelectionRect, 
+  renderSelectionHighlights, 
+  getObjectsInSelectionRect,
+  moveSelectedObjects,
+  clearSelection,
+  addToSelection 
+} from '../utils/selectionUtils';
 import { 
   INITIAL_UI_FONT_SIZE_PX,
   INITIAL_BASE_FONT_SIZE_PT,
@@ -63,7 +80,7 @@ import {
   THEME_COLORS
 } from '../constants';
 import { pxToPoints, pointsToPx } from '../utils/units';
-import { CanvasObjectType, A4GuideObjectType, Theme, AICommand, SelectionRectangle } from '../types';
+import { CanvasObjectType, A4GuideObjectType, Theme, AICommand, SelectionRectangle, CanvasModeType, PinPosition, LinkState, SelectionState, LinkObjectType } from '../types';
 import { aiService } from '../services/aiService';
 import { wrapTextToLines } from '../utils';
 import { ExportMenu } from './ExportMenu';
@@ -203,6 +220,28 @@ const InfiniteTypewriterCanvas = () => {
     x: window.innerWidth / 2, 
     y: (window.innerHeight - 64) / 2 
   });
+
+  // Multi-mode system state
+  const [currentMode, setCurrentMode] = useState<CanvasModeType>('typography');
+  const [previousMode, setPreviousMode] = useState<CanvasModeType | null>(null);
+  const [pinPosition, setPinPosition] = useState<PinPosition>({
+    x: window.innerWidth / 2,
+    y: (window.innerHeight - 64) / 2,
+    worldX: 0,
+    worldY: 0
+  });
+  const [linkState, setLinkState] = useState<LinkState>({
+    sourceObjectId: null,
+    targetObjectId: null,
+    isCreating: false,
+    previewPath: null
+  });
+  const [selectionState, setSelectionState] = useState<SelectionState>({
+    selectedObjects: new Set<string>(),
+    dragArea: null
+  });
+  const [links, setLinks] = useState<LinkObjectType[]>([]);
+  const [pinHoveredObject, setPinHoveredObject] = useState<CanvasObjectType | null>(null);
 
   useEffect(() => {
     setPxPerMm(calculateDPIPixelsPerMM());
@@ -647,7 +686,123 @@ const InfiniteTypewriterCanvas = () => {
       drawSelectionRectangle(ctx, selectionRect, theme);
     }
     
-  }, [canvasWidth, canvasHeight, theme, showGrid, drawGridLocal, drawCanvasObjectsLocal, hoveredObject, selectedObjects, selectionRect, isSelecting, scale, worldToScreenLocal, canvasOffset, measureTextWidthLocal]);
+    // Multi-mode system rendering
+    
+    // Render links
+    links.forEach(link => {
+      const fromObject = canvasObjects.find(obj => obj.id.toString() === link.from);
+      const toObject = canvasObjects.find(obj => obj.id.toString() === link.to);
+      
+      if (fromObject && toObject) {
+        renderLink(ctx, link, fromObject, toObject, scale, canvasOffset);
+      }
+    });
+    
+    // Render link preview (Link mode)
+    if (currentMode === 'link' && linkState.previewPath) {
+      renderLinkPreview(ctx, linkState.previewPath.from, linkState.previewPath.to, scale, canvasOffset);
+    }
+    
+    // Render selection highlights (Select mode)
+    if (currentMode === 'select' && selectionState.selectedObjects.size > 0) {
+      renderSelectionHighlights(ctx, canvasObjects, selectionState.selectedObjects, scale, canvasOffset, canvasRef.current, fontLoaded);
+    }
+    
+    // Render selection area (Select mode)
+    if (currentMode === 'select' && selectionState.dragArea) {
+      const rect = {
+        x: selectionState.dragArea.start.x,
+        y: selectionState.dragArea.start.y,
+        width: selectionState.dragArea.end.x - selectionState.dragArea.start.x,
+        height: selectionState.dragArea.end.y - selectionState.dragArea.start.y
+      };
+      renderSelectionRect(ctx, rect, scale, canvasOffset);
+    }
+    
+    // Render pin position indicator (Link and Select modes)
+    if (currentMode === 'link' || currentMode === 'select') {
+      const pinScreenX = pinPosition.worldX * scale + canvasOffset.x;
+      const pinScreenY = pinPosition.worldY * scale + canvasOffset.y;
+      
+      ctx.save();
+      
+      // Enhanced pin appearance when hovering over objects
+      const isHoveringObject = pinHoveredObject !== null;
+      const pinColor = currentMode === 'link' ? '#ff6b6b' : '#4a9eff';
+      const hoverColor = currentMode === 'link' ? '#ff4444' : '#2563eb';
+      
+      ctx.strokeStyle = isHoveringObject ? hoverColor : pinColor;
+      ctx.fillStyle = isHoveringObject ? hoverColor : pinColor;
+      ctx.lineWidth = isHoveringObject ? 3 : 2;
+      
+      // Draw enhanced crosshair
+      const crossSize = isHoveringObject ? 15 : 10;
+      ctx.beginPath();
+      ctx.moveTo(pinScreenX - crossSize, pinScreenY);
+      ctx.lineTo(pinScreenX + crossSize, pinScreenY);
+      ctx.moveTo(pinScreenX, pinScreenY - crossSize);
+      ctx.lineTo(pinScreenX, pinScreenY + crossSize);
+      ctx.stroke();
+      
+      // Draw center dot when hovering
+      if (isHoveringObject) {
+        ctx.beginPath();
+        ctx.arc(pinScreenX, pinScreenY, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      // Draw enhanced arrow
+      const arrowOffset = crossSize + 5;
+      const arrowSize = isHoveringObject ? 6 : 4;
+      ctx.beginPath();
+      ctx.moveTo(pinScreenX, pinScreenY + arrowOffset);
+      ctx.lineTo(pinScreenX - arrowSize, pinScreenY + arrowOffset + arrowSize);
+      ctx.lineTo(pinScreenX + arrowSize, pinScreenY + arrowOffset + arrowSize);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Show object info tooltip when hovering
+      if (isHoveringObject && pinHoveredObject) {
+        const tooltipX = pinScreenX + 20;
+        const tooltipY = pinScreenY - 20;
+        const maxWidth = 200;
+        
+        // Prepare tooltip text
+        const objContent = pinHoveredObject.type === 'text' 
+          ? (pinHoveredObject as any).content 
+          : `${pinHoveredObject.type} object`;
+        const displayText = objContent.length > 30 
+          ? objContent.substring(0, 30) + '...' 
+          : objContent;
+        
+        // Measure text for tooltip background
+        ctx.font = '12px "JetBrains Mono", monospace';
+        const textMetrics = ctx.measureText(displayText);
+        const tooltipWidth = Math.min(textMetrics.width + 16, maxWidth);
+        const tooltipHeight = 24;
+        
+        // Draw tooltip background
+        ctx.fillStyle = theme === 'dark' ? 'rgba(0, 0, 0, 0.9)' : 'rgba(255, 255, 255, 0.9)';
+        ctx.strokeStyle = isHoveringObject ? hoverColor : pinColor;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(tooltipX, tooltipY - tooltipHeight, tooltipWidth, tooltipHeight, 4);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Draw tooltip text
+        ctx.fillStyle = theme === 'dark' ? '#ffffff' : '#000000';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(displayText, tooltipX + 8, tooltipY - tooltipHeight / 2);
+        ctx.textAlign = 'start';
+        ctx.textBaseline = 'alphabetic';
+      }
+      
+      ctx.restore();
+    }
+    
+    }, [canvasWidth, canvasHeight, theme, showGrid, drawGridLocal, drawCanvasObjectsLocal, hoveredObject, selectedObjects, selectionRect, isSelecting, scale, worldToScreenLocal, canvasOffset, measureTextWidthLocal, currentMode, links, linkState, selectionState, pinPosition, pinHoveredObject]);
 
   const animationRef = useRef<number | null>(null);
   const renderTriggeredRef = useRef(false);
@@ -830,19 +985,253 @@ const InfiniteTypewriterCanvas = () => {
     event.target.value = '';
   };
 
-  // Keyboard event handlers for Spacebar
+  // Keyboard event handlers for multi-mode system
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (document.activeElement?.id === 'typewriter-input') return;
-      if (e.key === ' ') {
-        setIsSpacePressed(true);
-        e.preventDefault();
+      // In Link and Select modes, always handle global keys
+      // In Typography mode, only handle if not in textarea
+      if (currentMode === 'typography' && document.activeElement?.id === 'typewriter-input') {
+        return;
       }
+      
+      // Handle Tab key for mode switching (all modes)
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const nextMode = getNextMode(currentMode);
+        setPreviousMode(currentMode);
+        setCurrentMode(nextMode);
+        
+        // Initialize pin hover detection for Link/Select modes
+        if (nextMode === 'link' || nextMode === 'select') {
+          const hoveredObjectAtPin = findObjectAtPin(canvasObjects, pinPosition, 20, measureTextWidthLocal);
+          setPinHoveredObject(hoveredObjectAtPin);
+        } else {
+          setPinHoveredObject(null);
+        }
+        
+        // Reset mode-specific states when switching modes
+        if (currentMode === 'link') {
+          setLinkState({
+            sourceObjectId: null,
+            targetObjectId: null,
+            isCreating: false,
+            previewPath: null
+          });
+        } else if (currentMode === 'select') {
+          setSelectionState(clearSelection(selectionState));
+        }
+        
+        return;
+      }
+
+      // Handle Escape key to reset to Typography mode (all modes)
+      if (e.key === 'Escape') {
+        if (currentMode !== 'typography') {
+          e.preventDefault();
+          setPreviousMode(currentMode);
+          setCurrentMode('typography');
+          
+          // Clear pin hover detection when returning to Typography mode
+          setPinHoveredObject(null);
+          
+          // Reset all mode-specific states
+          setLinkState({
+            sourceObjectId: null,
+            targetObjectId: null,
+            isCreating: false,
+            previewPath: null
+          });
+          setSelectionState(clearSelection(selectionState));
+          return;
+        }
+      }
+      
+      // Handle Space key
+      if (e.key === ' ') {
+        if (currentMode === 'typography') {
+          setIsSpacePressed(true);
+          e.preventDefault();
+        } else if (currentMode === 'link') {
+          // Link mode: Space key to select source/target objects
+          const objectAtPin = findObjectAtPin(canvasObjects, pinPosition, 20, measureTextWidthLocal);
+          if (objectAtPin && objectAtPin.type === 'text') {
+            if (!linkState.sourceObjectId) {
+              // Select source object and start preview
+              const approximateCharWidth = objectAtPin.fontSize * 0.6;
+              const lineHeight = objectAtPin.fontSize * 1.6;
+              const lines = objectAtPin.content.split('\n');
+              const maxLineLength = Math.max(...lines.map(line => line.length));
+              const textWidth = maxLineLength * approximateCharWidth * objectAtPin.scale;
+              const textHeight = lines.length * lineHeight * objectAtPin.scale;
+              
+              const sourceCenterX = objectAtPin.x + textWidth / 2;
+              const sourceCenterY = objectAtPin.y + textHeight / 2;
+              
+              setLinkState(prev => ({
+                ...prev,
+                sourceObjectId: objectAtPin.id.toString(),
+                isCreating: true,
+                previewPath: {
+                  from: {
+                    x: sourceCenterX,
+                    y: sourceCenterY,
+                    worldX: sourceCenterX,
+                    worldY: sourceCenterY
+                  },
+                  to: pinPosition
+                }
+              }));
+            } else if (objectAtPin.id.toString() !== linkState.sourceObjectId) {
+              // Select target object and create link
+              const newLink = createLink(
+                linkState.sourceObjectId,
+                objectAtPin.id.toString()
+              );
+              
+              if (!areObjectsLinked(linkState.sourceObjectId, objectAtPin.id.toString(), links)) {
+                setLinks(prev => [...prev, newLink]);
+              }
+              
+              // Reset link state
+              setLinkState({
+                sourceObjectId: null,
+                targetObjectId: null,
+                isCreating: false,
+                previewPath: null
+              });
+            }
+          }
+          e.preventDefault();
+        } else if (currentMode === 'select') {
+          // Select mode: Space key to select objects in current area
+          if (selectionState.dragArea) {
+            const objectsInArea = getObjectsInSelectionRect(canvasObjects, {
+              x: selectionState.dragArea.start.x,
+              y: selectionState.dragArea.start.y,
+              width: selectionState.dragArea.end.x - selectionState.dragArea.start.x,
+              height: selectionState.dragArea.end.y - selectionState.dragArea.start.y
+            }, canvasRef.current, fontLoaded);
+            
+            const newSelection = { ...selectionState };
+            objectsInArea.forEach(obj => {
+              newSelection.selectedObjects.add(obj.id.toString());
+            });
+            
+            setSelectionState(newSelection);
+          } else {
+            // Select object at pin position
+            const objectAtPin = findObjectAtPin(canvasObjects, pinPosition, 20, measureTextWidthLocal);
+            if (objectAtPin) {
+              setSelectionState(addToSelection(selectionState, objectAtPin.id.toString()));
+            }
+          }
+          e.preventDefault();
+        }
+      }
+      
+      // Handle arrow keys for different modes
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        if (currentMode === 'link' || currentMode === 'select') {
+          const stepSize = 20; // pixels
+          let deltaX = 0;
+          let deltaY = 0;
+          
+          switch (e.key) {
+            case 'ArrowUp':
+              deltaY = -stepSize;
+              break;
+            case 'ArrowDown':
+              deltaY = stepSize;
+              break;
+            case 'ArrowLeft':
+              deltaX = -stepSize;
+              break;
+            case 'ArrowRight':
+              deltaX = stepSize;
+              break;
+          }
+          
+          if (e.shiftKey) {
+            // Shift + Arrow: Move canvas while keeping pin fixed on screen
+            const newOffset = {
+              x: canvasOffset.x - deltaX,
+              y: canvasOffset.y - deltaY
+            };
+            setCanvasOffset(newOffset);
+            
+            // Update pin world coordinates to match the new canvas offset
+            const newPin = {
+              ...pinPosition,
+              worldX: (pinPosition.x - newOffset.x) / scale,
+              worldY: (pinPosition.y - newOffset.y) / scale
+            };
+            setPinPosition(newPin);
+            
+            // Check for object at pin position after canvas move
+            const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPin, 20, measureTextWidthLocal);
+            setPinHoveredObject(hoveredObjectAtPin);
+            
+          } else if (e.altKey) {
+            // Alt + Arrow: Move selected objects in world coordinates
+            if (currentMode === 'select' && selectionState.selectedObjects.size > 0) {
+              const worldStepSize = stepSize / scale; // Convert to world units
+              const worldDeltaX = deltaX / scale;
+              const worldDeltaY = deltaY / scale;
+              
+              const newObjects = moveSelectedObjects(canvasObjects, selectionState.selectedObjects, worldDeltaX, worldDeltaY);
+              setCanvasObjects(newObjects);
+            }
+            
+          } else {
+            // Plain Arrow: Move pin only
+            const newPin = updatePinPosition(pinPosition, deltaX, deltaY, canvasOffset, scale);
+            setPinPosition(newPin);
+            
+            // Check for object at new pin position for hover effect
+            const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPin, 20, measureTextWidthLocal);
+            setPinHoveredObject(hoveredObjectAtPin);
+            
+            // Update link preview if in link mode
+            if (currentMode === 'link' && linkState.sourceObjectId) {
+              const sourceObject = canvasObjects.find(obj => obj.id.toString() === linkState.sourceObjectId);
+              if (sourceObject && sourceObject.type === 'text') {
+                // Calculate source object center position
+                const approximateCharWidth = sourceObject.fontSize * 0.6;
+                const lineHeight = sourceObject.fontSize * 1.6;
+                const lines = sourceObject.content.split('\n');
+                const maxLineLength = Math.max(...lines.map(line => line.length));
+                const textWidth = maxLineLength * approximateCharWidth * sourceObject.scale;
+                const textHeight = lines.length * lineHeight * sourceObject.scale;
+                
+                const sourceCenterX = sourceObject.x + textWidth / 2;
+                const sourceCenterY = sourceObject.y + textHeight / 2;
+                
+                setLinkState(prev => ({
+                  ...prev,
+                  previewPath: {
+                    from: {
+                      x: sourceCenterX,
+                      y: sourceCenterY,
+                      worldX: sourceCenterX,
+                      worldY: sourceCenterY
+                    },
+                    to: newPin
+                  }
+                }));
+              }
+            }
+          }
+          
+          e.preventDefault();
+        }
+      }
+      
+      
     };
 
     const handleGlobalKeyUp = (e: KeyboardEvent) => {
       if (document.activeElement?.id === 'typewriter-input') return;
-      if (e.key === ' ') {
+      if (e.key === ' ' && currentMode === 'typography') {
         setIsSpacePressed(false);
       }
     };
@@ -854,7 +1243,17 @@ const InfiniteTypewriterCanvas = () => {
       window.removeEventListener('keydown', handleGlobalKeyDown);
       window.removeEventListener('keyup', handleGlobalKeyUp);
     };
-  }, []);
+  }, [currentMode, pinPosition, linkState, selectionState, canvasObjects, links, canvasOffset, scale]);
+
+  // Focus canvas when switching to Link or Select mode
+  useEffect(() => {
+    if (currentMode !== 'typography' && canvasRef.current) {
+      // Small delay to ensure DOM is updated
+      setTimeout(() => {
+        canvasRef.current?.focus();
+      }, 10);
+    }
+  }, [currentMode]);
 
   // 타이프라이터 LT 월드 좌표 유지하면서 상태 변경하는 공통 함수 (현재 상태 기준)
   const maintainTypewriterLTWorldPosition = (
@@ -1360,9 +1759,8 @@ const InfiniteTypewriterCanvas = () => {
       const selectedObjs = getObjectsInSelectionRect(
         canvasObjects,
         currentRect,
-        scale,
-        canvasOffset,
-        (text: string, fontSize: number) => measureTextWidth(text, fontSize, canvasRef.current, fontLoaded)
+        canvasRef.current,
+        fontLoaded
       );
       setSelectedObjects(selectedObjs);
     }
@@ -1631,6 +2029,55 @@ const InfiniteTypewriterCanvas = () => {
   // 예시: 텍스트 추가, 오브젝트 이동/삭제, 패닝, 줌, 전체 삭제 등
   // 텍스트 추가
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Handle Tab key for mode switching
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const nextMode = getNextMode(currentMode);
+      setPreviousMode(currentMode);
+      setCurrentMode(nextMode);
+      
+      // Initialize pin hover detection for Link/Select modes
+      if (nextMode === 'link' || nextMode === 'select') {
+        const hoveredObjectAtPin = findObjectAtPin(canvasObjects, pinPosition, 20, measureTextWidthLocal);
+        setPinHoveredObject(hoveredObjectAtPin);
+      } else {
+        setPinHoveredObject(null);
+      }
+      
+      // Reset mode-specific states when switching modes
+      if (currentMode === 'link') {
+        setLinkState({
+          sourceObjectId: null,
+          targetObjectId: null,
+          isCreating: false,
+          previewPath: null
+        });
+      } else if (currentMode === 'select') {
+        setSelectionState(clearSelection(selectionState));
+      }
+      
+      return;
+    }
+
+    // Handle Escape key to reset to Typography mode
+    if (e.key === 'Escape') {
+      if (currentMode !== 'typography') {
+        e.preventDefault();
+        setPreviousMode(currentMode);
+        setCurrentMode('typography');
+        
+        // Reset all mode-specific states
+        setLinkState({
+          sourceObjectId: null,
+          targetObjectId: null,
+          isCreating: false,
+          previewPath: null
+        });
+        setSelectionState(clearSelection(selectionState));
+        return;
+      }
+    }
+
     // Handle backslash + Enter for line breaks (without adding text to canvas)
     if (e.key === 'Enter') {
       // Check if the text ends with backslash and user pressed Enter
@@ -2027,6 +2474,10 @@ const InfiniteTypewriterCanvas = () => {
         getCurrentLineHeight={getCurrentLineHeight}
         handleInputChange={handleInputChange}
         handleInputKeyDown={handleInputKeyDown}
+        currentMode={currentMode}
+        pinPosition={pinPosition}
+        linkState={linkState}
+        selectionState={selectionState}
         handleCompositionStart={handleCompositionStart}
         handleCompositionEnd={handleCompositionEnd}
         handleMaxCharsChange={handleMaxCharsChange}
