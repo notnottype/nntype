@@ -31,9 +31,9 @@ export const BASE_FONT_SIZE_LEVELS_PT = [6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20,
 
 export const THEME_COLORS: Record<'dark' | 'light', ThemeColors> = {
   dark: {
-    background: '#0a0a0a',
+    background: '#2a2a2a',
     text: 'rgba(255, 255, 255, 0.9)',
-    grid: 'rgba(255, 255, 255, 0.05)',
+    grid: 'rgba(255, 255, 255, 0.03)',
     selection: 'rgba(59, 130, 246, 0.2)',
     selectionBorder: 'rgba(59, 130, 246, 0.6)',
     hover: 'rgba(135, 206, 235, 0.15)',
@@ -45,7 +45,7 @@ export const THEME_COLORS: Record<'dark' | 'light', ThemeColors> = {
   light: {
     background: '#ffffff',
     text: 'rgba(0, 0, 0, 0.9)',
-    grid: 'rgba(0, 0, 0, 0.05)',
+    grid: 'rgba(0, 0, 0, 0.03)',
     selection: 'rgba(59, 130, 246, 0.2)',
     selectionBorder: 'rgba(59, 130, 246, 0.6)',
     hover: 'rgba(135, 206, 235, 0.1)',

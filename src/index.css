@@ -26,16 +26,17 @@ html, body, #root {
   height: 100%;
   margin: 0;
   overflow: hidden; /* Prevent body scroll */
+  background: transparent;
 }
 
 /* Base styles for dark mode as default for canvas */
 body.dark {
-  background-color: #0a0a0a;
+  background: transparent;
   color: #fff;
 }
 
 /* Base styles for light mode */
 body.light {
-  background-color: #f0f0f0;
+  background: transparent;
   color: #000;
 }

@@ -1,4 +1,5 @@
 import React from 'react'
+import { Layers2, Sun, Moon } from 'lucide-react'
 import { TypewriterInput } from './TypewriterInput'
 import { CanvasInfoOverlay } from './CanvasInfoOverlay'
 import { ShortcutsOverlay } from './ShortcutsOverlay'
@@ -62,11 +63,24 @@ interface CanvasContainerProps {
   onZoomIn: () => void
   onZoomOut: () => void
   
+  // Shortcuts props
+  onShowShortcutsToggle: () => void
+  
+  // Grid props
+  showGrid: boolean
+  onShowGridToggle: () => void
+  
+  // Info toggle props
+  onShowInfoToggle: () => void
+  
   // Multi-mode system props
   currentMode: CanvasModeType
   pinPosition: PinPosition
   linkState: LinkState
   selectionState: SelectionState
+  
+  // Theme toggle
+  onThemeToggle: () => void
 }
 
 export const CanvasContainer: React.FC<CanvasContainerProps> = ({
@@ -113,10 +127,15 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
   onDeleteSelected,
   onZoomIn,
   onZoomOut,
+  onShowShortcutsToggle,
+  showGrid,
+  onShowGridToggle,
+  onShowInfoToggle,
   currentMode,
   pinPosition,
   linkState,
-  selectionState
+  selectionState,
+  onThemeToggle
 }) => {
   const getCursorClass = () => {
     if (isSpacePressed) {
@@ -132,12 +151,12 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
   };
 
   return (
-    <div className="flex-1 relative overflow-hidden">
+    <div className="absolute inset-0 w-full h-full overflow-hidden bg-transparent">
       <canvas
         ref={canvasRef}
         width={canvasWidth}
         height={canvasHeight}
-        className={`absolute inset-0 ${getCursorClass()}`}
+        className={`absolute inset-0 ${getCursorClass()} focus:outline-none`}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
@@ -147,7 +166,13 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
       
       {showShortcuts && (
         <div className="relative z-50">
-          <ShortcutsOverlay theme={theme} />
+          <ShortcutsOverlay 
+            theme={theme} 
+            typewriterY={typewriterY} 
+            baseFontSize={baseFontSize} 
+            typewriterX={typewriterX}
+            getTextBoxWidth={getTextBoxWidth}
+          />
         </div>
       )}
 
@@ -181,24 +206,22 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
         selectionState={selectionState}
       />
 
-      {showInfo && (
-        <CanvasInfoOverlay
-          canvasOffset={canvasOffset}
-          scale={scale}
-          canvasObjects={canvasObjects}
-          selectedObject={selectedObject}
-          hoveredObject={hoveredObject}
-          mousePosition={mousePosition}
-          isMouseInTextBox={isMouseInTextBox}
-          typewriterX={typewriterX}
-          typewriterY={typewriterY}
-          baseFontSize={baseFontSize}
-          initialFontSize={INITIAL_FONT_SIZE}
-          getTextBoxWidth={getTextBoxWidth}
-          screenToWorld={screenToWorld}
-          theme={theme}
-        />
-      )}
+      <CanvasInfoOverlay
+        canvasOffset={canvasOffset}
+        scale={scale}
+        canvasObjects={canvasObjects}
+        selectedObject={selectedObject}
+        hoveredObject={hoveredObject}
+        mousePosition={mousePosition}
+        isMouseInTextBox={isMouseInTextBox}
+        typewriterX={typewriterX}
+        typewriterY={typewriterY}
+        baseFontSize={baseFontSize}
+        initialFontSize={INITIAL_FONT_SIZE}
+        getTextBoxWidth={getTextBoxWidth}
+        screenToWorld={screenToWorld}
+        theme={theme}
+      />
 
       <StatusMessages
         theme={theme}
@@ -208,15 +231,44 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
         onDeleteSelected={onDeleteSelected}
       />
 
-      <div className={`absolute bottom-4 left-1/2 transform -translate-x-1/2 backdrop-blur-sm px-3 py-1.5 rounded-full ${
-        theme === 'dark' ? 'bg-black/80' : 'bg-white/90'
-      }`}>
-        <ZoomControls
-          scale={scale}
-          onZoomIn={onZoomIn}
-          onZoomOut={onZoomOut}
-          theme={theme}
-        />
+      {/* Bottom Controls - Center */}
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50 pointer-events-none">
+        <div className="flex items-center gap-4 pointer-events-none">
+          {/* Zoom Controls */}
+          <div className={`flex items-center gap-1 px-1.5 py-1.5 rounded-lg backdrop-blur-sm border pointer-events-auto ${
+            theme === 'dark' 
+              ? 'bg-black/20 border-gray-700/30' 
+              : 'bg-white/40 border-gray-200/30'
+          }`}>
+            <ZoomControls
+              scale={scale}
+              onZoomIn={onZoomIn}
+              onZoomOut={onZoomOut}
+              theme={theme}
+            />
+          </div>
+
+          {/* Shortcuts Toggle */}
+          <div className={`flex items-center gap-1 px-1.5 py-1.5 rounded-lg backdrop-blur-sm border pointer-events-auto ${
+            theme === 'dark' 
+              ? 'bg-black/20 border-gray-700/30' 
+              : 'bg-white/40 border-gray-200/30'
+          }`}>
+            <button
+              onClick={onShowShortcutsToggle}
+              className={`p-1 rounded-lg ${
+                showShortcuts ? 'text-blue-500 bg-blue-500/10' : ''
+              } ${
+                theme === 'dark'
+                  ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+              title="Shortcuts Guide"
+            >
+              <Layers2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

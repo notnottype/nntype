@@ -4,6 +4,10 @@ import { X, Bug, Copy, RotateCcw, Settings, Layers } from 'lucide-react';
 
 interface ShortcutsOverlayProps {
   theme: Theme;
+  typewriterY: number;
+  baseFontSize: number;
+  typewriterX: number;
+  getTextBoxWidth: () => number;
   onClose?: () => void;
   onDebug?: () => void;
   onReset?: () => void;
@@ -60,56 +64,114 @@ interface ShortcutsOverlayProps {
 //   );
 // };
 
-export const ShortcutsOverlay = ({ theme }: { theme: Theme }) => {
+export const ShortcutsOverlay = ({ theme, typewriterY, baseFontSize, typewriterX, getTextBoxWidth }: { 
+  theme: Theme; 
+  typewriterY: number; 
+  baseFontSize: number; 
+  typewriterX: number; 
+  getTextBoxWidth: () => number;
+}) => {
+  const textBoxWidth = getTextBoxWidth();
+  const textBoxLeft = typewriterX - textBoxWidth / 2;
+  const topPosition = typewriterY + baseFontSize + 48; // 타이프라이터 박스 아래 48px 간격 (더 하단)
+  
   return (
     <div
-      className={`absolute top-4 right-4 ${
+      className={`absolute z-60 ${
         theme === 'dark'
-          ? 'bg-black/40 text-white'
-          : 'bg-white/50 text-gray-900'
-      } backdrop-blur-sm rounded-xl shadow-sm text-[11px] font-mono`}
+          ? 'bg-black/20 text-gray-100 border border-gray-700/30'
+          : 'bg-white/40 text-gray-800 border border-gray-200/30'
+      } backdrop-blur-sm rounded-lg`}
       style={{
-        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-        fontSize: '11px',
-        padding: '12px',
-        maxHeight: '45vh',
-        minWidth: '260px', // minWidth 확장 (중복 제거)
-        maxWidth: '340px',
-        backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.5)',
+        top: `${topPosition}px`,
+        left: `${textBoxLeft}px`,
+        width: `${textBoxWidth}px`,
+        padding: '16px 18px',
+        maxHeight: '42vh',
         overflowY: 'auto',
+        fontFamily: 'Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace',
+        fontSize: '13px',
+        fontWeight: '400',
+        lineHeight: '1.4',
+        borderRadius: '4px',
       }}
     >
-      <div className={`font-semibold mb-2 text-sm flex items-center gap-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`} style={{whiteSpace: 'nowrap'}}>
-        <Layers className="w-4 h-4 opacity-80" />
-        Keyboard Shortcuts
-      </div>
-      <div className="border-b border-gray-300/40 mb-2" />
-      <div className="space-y-2">
-        <div className="font-bold text-xs mt-1 mb-0.5" style={{whiteSpace: 'nowrap'}}>Navigation & View</div>
-        <div className="flex flex-col gap-0.5 pl-2">
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Pan Canvas</span>: <span className="font-mono">Space + Drag</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Move View</span>: <span className="font-mono">Shift + Arrow Keys</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Canvas Zoom</span>: <span className="font-mono">Shift + Alt + +/-</span></div>
+      <div className="grid grid-cols-2 gap-5">
+        {/* Left Column */}
+        <div className="space-y-3">
+          <div>
+            <div className={`font-bold text-xs uppercase tracking-wider mb-2.5 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>Navigation & View</div>
+            <div className="space-y-2">
+              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                <span className="text-xs">Pan Canvas</span>
+                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Space + Drag</kbd>
+              </div>
+              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                <span className="text-xs">Move View</span>
+                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Shift + ↑↓←→</kbd>
+              </div>
+              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                <span className="text-xs">Canvas Zoom</span>
+                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Shift + Alt + +/-</kbd>
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <div className={`font-bold text-xs uppercase tracking-wider mb-2.5 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>Font & Size Control</div>
+            <div className="space-y-2">
+              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                <span className="text-xs">UI Font Size</span>
+                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Ctrl/Cmd + +/-</kbd>
+              </div>
+              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                <span className="text-xs">Base Font Size</span>
+                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Alt + +/-</kbd>
+              </div>
+            </div>
+          </div>
         </div>
-        
-        <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Font & Size Control</div>
-        <div className="flex flex-col gap-0.5 pl-2">
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">UI Font Size</span>: <span className="font-mono">Ctrl/Cmd + +/-</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Base Font Size</span>: <span className="font-mono">Alt + +/-</span></div>
-        </div>
-        
-        <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Reset Functions</div>
-        <div className="flex flex-col gap-0.5 pl-2">
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Reset UI Zoom</span>: <span className="font-mono">Ctrl/Cmd + 0</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Reset Base Font</span>: <span className="font-mono">Alt + 0</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Reset Canvas</span>: <span className="font-mono">Cmd + R</span></div>
-        </div>
-        
-        <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Editing & History</div>
-        <div className="flex flex-col gap-0.5 pl-2">
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Undo</span>: <span className="font-mono">Ctrl+Z</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Redo</span>: <span className="font-mono">Ctrl+Shift+Z</span>, <span className="font-mono">Ctrl+Y</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Delete Selected</span>: <span className="font-mono">Del</span></div>
+
+        {/* Right Column */}
+        <div className="space-y-3">
+          <div>
+            <div className={`font-bold text-xs uppercase tracking-wider mb-2.5 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>Reset Functions</div>
+            <div className="space-y-2">
+              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                <span className="text-xs">Reset UI Zoom</span>
+                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Ctrl/Cmd + 0</kbd>
+              </div>
+              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                <span className="text-xs">Reset Base Font</span>
+                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Alt + 0</kbd>
+              </div>
+              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                <span className="text-xs">Reset Canvas</span>
+                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Cmd + R</kbd>
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <div className={`font-bold text-xs uppercase tracking-wider mb-2.5 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>Editing & History</div>
+            <div className="space-y-2">
+              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                <span className="text-xs">Undo</span>
+                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Ctrl+Z</kbd>
+              </div>
+              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                <span className="text-xs">Redo</span>
+                <div className="flex gap-1">
+                  <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Ctrl+Shift+Z</kbd>
+                  <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Ctrl+Y</kbd>
+                </div>
+              </div>
+              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                <span className="text-xs">Delete Selected</span>
+                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Del</kbd>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

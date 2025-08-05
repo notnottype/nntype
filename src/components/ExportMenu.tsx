@@ -24,14 +24,14 @@ export const ExportMenu: React.FC<ExportMenuProps> = ({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className={`p-2 rounded-lg transition-colors ${
+          className={`p-1.5 rounded-lg transition-colors ${
             theme === 'dark'
               ? 'text-gray-400 hover:text-white hover:bg-gray-800'
               : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
           }`}
           title="Export"
         >
-          <FileDown className="w-4 h-4" />
+          <FileDown className="w-3.5 h-3.5" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

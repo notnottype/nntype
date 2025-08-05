@@ -127,7 +127,7 @@ const InfiniteTypewriterCanvas = () => {
   const [isMouseInTextBox, setIsMouseInTextBox] = useState(false);
   const [hoveredObject, setHoveredObject] = useState<CanvasObjectType | null>(null);
   const [canvasWidth, setCanvasWidth] = useState(window.innerWidth);
-  const [canvasHeight, setCanvasHeight] = useState(window.innerHeight - 64);
+  const [canvasHeight, setCanvasHeight] = useState(window.innerHeight);
   const [canvasOffset, setCanvasOffset] = useState(() => {
     // 초기 렌더링 시 세션에서 LT 위치 복구하여 깜빡임 방지
     const sessionData = loadSession();
@@ -581,7 +581,7 @@ const InfiniteTypewriterCanvas = () => {
       
       // 2. 새로운 윈도우 크기 설정
       const newWidth = window.innerWidth;
-      const newHeight = window.innerHeight - 64;
+      const newHeight = window.innerHeight;
       const newTypewriterX = newWidth / 2;
       const newTypewriterY = newHeight / 2;
       
@@ -2422,7 +2422,7 @@ const InfiniteTypewriterCanvas = () => {
   const isComposingRef = useRef(false);
 
   return (
-    <div className={`w-full h-screen flex flex-col ${theme === 'dark' ? 'bg-black' : 'bg-gray-50'}`}>
+    <div className="w-full h-screen relative bg-transparent">
       <Header
         theme={theme}
         showGrid={showGrid}
@@ -2478,6 +2478,7 @@ const InfiniteTypewriterCanvas = () => {
         pinPosition={pinPosition}
         linkState={linkState}
         selectionState={selectionState}
+        onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
         handleCompositionStart={handleCompositionStart}
         handleCompositionEnd={handleCompositionEnd}
         handleMaxCharsChange={handleMaxCharsChange}
@@ -2517,6 +2518,10 @@ const InfiniteTypewriterCanvas = () => {
             zoomToLevel(zoomLevels[newIndex]);
           }
         }}
+        onShowShortcutsToggle={() => setShowShortcuts(!showShortcuts)}
+        showGrid={showGrid}
+        onShowGridToggle={() => setShowGrid(!showGrid)}
+        onShowInfoToggle={() => setShowInfo(!showInfo)}
       />
 
       {/* API Key Input Modal */}

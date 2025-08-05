@@ -21,7 +21,7 @@ export const StatusMessages: React.FC<StatusMessagesProps> = ({
     <>
       {/* Typing Status */}
       {showTextBox && currentTypingText && (
-        <div className={`absolute bottom-4 left-4 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-mono ${
+        <div className={`absolute bottom-4 left-4 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-mono pointer-events-none ${
           theme === 'dark'
             ? 'bg-black/80 text-white'
             : 'bg-white/90 text-gray-900'
@@ -32,7 +32,7 @@ export const StatusMessages: React.FC<StatusMessagesProps> = ({
       
       {/* Selected Object Status */}
       {selectedObject && (
-        <div className={`absolute bottom-4 right-4 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-mono border flex items-center gap-3 ${
+        <div className={`absolute bottom-4 right-4 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-mono border flex items-center gap-3 pointer-events-auto ${
           theme === 'dark'
             ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
             : 'bg-blue-500/10 text-blue-600 border-blue-500/20'
