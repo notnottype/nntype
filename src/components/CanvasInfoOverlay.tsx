@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CanvasObjectType, Theme } from '../types';
-import { Info, ChevronRight, ChevronLeft, PanelRightOpen, PanelRightClose } from 'lucide-react';
+import { Bug, ChevronRight, ChevronLeft, PanelRightOpen, PanelRightClose } from 'lucide-react';
 
 interface CanvasInfoOverlayProps {
   canvasOffset: { x: number; y: number };
@@ -154,7 +154,7 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
         title={isCollapsed ? "Expand Info" : "Collapse Info"}
       >
         {isCollapsed ? (
-          <Info className="w-4 h-4" />
+          <Bug className="w-4 h-4" />
         ) : (
           <ChevronRight className="w-4 h-4" />
         )}
@@ -165,10 +165,11 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
         <div className={`mb-4 pb-3 border-b ${
           theme === 'dark' ? 'border-gray-800' : 'border-gray-200'
         }`}>
-          <div className={`font-semibold text-sm ${
+          <div className={`font-semibold text-sm flex items-center gap-2 ${
             theme === 'dark' ? 'text-gray-100' : 'text-gray-900'
           }`}>
-            Info
+            <Bug className="w-4 h-4" />
+            <span>Debug Info</span>
           </div>
         </div>
       )}

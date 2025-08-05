@@ -59,7 +59,8 @@ export const drawCanvasObjects = (
   worldToScreenFn: (x: number, y: number) => { x: number; y: number },
   measureTextWidth: (text: string, fontSize: number) => number,
   theme: Theme,
-  colors: any
+  colors: any,
+  selectedObjects: CanvasObjectType[] = []
 ) => {
   ctx.textBaseline = 'alphabetic';
   
@@ -70,7 +71,9 @@ export const drawCanvasObjects = (
     const screenWidth = a4Obj.width * scale;
     const screenHeight = a4Obj.height * scale;
     
-    if (selectedObject && selectedObject.id === a4Obj.id) {
+    const isSelected = (selectedObject && selectedObject.id === a4Obj.id) || 
+                      selectedObjects.some(obj => obj.id === a4Obj.id);
+    if (isSelected) {
       ctx.fillStyle = colors[theme].selection;
       ctx.fillRect(screenPos.x - 4, screenPos.y - 4, screenWidth + 8, screenHeight + 8);
     }
@@ -96,7 +99,9 @@ export const drawCanvasObjects = (
       const fontSize = textObj.fontSize * scale;
       ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
       
-      if (selectedObject && selectedObject.id === textObj.id) {
+      const isSelected = (selectedObject && selectedObject.id === textObj.id) || 
+                        selectedObjects.some(obj => obj.id === textObj.id);
+      if (isSelected) {
         // Handle multi-line text for selection highlight
         const lines = textObj.content.split('\n');
         const lineHeight = fontSize * 1.6;
@@ -338,8 +343,9 @@ export const drawMultiSelectHighlight = (
 ) => {
   if (objects.length === 0) return;
   
-  const highlightColor = theme === 'dark' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.1)';
-  const borderColor = theme === 'dark' ? 'rgba(59, 130, 246, 0.8)' : 'rgba(59, 130, 246, 0.6)';
+  const highlightColor = theme === 'dark' ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.2)';
+  const borderColor = theme === 'dark' ? 'rgba(147, 197, 253, 0.9)' : 'rgba(96, 165, 250, 0.8)';
+  const individualBorderColor = theme === 'dark' ? 'rgba(96, 165, 250, 0.6)' : 'rgba(59, 130, 246, 0.5)';
   
   // Calculate bounding box for all selected objects
   let minX = Infinity;
@@ -409,7 +415,7 @@ export const drawMultiSelectHighlight = (
     
     // Draw bounding box border
     ctx.strokeStyle = borderColor;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 0.5;
     ctx.setLineDash([5, 5]);
     ctx.strokeRect(boundingBoxX, boundingBoxY, boundingBoxWidth, boundingBoxHeight);
     ctx.setLineDash([]);

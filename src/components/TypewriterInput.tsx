@@ -272,7 +272,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
                       border: 'none',
                       outline: 'none',
                       color: maxCharsPerLine === chars
-                        ? '#60a5fa'
+                        ? (theme === 'dark' ? '#d1d5db' : '#6b7280')
                         : (theme === 'dark' ? '#bfc9d1' : '#6b7280'),
                       fontWeight: fontWeight,
                       fontFamily: 'JetBrains Mono, monospace',

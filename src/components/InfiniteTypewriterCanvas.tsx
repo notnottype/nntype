@@ -634,9 +634,10 @@ const InfiniteTypewriterCanvas = () => {
       worldToScreenLocal,
       measureTextWidthLocal,
       theme,
-      THEME_COLORS
+      THEME_COLORS,
+      selectedObjects
     );
-  }, [canvasObjects, scale, selectedObject, canvasWidth, canvasHeight, worldToScreenLocal, measureTextWidthLocal, theme]);
+  }, [canvasObjects, scale, selectedObject, canvasWidth, canvasHeight, worldToScreenLocal, measureTextWidthLocal, theme, selectedObjects]);
 
   // 드래그 프리뷰 객체 렌더링 함수 (호버 스타일과 동일한 보더박스)
   const drawDragPreviewObjects = useCallback((ctx: CanvasRenderingContext2D) => {
@@ -672,8 +673,8 @@ const InfiniteTypewriterCanvas = () => {
       drawHoverHighlight(ctx, hoveredObject, scale, worldToScreenLocal, measureTextWidthLocal, theme, THEME_COLORS);
     }
     
-    // 멀티 셀렉트된 오브젝트 하이라이트 표시
-    if (selectedObjects.length > 0) {
+    // 멀티 셀렉트된 오브젝트 하이라이트 표시 (Typography mode only)
+    if (currentMode === 'typography' && selectedObjects.length > 0) {
       drawMultiSelectHighlight(ctx, selectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
     }
     
@@ -704,9 +705,9 @@ const InfiniteTypewriterCanvas = () => {
       renderLinkPreview(ctx, linkState.previewPath.from, linkState.previewPath.to, scale, canvasOffset);
     }
     
-    // Render selection highlights (Select mode)
-    if (currentMode === 'select' && selectionState.selectedObjects.size > 0) {
-      renderSelectionHighlights(ctx, canvasObjects, selectionState.selectedObjects, scale, canvasOffset, canvasRef.current, fontLoaded);
+    // Render selection highlights (Select mode) - Use selectedObjects array for consistency
+    if (currentMode === 'select' && selectedObjects.length > 0) {
+      drawMultiSelectHighlight(ctx, selectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
     }
     
     // Render selection area (Select mode)
@@ -762,8 +763,8 @@ const InfiniteTypewriterCanvas = () => {
       ctx.closePath();
       ctx.fill();
       
-      // Show object info tooltip when hovering
-      if (isHoveringObject && pinHoveredObject) {
+      // Show object info tooltip when hovering - Disabled
+      /* if (isHoveringObject && pinHoveredObject) {
         const tooltipX = pinScreenX + 20;
         const tooltipY = pinScreenY - 20;
         const maxWidth = 200;
@@ -798,7 +799,7 @@ const InfiniteTypewriterCanvas = () => {
         ctx.fillText(displayText, tooltipX + 8, tooltipY - tooltipHeight / 2);
         ctx.textAlign = 'start';
         ctx.textBaseline = 'alphabetic';
-      }
+      } */
       
       ctx.restore();
     }
@@ -1017,8 +1018,10 @@ const InfiniteTypewriterCanvas = () => {
           
           const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPinPosition, 20, measureTextWidthLocal);
           setPinHoveredObject(hoveredObjectAtPin);
+          setHoveredObject(hoveredObjectAtPin);
         } else {
           setPinHoveredObject(null);
+          setHoveredObject(null);
         }
         
         // Reset mode-specific states when switching modes
@@ -1033,6 +1036,10 @@ const InfiniteTypewriterCanvas = () => {
           setSelectionState(clearSelection(selectionState));
         }
         
+        // Clear all selections when switching modes
+        setSelectedObjects([]);
+        setSelectedObject(null);
+        
         return;
       }
 
@@ -1045,6 +1052,11 @@ const InfiniteTypewriterCanvas = () => {
           
           // Clear pin hover detection when returning to Typography mode
           setPinHoveredObject(null);
+          setHoveredObject(null);
+          
+          // Clear all selections
+          setSelectedObjects([]);
+          setSelectedObject(null);
           
           // Reset all mode-specific states
           setLinkState({
@@ -1130,11 +1142,34 @@ const InfiniteTypewriterCanvas = () => {
             });
             
             setSelectionState(newSelection);
+            
+            // Update selectedObjects to maintain consistency
+            setSelectedObjects(objectsInArea);
+            setSelectedObject(null);
           } else {
             // Select object at pin position
             const objectAtPin = findObjectAtPin(canvasObjects, pinPosition, 20, measureTextWidthLocal);
             if (objectAtPin) {
+              // Update selectionState
               setSelectionState(addToSelection(selectionState, objectAtPin.id.toString()));
+              
+              // Update selectedObjects to maintain consistency
+              const isAlreadySelected = selectedObjects.some(obj => obj.id === objectAtPin.id);
+              if (!isAlreadySelected) {
+                if (selectedObjects.length === 0 && selectedObject) {
+                  // If there's a single selected object, start multi-selection with it
+                  setSelectedObjects([selectedObject, objectAtPin]);
+                  setSelectedObject(null);
+                } else if (selectedObjects.length > 0) {
+                  // Add to existing multi-selection
+                  setSelectedObjects([...selectedObjects, objectAtPin]);
+                  setSelectedObject(null);
+                } else {
+                  // First object selection
+                  setSelectedObject(objectAtPin);
+                  setSelectedObjects([]);
+                }
+              }
             }
           }
           e.preventDefault();
@@ -1182,6 +1217,7 @@ const InfiniteTypewriterCanvas = () => {
             // Check for object at pin position after canvas move
             const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPin, 20, measureTextWidthLocal);
             setPinHoveredObject(hoveredObjectAtPin);
+            setHoveredObject(hoveredObjectAtPin);
             
           } else if (e.altKey) {
             // Alt + Arrow: Move selected objects in world coordinates
@@ -1202,6 +1238,7 @@ const InfiniteTypewriterCanvas = () => {
             // Check for object at new pin position for hover effect
             const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPin, 20, measureTextWidthLocal);
             setPinHoveredObject(hoveredObjectAtPin);
+            setHoveredObject(hoveredObjectAtPin);
             
             // Update link preview if in link mode
             if (currentMode === 'link' && linkState.sourceObjectId) {
@@ -2063,8 +2100,10 @@ const InfiniteTypewriterCanvas = () => {
         
         const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPinPosition, 20, measureTextWidthLocal);
         setPinHoveredObject(hoveredObjectAtPin);
+        setHoveredObject(hoveredObjectAtPin);
       } else {
         setPinHoveredObject(null);
+        setHoveredObject(null);
       }
       
       // Reset mode-specific states when switching modes
@@ -2078,6 +2117,10 @@ const InfiniteTypewriterCanvas = () => {
       } else if (currentMode === 'select') {
         setSelectionState(clearSelection(selectionState));
       }
+      
+      // Always clear selections when switching modes
+      setSelectedObjects([]);
+      setSelectedObject(null);
       
       return;
     }
@@ -2201,6 +2244,9 @@ const InfiniteTypewriterCanvas = () => {
       e.preventDefault();
     } else if (e.key === 'Escape') {
       setCurrentTypingText('');
+      // Clear all selections when ESC is pressed
+      setSelectedObjects([]);
+      setSelectedObject(null);
     }
   };
 
