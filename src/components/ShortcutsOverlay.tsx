@@ -1,5 +1,5 @@
 import React from 'react';
-import { Theme } from '../types';
+import { Theme, CanvasModeType } from '../types';
 import { X, Bug, Copy, RotateCcw, Settings, Layers } from 'lucide-react';
 
 interface ShortcutsOverlayProps {
@@ -64,16 +64,91 @@ interface ShortcutsOverlayProps {
 //   );
 // };
 
-export const ShortcutsOverlay = ({ theme, typewriterY, baseFontSize, typewriterX, getTextBoxWidth }: { 
+export const ShortcutsOverlay = ({ theme, typewriterY, baseFontSize, typewriterX, getTextBoxWidth, currentMode }: { 
   theme: Theme; 
   typewriterY: number; 
   baseFontSize: number; 
   typewriterX: number; 
   getTextBoxWidth: () => number;
+  currentMode: CanvasModeType;
 }) => {
   const textBoxWidth = getTextBoxWidth();
   const textBoxLeft = typewriterX - textBoxWidth / 2;
   const topPosition = typewriterY + baseFontSize + 48; // 타이프라이터 박스 아래 48px 간격 (더 하단)
+  
+  // Mode-specific shortcuts
+  const getModeShortcuts = () => {
+    switch (currentMode) {
+      case 'select':
+        return {
+          title: 'Select Mode Shortcuts',
+          leftColumn: {
+            title: 'Selection & Navigation',
+            shortcuts: [
+              { label: 'Move Pin', key: 'Shift + ↑↓←→' },
+              { label: 'Select Object', key: 'Space' },
+              { label: 'Multi-Select', key: 'Shift + Space' },
+              { label: 'Drag Selection', key: 'Shift + Drag' },
+            ]
+          },
+          rightColumn: {
+            title: 'Mode & Actions',
+            shortcuts: [
+              { label: 'Next Mode', key: 'Tab' },
+              { label: 'Previous Mode', key: 'Shift + Tab' },
+              { label: 'Delete Selected', key: 'Del' },
+              { label: 'Move Objects', key: 'Ctrl+Shift + ↑↓←→' },
+            ]
+          }
+        };
+      case 'link':
+        return {
+          title: 'Link Mode Shortcuts',
+          leftColumn: {
+            title: 'Link Creation',
+            shortcuts: [
+              { label: 'Move Pin', key: 'Shift + ↑↓←→' },
+              { label: 'Create Link', key: 'Space' },
+              { label: 'Cancel Link', key: 'Esc' },
+              { label: 'Select Source', key: 'Enter' },
+            ]
+          },
+          rightColumn: {
+            title: 'Mode & Navigation',
+            shortcuts: [
+              { label: 'Next Mode', key: 'Tab' },
+              { label: 'Previous Mode', key: 'Shift + Tab' },
+              { label: 'Pan Canvas', key: 'Space + Drag' },
+              { label: 'Delete Links', key: 'Del' },
+            ]
+          }
+        };
+      default: // typography
+        return {
+          title: 'Typography Mode Shortcuts',
+          leftColumn: {
+            title: 'Navigation & View',
+            shortcuts: [
+              { label: 'Pan Canvas', key: 'Space + Drag' },
+              { label: 'Move View', key: 'Shift + ↑↓←→' },
+              { label: 'Canvas Zoom', key: 'Shift + Alt + +/-' },
+              { label: 'UI Font Size', key: 'Ctrl/Cmd + +/-' },
+            ]
+          },
+          rightColumn: {
+            title: 'Editing & History',
+            shortcuts: [
+              { label: 'Next Mode', key: 'Tab' },
+              { label: 'Previous Mode', key: 'Shift + Tab' },
+              { label: 'Undo', key: 'Ctrl+Z' },
+              { label: 'Redo', key: 'Ctrl+Shift+Z' },
+            ]
+          }
+        };
+    }
+  };
+
+  const shortcuts = getModeShortcuts();
   
   return (
     <div
@@ -100,34 +175,18 @@ export const ShortcutsOverlay = ({ theme, typewriterY, baseFontSize, typewriterX
         {/* Left Column */}
         <div className="space-y-3">
           <div>
-            <div className={`font-bold text-xs uppercase tracking-wider mb-2.5 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>Navigation & View</div>
-            <div className="space-y-2">
-              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                <span className="text-xs">Pan Canvas</span>
-                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Space + Drag</kbd>
-              </div>
-              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                <span className="text-xs">Move View</span>
-                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Shift + ↑↓←→</kbd>
-              </div>
-              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                <span className="text-xs">Canvas Zoom</span>
-                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Shift + Alt + +/-</kbd>
-              </div>
+            <div className={`font-bold text-xs uppercase tracking-wider mb-2.5 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+              {shortcuts.leftColumn.title}
             </div>
-          </div>
-          
-          <div>
-            <div className={`font-bold text-xs uppercase tracking-wider mb-2.5 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>Font & Size Control</div>
             <div className="space-y-2">
-              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                <span className="text-xs">UI Font Size</span>
-                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Ctrl/Cmd + +/-</kbd>
-              </div>
-              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                <span className="text-xs">Base Font Size</span>
-                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Alt + +/-</kbd>
-              </div>
+              {shortcuts.leftColumn.shortcuts.map((shortcut, index) => (
+                <div key={index} className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                  <span className="text-xs">{shortcut.label}</span>
+                  <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>
+                    {shortcut.key}
+                  </kbd>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -135,41 +194,18 @@ export const ShortcutsOverlay = ({ theme, typewriterY, baseFontSize, typewriterX
         {/* Right Column */}
         <div className="space-y-3">
           <div>
-            <div className={`font-bold text-xs uppercase tracking-wider mb-2.5 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>Reset Functions</div>
-            <div className="space-y-2">
-              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                <span className="text-xs">Reset UI Zoom</span>
-                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Ctrl/Cmd + 0</kbd>
-              </div>
-              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                <span className="text-xs">Reset Base Font</span>
-                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Alt + 0</kbd>
-              </div>
-              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                <span className="text-xs">Reset Canvas</span>
-                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Cmd + R</kbd>
-              </div>
+            <div className={`font-bold text-xs uppercase tracking-wider mb-2.5 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+              {shortcuts.rightColumn.title}
             </div>
-          </div>
-          
-          <div>
-            <div className={`font-bold text-xs uppercase tracking-wider mb-2.5 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>Editing & History</div>
             <div className="space-y-2">
-              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                <span className="text-xs">Undo</span>
-                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Ctrl+Z</kbd>
-              </div>
-              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                <span className="text-xs">Redo</span>
-                <div className="flex gap-1">
-                  <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Ctrl+Shift+Z</kbd>
-                  <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Ctrl+Y</kbd>
+              {shortcuts.rightColumn.shortcuts.map((shortcut, index) => (
+                <div key={index} className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                  <span className="text-xs">{shortcut.label}</span>
+                  <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>
+                    {shortcut.key}
+                  </kbd>
                 </div>
-              </div>
-              <div className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                <span className="text-xs">Delete Selected</span>
-                <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>Del</kbd>
-              </div>
+              ))}
             </div>
           </div>
         </div>

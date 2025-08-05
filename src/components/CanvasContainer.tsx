@@ -172,6 +172,7 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
             baseFontSize={baseFontSize} 
             typewriterX={typewriterX}
             getTextBoxWidth={getTextBoxWidth}
+            currentMode={currentMode}
           />
         </div>
       )}

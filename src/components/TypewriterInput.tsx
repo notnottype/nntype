@@ -4,6 +4,33 @@ import { pxToPoints } from '../utils/units'
 import { AIState, CanvasModeType, PinPosition, LinkState, SelectionState } from '../types'
 import { getModeDisplayProperties } from '../utils/modeUtils'
 
+// Add CSS for placeholder styling
+const placeholderStyle = document.createElement('style')
+placeholderStyle.textContent = `
+  .typewriter-input-typography::placeholder {
+    color: var(--placeholder-color);
+    font-size: var(--base-font-size);
+    font-weight: normal;
+    font-family: "JetBrains Mono", monospace;
+  }
+  .typewriter-input-link::placeholder {
+    color: #ff6b6b;
+    font-size: 12px;
+    font-weight: bold;
+    font-family: "JetBrains Mono", monospace;
+  }
+  .typewriter-input-select::placeholder {
+    color: #4a9eff;
+    font-size: 12px;
+    font-weight: bold;
+    font-family: "JetBrains Mono", monospace;
+  }
+`
+if (!document.head.querySelector('#typewriter-placeholder-styles')) {
+  placeholderStyle.id = 'typewriter-placeholder-styles'
+  document.head.appendChild(placeholderStyle)
+}
+
 interface TypewriterInputProps {
   showTextBox: boolean
   currentTypingText: string
@@ -88,32 +115,13 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
           pointerEvents: 'auto',
         }}
       >
-        {/* Mode Indicator - positioned at bottom-left of input box */}
-        {currentMode !== 'typography' && (
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              fontSize: 12,
-              color: currentMode === 'link' ? '#ff6b6b' : '#4a9eff',
-              fontFamily: '"JetBrains Mono", monospace',
-              fontWeight: 'bold',
-              background: THEME_COLORS[theme].background,
-              padding: '2px 6px',
-              borderRadius: '3px',
-              border: 'none',
-              zIndex: 21
-            }}
-          >
-            {modeProps.icon} {currentMode.toUpperCase()} MODE
-          </div>
-        )}
+
 
         {/* Input Field - Only show in Typography mode */}
         {showTextArea && (
         <textarea
           id="typewriter-input"
+          className={`typewriter-input-${currentMode}`}
           value={currentTypingText}
           placeholder={modeProps.placeholder}
           onChange={handleInputChange}
@@ -125,11 +133,11 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
             e.currentTarget.focus();
           }}
           disabled={aiState.isProcessing}
-          rows={currentTypingText.split('\n').length}
+          rows={currentTypingText.split('\\n').length}
           style={{
             width: '100%',
             minHeight: baseFontSize * 1.6,
-            height: Math.max(baseFontSize * 1.6, (currentTypingText.split('\n').length * baseFontSize * 1.6)),
+            height: Math.max(baseFontSize * 1.6, (currentTypingText.split('\\n').length * baseFontSize * 1.6)),
             fontFamily: '"JetBrains Mono", monospace',
             fontSize: baseFontSize,
             background: THEME_COLORS[theme].inputBg,
@@ -148,7 +156,10 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
             overflow: 'hidden',
             whiteSpace: 'pre-wrap',
             verticalAlign: 'baseline',
-            textAlign: 'left'
+            textAlign: 'left',
+            // CSS variable for typography mode placeholder color
+            '--placeholder-color': theme === 'dark' ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.4)',
+            '--base-font-size': `${baseFontSize}px`
           }}
         />
         )}
@@ -189,7 +200,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
               top: 0,
               left: 0,
               width: '100%',
-              height: Math.max(baseFontSize * 1.6, (currentTypingText.split('\n').length * baseFontSize * 1.6)),
+              height: Math.max(baseFontSize * 1.6, (currentTypingText.split('\\n').length * baseFontSize * 1.6)),
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-start',

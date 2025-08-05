@@ -50,6 +50,7 @@ import {
 } from '../utils';
 import { 
   getNextMode, 
+  getPreviousMode,
   getModeDisplayProperties, 
   createInitialPinPosition,
   positionPinAtInputBox, 
@@ -304,8 +305,19 @@ const InfiniteTypewriterCanvas = () => {
   }, []);
 
 
-  // Typewriter settings
-  const typewriterX = canvasWidth / 2;
+  // Typewriter settings with input box LT x-coordinate snapping
+  const snapInterval = 20;
+  const centeredX = canvasWidth / 2;
+  
+  // Calculate approximate text box width (will be refined later by getTextBoxWidth)
+  const approximateTextBoxWidth = maxCharsPerLine * (baseFontSize * 0.6);
+  
+  // Calculate input box left edge and snap it to grid
+  const inputBoxLeft = centeredX - approximateTextBoxWidth / 2;
+  const snappedInputBoxLeft = Math.round(inputBoxLeft / snapInterval) * snapInterval;
+  
+  // Adjust typewriter center position to align input box left edge
+  const typewriterX = snappedInputBoxLeft + approximateTextBoxWidth / 2;
   const typewriterY = canvasHeight / 2;
 
   // Auto-save session when state changes (optimized)
@@ -999,26 +1011,35 @@ const InfiniteTypewriterCanvas = () => {
       // Handle Tab key for mode switching (all modes)
       if (e.key === 'Tab') {
         e.preventDefault();
-        const nextMode = getNextMode(currentMode);
+        const nextMode = e.shiftKey ? getPreviousMode(currentMode) : getNextMode(currentMode);
         setPreviousMode(currentMode);
         setCurrentMode(nextMode);
         
         // Initialize pin position and hover detection for Link/Select modes
         if (nextMode === 'link' || nextMode === 'select') {
-          // Position pin at input box top-left corner
-          const newPinPosition = positionPinAtInputBox(
-            typewriterX,
-            typewriterY,
-            getTextBoxWidth(),
-            baseFontSize,
-            canvasOffset,
-            scale
-          );
-          setPinPosition(newPinPosition);
-          
-          const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPinPosition, 20, measureTextWidthLocal);
-          setPinHoveredObject(hoveredObjectAtPin);
-          setHoveredObject(hoveredObjectAtPin);
+          // Only initialize pin position when coming from typography mode
+          // Preserve pin position when switching between link and select modes
+          if (currentMode === 'typography') {
+            // Position pin at input box top-left corner
+            const newPinPosition = positionPinAtInputBox(
+              typewriterX,
+              typewriterY,
+              getTextBoxWidth(),
+              baseFontSize,
+              canvasOffset,
+              scale
+            );
+            setPinPosition(newPinPosition);
+            
+            const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPinPosition, 20, measureTextWidthLocal);
+            setPinHoveredObject(hoveredObjectAtPin);
+            setHoveredObject(hoveredObjectAtPin);
+          } else {
+            // When switching between link and select modes, just update hover detection
+            const hoveredObjectAtPin = findObjectAtPin(canvasObjects, pinPosition, 20, measureTextWidthLocal);
+            setPinHoveredObject(hoveredObjectAtPin);
+            setHoveredObject(hoveredObjectAtPin);
+          }
         } else {
           setPinHoveredObject(null);
           setHoveredObject(null);
@@ -1410,8 +1431,18 @@ const InfiniteTypewriterCanvas = () => {
     maintainTypewriterLTWorldPosition(INITIAL_UI_FONT_SIZE_PX, 1.0);
     setBaseFontSizePt(INITIAL_BASE_FONT_SIZE_PT);
     setSelectedObject(null);
+    
+    // 캔버스 오프셋을 초기 위치로 리셋 (타이프라이터 위치 초기화)
+    setCanvasOffset({ x: 0, y: 0 });
+    
+    // 모든 캔버스 객체 삭제
+    setCanvasObjects([]);
+    
+    // 선택 상태 초기화
+    setSelectedObjects(new Set());
+    
     clearSession(); // 세션도 함께 클리어
-  }, [maintainTypewriterLTWorldPosition, setSelectedObject]);
+  }, [maintainTypewriterLTWorldPosition, setSelectedObject, setCanvasOffset, setCanvasObjects, setSelectedObjects]);
   
   // Keyboard events
   useEffect(() => {
@@ -2081,26 +2112,35 @@ const InfiniteTypewriterCanvas = () => {
     // Handle Tab key for mode switching
     if (e.key === 'Tab') {
       e.preventDefault();
-      const nextMode = getNextMode(currentMode);
+      const nextMode = e.shiftKey ? getPreviousMode(currentMode) : getNextMode(currentMode);
       setPreviousMode(currentMode);
       setCurrentMode(nextMode);
       
       // Initialize pin position and hover detection for Link/Select modes
       if (nextMode === 'link' || nextMode === 'select') {
-        // Position pin at input box top-left corner
-        const newPinPosition = positionPinAtInputBox(
-          typewriterX,
-          typewriterY,
-          getTextBoxWidth(),
-          baseFontSize,
-          canvasOffset,
-          scale
-        );
-        setPinPosition(newPinPosition);
-        
-        const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPinPosition, 20, measureTextWidthLocal);
-        setPinHoveredObject(hoveredObjectAtPin);
-        setHoveredObject(hoveredObjectAtPin);
+        // Only initialize pin position when coming from typography mode
+        // Preserve pin position when switching between link and select modes
+        if (currentMode === 'typography') {
+          // Position pin at input box top-left corner
+          const newPinPosition = positionPinAtInputBox(
+            typewriterX,
+            typewriterY,
+            getTextBoxWidth(),
+            baseFontSize,
+            canvasOffset,
+            scale
+          );
+          setPinPosition(newPinPosition);
+          
+          const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPinPosition, 20, measureTextWidthLocal);
+          setPinHoveredObject(hoveredObjectAtPin);
+          setHoveredObject(hoveredObjectAtPin);
+        } else {
+          // When switching between link and select modes, just update hover detection
+          const hoveredObjectAtPin = findObjectAtPin(canvasObjects, pinPosition, 20, measureTextWidthLocal);
+          setPinHoveredObject(hoveredObjectAtPin);
+          setHoveredObject(hoveredObjectAtPin);
+        }
       } else {
         setPinHoveredObject(null);
         setHoveredObject(null);

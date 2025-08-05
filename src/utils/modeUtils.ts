@@ -4,7 +4,7 @@
 
 import { CanvasModeType, PinPosition, LinkState, SelectionState, CanvasObjectType, LinkObjectType } from '../types';
 
-export const CANVAS_MODES: CanvasModeType[] = ['typography', 'link', 'select'];
+export const CANVAS_MODES: CanvasModeType[] = ['select', 'link', 'typography'];
 
 /**
  * Get the next mode in the cycle
@@ -13,6 +13,15 @@ export function getNextMode(currentMode: CanvasModeType): CanvasModeType {
   const currentIndex = CANVAS_MODES.indexOf(currentMode);
   const nextIndex = (currentIndex + 1) % CANVAS_MODES.length;
   return CANVAS_MODES[nextIndex];
+}
+
+/**
+ * Get the previous mode in the cycle (for Shift+Tab)
+ */
+export function getPreviousMode(currentMode: CanvasModeType): CanvasModeType {
+  const currentIndex = CANVAS_MODES.indexOf(currentMode);
+  const prevIndex = (currentIndex - 1 + CANVAS_MODES.length) % CANVAS_MODES.length;
+  return CANVAS_MODES[prevIndex];
 }
 
 /**
@@ -43,14 +52,14 @@ export function getModeDisplayProperties(mode: CanvasModeType, theme: 'light' | 
       return {
         icon: '→',
         borderColor: getBorderColor(theme),
-        placeholder: 'Navigate with Shift+arrows, Space to link',
+        placeholder: '→ LINK MODE - Navigate with Shift+arrows, Space to link',
         description: 'Link Mode - Connect text objects with arrows'
       };
     case 'select':
       return {
         icon: '■',
         borderColor: getBorderColor(theme),
-        placeholder: 'Shift+arrows to select, Ctrl+Shift+arrows to move',
+        placeholder: '■ SELECT MODE - Shift+arrows to select, Ctrl+Shift+arrows to move',
         description: 'Select Mode - Multi-select and batch operations'
       };
   }
@@ -69,7 +78,7 @@ export function createInitialPinPosition(): PinPosition {
 }
 
 /**
- * Position pin at input box top-left corner
+ * Position pin at input box top-left corner with x-coordinate snapping
  */
 export function positionPinAtInputBox(
   typewriterX: number,
@@ -79,14 +88,20 @@ export function positionPinAtInputBox(
   canvasOffset: { x: number; y: number },
   scale: number
 ): PinPosition {
-  // Calculate top-left corner of input box, slightly offset to right and up
+  // Calculate input box left edge (before centering)
   const inputBoxLeft = typewriterX - textBoxWidth / 2;
+  
+  // Snap input box left edge to grid (20px intervals)  
+  const snapInterval = 20;
+  const snappedInputBoxLeft = Math.round(inputBoxLeft / snapInterval) * snapInterval;
+  
+  // Position pin at the snapped input box left-top corner
   const inputBoxTop = typewriterY - baseFontSize / 2 - 25;
   
   return {
-    x: inputBoxLeft,
+    x: snappedInputBoxLeft,
     y: inputBoxTop,
-    worldX: (inputBoxLeft - canvasOffset.x) / scale,
+    worldX: (snappedInputBoxLeft - canvasOffset.x) / scale,
     worldY: (inputBoxTop - canvasOffset.y) / scale
   };
 }
@@ -114,7 +129,7 @@ export function createInitialSelectionState(): SelectionState {
 }
 
 /**
- * Update pin position with coordinate conversion
+ * Update pin position with coordinate conversion and x-coordinate snapping
  */
 export function updatePinPosition(
   currentPin: PinPosition,
@@ -126,10 +141,14 @@ export function updatePinPosition(
   const newX = currentPin.x + deltaX;
   const newY = currentPin.y + deltaY;
   
+  // Snap x coordinate to grid (20px intervals in screen coordinates)
+  const snapInterval = 20;
+  const snappedX = Math.round(newX / snapInterval) * snapInterval;
+  
   return {
-    x: newX,
+    x: snappedX,
     y: newY,
-    worldX: (newX - canvasOffset.x) / scale,
+    worldX: (snappedX - canvasOffset.x) / scale,
     worldY: (newY - canvasOffset.y) / scale
   };
 }
