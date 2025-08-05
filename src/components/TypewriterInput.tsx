@@ -67,7 +67,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
 }) => {
   if (!showTextBox) return null
 
-  const modeProps = getModeDisplayProperties(currentMode);
+  const modeProps = getModeDisplayProperties(currentMode, theme);
   
   // In Link and Select modes, hide the textarea to prevent conflicts
   const showTextArea = currentMode === 'typography';
@@ -88,12 +88,12 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
           pointerEvents: 'auto',
         }}
       >
-        {/* Mode Indicator */}
+        {/* Mode Indicator - positioned at bottom-left of input box */}
         {currentMode !== 'typography' && (
           <div
             style={{
               position: 'absolute',
-              top: -25,
+              bottom: 0,
               left: 0,
               fontSize: 12,
               color: currentMode === 'link' ? '#ff6b6b' : '#4a9eff',
@@ -102,7 +102,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
               background: THEME_COLORS[theme].background,
               padding: '2px 6px',
               borderRadius: '3px',
-              border: `1px solid ${currentMode === 'link' ? '#ff6b6b' : '#4a9eff'}`,
+              border: 'none',
               zIndex: 21
             }}
           >
@@ -133,7 +133,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
             fontFamily: '"JetBrains Mono", monospace',
             fontSize: baseFontSize,
             background: THEME_COLORS[theme].inputBg,
-            border: `${modeProps.borderWidth} ${modeProps.borderStyle} ${THEME_COLORS[theme].inputBorder}`,
+            border: `1px solid ${modeProps.borderColor}`,
             outline: 'none',
             color: THEME_COLORS[theme].text,
             backdropFilter: 'blur(1px)',
@@ -153,30 +153,31 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
         />
         )}
 
-        {/* Mode Status Display for Link and Select modes */}
+        {/* Mode Status Display for Link and Select modes - Empty disabled input */}
         {!showTextArea && (
           <div
             style={{
               width: '100%',
               minHeight: baseFontSize * 1.6,
+              height: baseFontSize * 1.6,
               fontFamily: '"JetBrains Mono", monospace',
-              fontSize: baseFontSize * 0.9,
+              fontSize: baseFontSize,
+              lineHeight: `${baseFontSize * 1.6}px`,
               background: THEME_COLORS[theme].inputBg,
-              border: `${modeProps.borderWidth} ${modeProps.borderStyle} ${THEME_COLORS[theme].inputBorder}`,
+              border: `1px solid ${modeProps.borderColor}`,
               outline: 'none',
-              color: THEME_COLORS[theme].text,
+              color: theme === 'dark' ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.4)',
               backdropFilter: 'blur(1px)',
               borderRadius: '4px',
-              padding: '8px',
+              padding: '0px !important',
               boxSizing: 'border-box',
-              textAlign: 'center',
+              textAlign: 'left',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              opacity: 0.8
+              justifyContent: 'flex-start',
+              opacity: 0.3
             }}
           >
-            {modeProps.icon} {modeProps.description}
           </div>
         )}
 
@@ -233,8 +234,8 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
           </div>
         )}
 
-        {/* Controls Container - Only show in Typography mode */}
-        {showTextArea && (
+        {/* Controls Container - Show in all modes */}
+        {(
         <div
           style={{
             width: '100%',
@@ -398,8 +399,8 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
         )}
       </div>
       
-      {/* Font Size Indicator - Only show in Typography mode */}
-      {showTextArea && (
+      {/* Font Size Indicator - Show in all modes */}
+      {(
       <div
         style={{
           position: 'absolute',

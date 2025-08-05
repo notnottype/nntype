@@ -18,29 +18,38 @@ export function getNextMode(currentMode: CanvasModeType): CanvasModeType {
 /**
  * Get mode display properties for UI feedback
  */
-export function getModeDisplayProperties(mode: CanvasModeType) {
+export function getModeDisplayProperties(mode: CanvasModeType, theme: 'light' | 'dark' = 'light') {
+  // Define border colors for each mode
+  const getBorderColor = (theme: 'light' | 'dark') => {
+    switch (mode) {
+      case 'typography':
+        return theme === 'dark' ? '#4b5563' : '#d1d5db'; // Default input border color
+      case 'link':
+        return '#ff6b6b'; // Red for link mode
+      case 'select':
+        return '#4a9eff'; // Blue for select mode
+    }
+  };
+
   switch (mode) {
     case 'typography':
       return {
         icon: '',
-        borderStyle: 'solid',
-        borderWidth: '1px',
+        borderColor: getBorderColor(theme),
         placeholder: 'Type your text...',
         description: 'Typography Mode - Enter text and create content'
       };
     case 'link':
       return {
         icon: '→',
-        borderStyle: 'solid',
-        borderWidth: '2px',
+        borderColor: getBorderColor(theme),
         placeholder: 'Navigate with Shift+arrows, Space to link',
         description: 'Link Mode - Connect text objects with arrows'
       };
     case 'select':
       return {
         icon: '■',
-        borderStyle: 'double',
-        borderWidth: '3px',
+        borderColor: getBorderColor(theme),
         placeholder: 'Shift+arrows to select, Ctrl+Shift+arrows to move',
         description: 'Select Mode - Multi-select and batch operations'
       };
@@ -56,6 +65,29 @@ export function createInitialPinPosition(): PinPosition {
     y: 0,
     worldX: 0,
     worldY: 0
+  };
+}
+
+/**
+ * Position pin at input box top-left corner
+ */
+export function positionPinAtInputBox(
+  typewriterX: number,
+  typewriterY: number,
+  textBoxWidth: number,
+  baseFontSize: number,
+  canvasOffset: { x: number; y: number },
+  scale: number
+): PinPosition {
+  // Calculate top-left corner of input box, slightly offset to right and up
+  const inputBoxLeft = typewriterX - textBoxWidth / 2;
+  const inputBoxTop = typewriterY - baseFontSize / 2 - 25;
+  
+  return {
+    x: inputBoxLeft,
+    y: inputBoxTop,
+    worldX: (inputBoxLeft - canvasOffset.x) / scale,
+    worldY: (inputBoxTop - canvasOffset.y) / scale
   };
 }
 

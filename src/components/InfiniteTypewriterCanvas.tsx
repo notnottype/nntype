@@ -51,7 +51,8 @@ import {
 import { 
   getNextMode, 
   getModeDisplayProperties, 
-  createInitialPinPosition, 
+  createInitialPinPosition,
+  positionPinAtInputBox, 
   updatePinPosition, 
   findObjectAtPin,
   createLink,
@@ -733,10 +734,10 @@ const InfiniteTypewriterCanvas = () => {
       
       ctx.strokeStyle = isHoveringObject ? hoverColor : pinColor;
       ctx.fillStyle = isHoveringObject ? hoverColor : pinColor;
-      ctx.lineWidth = isHoveringObject ? 3 : 2;
+      ctx.lineWidth = isHoveringObject ? 2 : 1;
       
       // Draw enhanced crosshair
-      const crossSize = isHoveringObject ? 15 : 10;
+      const crossSize = isHoveringObject ? 12 : 10;
       ctx.beginPath();
       ctx.moveTo(pinScreenX - crossSize, pinScreenY);
       ctx.lineTo(pinScreenX + crossSize, pinScreenY);
@@ -1001,9 +1002,20 @@ const InfiniteTypewriterCanvas = () => {
         setPreviousMode(currentMode);
         setCurrentMode(nextMode);
         
-        // Initialize pin hover detection for Link/Select modes
+        // Initialize pin position and hover detection for Link/Select modes
         if (nextMode === 'link' || nextMode === 'select') {
-          const hoveredObjectAtPin = findObjectAtPin(canvasObjects, pinPosition, 20, measureTextWidthLocal);
+          // Position pin at input box top-left corner
+          const newPinPosition = positionPinAtInputBox(
+            typewriterX,
+            typewriterY,
+            getTextBoxWidth(),
+            baseFontSize,
+            canvasOffset,
+            scale
+          );
+          setPinPosition(newPinPosition);
+          
+          const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPinPosition, 20, measureTextWidthLocal);
           setPinHoveredObject(hoveredObjectAtPin);
         } else {
           setPinHoveredObject(null);
@@ -2036,9 +2048,20 @@ const InfiniteTypewriterCanvas = () => {
       setPreviousMode(currentMode);
       setCurrentMode(nextMode);
       
-      // Initialize pin hover detection for Link/Select modes
+      // Initialize pin position and hover detection for Link/Select modes
       if (nextMode === 'link' || nextMode === 'select') {
-        const hoveredObjectAtPin = findObjectAtPin(canvasObjects, pinPosition, 20, measureTextWidthLocal);
+        // Position pin at input box top-left corner
+        const newPinPosition = positionPinAtInputBox(
+          typewriterX,
+          typewriterY,
+          getTextBoxWidth(),
+          baseFontSize,
+          canvasOffset,
+          scale
+        );
+        setPinPosition(newPinPosition);
+        
+        const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPinPosition, 20, measureTextWidthLocal);
         setPinHoveredObject(hoveredObjectAtPin);
       } else {
         setPinHoveredObject(null);

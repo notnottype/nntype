@@ -54,8 +54,8 @@ interface CanvasInfoOverlayProps {
 //       theme === 'dark' 
 //         ? 'bg-black/80 text-white' 
 //         : 'bg-white/90 text-gray-900'
-//     } backdrop-blur-sm p-4 rounded-xl shadow-xl text-xs font-mono`}>
-//       <div className={`font-semibold mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+//     } backdrop-blur-sm p-4 rounded-xl shadow-xl text-[10px] font-mono`}>
+//       <div className={`font-semibold mb-1.5 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
 //         Canvas Info
 //       </div>
 //       <div className="space-y-1">
@@ -177,23 +177,23 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
       {!isCollapsed && (
       <div className="space-y-5">
         <div>
-          <div className={`font-bold text-xs uppercase tracking-wide mb-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>Canvas View</div>
-          <div className="space-y-2">
+          <div className={`font-bold text-[10px] uppercase tracking-wide mb-1.5 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>Canvas View</div>
+          <div className="space-y-1.5">
             <div className="flex justify-between items-center">
-              <span className="text-xs font-medium text-gray-500">Pan Position</span>
-              <span className={`px-2 py-1 rounded-md text-xs font-mono font-medium ${theme === 'dark' ? 'bg-gray-800 text-gray-200' : 'bg-gray-100 text-gray-800'}`}>
+              <span className="text-[10px] font-medium text-gray-500">Pan Position</span>
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-medium ${theme === 'dark' ? 'bg-gray-800 text-gray-200' : 'bg-gray-100 text-gray-800'}`}>
                 {Math.round(-canvasOffset.x)}, {Math.round(-canvasOffset.y)}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs font-medium text-gray-500">Zoom Level</span>
-              <span className={`px-2 py-1 rounded-md text-xs font-mono font-medium ${theme === 'dark' ? 'bg-blue-900/50 text-blue-200' : 'bg-blue-100 text-blue-800'}`}>
+              <span className="text-[10px] font-medium text-gray-500">Zoom Level</span>
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-medium ${theme === 'dark' ? 'bg-blue-900/50 text-blue-200' : 'bg-blue-100 text-blue-800'}`}>
                 {scale.toFixed(2)}x
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs font-medium text-gray-500">UI Scale</span>
-              <span className={`px-2 py-1 rounded-md text-xs font-mono font-medium ${theme === 'dark' ? 'bg-purple-900/50 text-purple-200' : 'bg-purple-100 text-purple-800'}`}>
+              <span className="text-[10px] font-medium text-gray-500">UI Scale</span>
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-medium ${theme === 'dark' ? 'bg-purple-900/50 text-purple-200' : 'bg-purple-100 text-purple-800'}`}>
                 {(baseFontSize / initialFontSize).toFixed(2)}x
               </span>
             </div>
@@ -203,29 +203,29 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
         <div className={`border-t ${theme === 'dark' ? 'border-gray-800' : 'border-gray-200'}`}></div>
         
         <div>
-          <div className={`font-bold text-xs uppercase tracking-wide mb-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>Content</div>
-          <div className="space-y-2">
+          <div className={`font-bold text-[10px] uppercase tracking-wide mb-1.5 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>Content</div>
+          <div className="space-y-1.5">
             <div className="flex justify-between items-center">
-              <span className="text-xs font-medium text-gray-500">Total Items</span>
-              <span className={`px-2 py-1 rounded-md text-xs font-mono font-medium ${theme === 'dark' ? 'bg-gray-800 text-gray-200' : 'bg-gray-100 text-gray-800'}`}>
+              <span className="text-[10px] font-medium text-gray-500">Total Items</span>
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-medium ${theme === 'dark' ? 'bg-gray-800 text-gray-200' : 'bg-gray-100 text-gray-800'}`}>
                 {canvasObjects.length}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs font-medium text-gray-500">AI Generated</span>
-              <span className={`px-2 py-1 rounded-md text-xs font-mono font-medium ${theme === 'dark' ? 'bg-blue-900/50 text-blue-200' : 'bg-blue-100 text-blue-800'}`}>
+              <span className="text-[10px] font-medium text-gray-500">AI Generated</span>
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-medium ${theme === 'dark' ? 'bg-blue-900/50 text-blue-200' : 'bg-blue-100 text-blue-800'}`}>
                 {canvasObjects.filter(obj => obj.type === 'text' && obj.isAIResponse).length}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs font-medium text-gray-500">User Text</span>
-              <span className={`px-2 py-1 rounded-md text-xs font-mono font-medium ${theme === 'dark' ? 'bg-green-900/50 text-green-200' : 'bg-green-100 text-green-800'}`}>
+              <span className="text-[10px] font-medium text-gray-500">User Text</span>
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-medium ${theme === 'dark' ? 'bg-green-900/50 text-green-200' : 'bg-green-100 text-green-800'}`}>
                 {canvasObjects.filter(obj => obj.type === 'text' && !obj.isAIResponse).length}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs font-medium text-gray-500">Links</span>
-              <span className={`px-2 py-1 rounded-md text-xs font-mono font-medium ${theme === 'dark' ? 'bg-indigo-900/50 text-indigo-200' : 'bg-indigo-100 text-indigo-800'}`}>
+              <span className="text-[10px] font-medium text-gray-500">Links</span>
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-medium ${theme === 'dark' ? 'bg-indigo-900/50 text-indigo-200' : 'bg-indigo-100 text-indigo-800'}`}>
                 {canvasObjects.filter(obj => obj.type === 'link').length}
               </span>
             </div>
@@ -235,18 +235,18 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
         <div className={`border-t ${theme === 'dark' ? 'border-gray-800' : 'border-gray-200'}`}></div>
         
         <div>
-          <div className={`font-bold text-xs uppercase tracking-wide mb-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>Input Box</div>
-          <div className="space-y-2">
+          <div className={`font-bold text-[10px] uppercase tracking-wide mb-1.5 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>Input Box</div>
+          <div className="space-y-1.5">
             <div className="flex justify-between items-center">
-              <span className="text-xs font-medium text-gray-500">Position</span>
-              <span className={`px-2 py-1 rounded-md text-xs font-mono font-medium ${theme === 'dark' ? 'bg-orange-900/50 text-orange-200' : 'bg-orange-100 text-orange-800'}`}>
+              <span className="text-[10px] font-medium text-gray-500">Position</span>
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-medium ${theme === 'dark' ? 'bg-orange-900/50 text-orange-200' : 'bg-orange-100 text-orange-800'}`}>
                 {Math.round(worldPos.x)}, {Math.round(worldPos.y)}
               </span>
             </div>
             {corners.map(c => (
               <div key={c.label} className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">{c.label}</span>
-                <span className={`px-2 py-1 rounded-md text-xs font-mono ${theme === 'dark' ? 'bg-gray-800/50 text-gray-400' : 'bg-gray-100/50 text-gray-600'}`}>
+                <span className="text-[10px] text-gray-500">{c.label}</span>
+                <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono ${theme === 'dark' ? 'bg-gray-800/50 text-gray-400' : 'bg-gray-100/50 text-gray-600'}`}>
                   {Math.round(c.world.x)}, {Math.round(c.world.y)}
                 </span>
               </div>
@@ -257,17 +257,17 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
         <div className={`border-t ${theme === 'dark' ? 'border-gray-800' : 'border-gray-200'}`}></div>
         
         <div>
-          <div className={`font-bold text-xs uppercase tracking-wide mb-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>Cursor</div>
-          <div className="space-y-2">
+          <div className={`font-bold text-[10px] uppercase tracking-wide mb-1.5 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>Cursor</div>
+          <div className="space-y-1.5">
             <div className="flex justify-between items-center">
-              <span className="text-xs font-medium text-gray-500">Screen Pos</span>
-              <span className={`px-2 py-1 rounded-md text-xs font-mono font-medium ${theme === 'dark' ? 'bg-teal-900/50 text-teal-200' : 'bg-teal-100 text-teal-800'}`}>
+              <span className="text-[10px] font-medium text-gray-500">Screen Pos</span>
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-medium ${theme === 'dark' ? 'bg-teal-900/50 text-teal-200' : 'bg-teal-100 text-teal-800'}`}>
                 {mousePosition.x}, {mousePosition.y}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs font-medium text-gray-500">Canvas Pos</span>
-              <span className={`px-2 py-1 rounded-md text-xs font-mono font-medium ${theme === 'dark' ? 'bg-cyan-900/50 text-cyan-200' : 'bg-cyan-100 text-cyan-800'}`}>
+              <span className="text-[10px] font-medium text-gray-500">Canvas Pos</span>
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-medium ${theme === 'dark' ? 'bg-cyan-900/50 text-cyan-200' : 'bg-cyan-100 text-cyan-800'}`}>
                 {Math.round(screenToWorld(mousePosition.x, mousePosition.y).x)}, {Math.round(screenToWorld(mousePosition.x, mousePosition.y).y)}
               </span>
             </div>
@@ -277,18 +277,18 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
           <>
             <div className={`border-t ${theme === 'dark' ? 'border-gray-800' : 'border-gray-200'}`}></div>
             <div>
-              <div className={`font-bold text-xs uppercase tracking-wide mb-2 ${theme === 'dark' ? 'text-yellow-300' : 'text-yellow-700'}`}>Hovered Object</div>
+              <div className={`font-bold text-[10px] uppercase tracking-wide mb-1.5 ${theme === 'dark' ? 'text-yellow-300' : 'text-yellow-700'}`}>Hovered Object</div>
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-medium text-gray-500">Type</span>
-                <span className={`px-2 py-1 rounded-md text-xs font-medium ${theme === 'dark' ? 'bg-yellow-900/50 text-yellow-200' : 'bg-yellow-100 text-yellow-800'}`}>
+                <span className="text-[10px] font-medium text-gray-500">Type</span>
+                <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-medium ${theme === 'dark' ? 'bg-yellow-900/50 text-yellow-200' : 'bg-yellow-100 text-yellow-800'}`}>
                   {hoveredObject.isAIResponse ? 'AI Response' : hoveredObject.type === 'text' ? 'Text' : 'A4 Guide'}
                 </span>
               </div>
               {hoveredObject.type === 'text' && (
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-medium text-gray-500">Content</span>
-                  <span className={`px-2 py-1 rounded-md text-xs font-mono max-w-32 truncate ${theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-50 text-yellow-700'}`}>
+                  <span className="text-[10px] font-medium text-gray-500">Content</span>
+                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono max-w-32 truncate ${theme === 'dark' ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-50 text-yellow-700'}`}>
                     "{hoveredObject.content.substring(0, 12)}{hoveredObject.content.length > 12 ? '...' : ''}"
                   </span>
                 </div>
@@ -302,18 +302,18 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
           <>
             <div className={`border-t ${theme === 'dark' ? 'border-gray-800' : 'border-gray-200'}`}></div>
             <div>
-              <div className={`font-bold text-xs uppercase tracking-wide mb-2 ${theme === 'dark' ? 'text-green-300' : 'text-green-700'}`}>Selected Object</div>
+              <div className={`font-bold text-[10px] uppercase tracking-wide mb-1.5 ${theme === 'dark' ? 'text-green-300' : 'text-green-700'}`}>Selected Object</div>
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-medium text-gray-500">Type</span>
-                <span className={`px-2 py-1 rounded-md text-xs font-medium ${theme === 'dark' ? 'bg-green-900/50 text-green-200' : 'bg-green-100 text-green-800'}`}>
+                <span className="text-[10px] font-medium text-gray-500">Type</span>
+                <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-medium ${theme === 'dark' ? 'bg-green-900/50 text-green-200' : 'bg-green-100 text-green-800'}`}>
                   {selectedObject.isAIResponse ? 'AI Response' : selectedObject.type === 'text' ? 'Text' : 'A4 Guide'}
                 </span>
               </div>
               {selectedObject.type === 'text' && (
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-medium text-gray-500">Content</span>
-                  <span className={`px-2 py-1 rounded-md text-xs font-mono max-w-32 truncate ${theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-50 text-green-700'}`}>
+                  <span className="text-[10px] font-medium text-gray-500">Content</span>
+                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono max-w-32 truncate ${theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-50 text-green-700'}`}>
                     "{selectedObject.content.substring(0, 12)}{selectedObject.content.length > 12 ? '...' : ''}"
                   </span>
                 </div>
