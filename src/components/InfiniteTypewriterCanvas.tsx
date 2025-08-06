@@ -46,7 +46,8 @@ import {
   serializeSVG,
   createSelectionRectangle,
   drawSelectionRectangle,
-  drawMultiSelectHighlight
+  drawMultiSelectHighlight,
+  drawSingleSelectHighlight
 } from '../utils';
 import { 
   getNextMode, 
@@ -688,7 +689,22 @@ const InfiniteTypewriterCanvas = () => {
     
     // 멀티 셀렉트된 오브젝트 하이라이트 표시 (Typography mode only)
     if (currentMode === 'typography' && selectedObjects.length > 0) {
-      drawMultiSelectHighlight(ctx, selectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
+      // 드래그 중일 때는 실제 캔버스 객체 위치에서 선택된 것들을 찾아서 하이라이트
+      if (isDraggingText && selectedObjects.length > 1) {
+        const selectedIds = selectedObjects.map(obj => obj.id);
+        const currentSelectedObjects = canvasObjects.filter(obj => selectedIds.includes(obj.id));
+        drawMultiSelectHighlight(ctx, currentSelectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
+      } else {
+        drawMultiSelectHighlight(ctx, selectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
+      }
+    }
+    
+    // 단일 선택된 오브젝트 하이라이트 표시 with X button (Typography mode)
+    if (currentMode === 'typography' && selectedObject && selectedObjects.length === 0 && !isDraggingText) {
+      drawSingleSelectHighlight(ctx, selectedObject, scale, canvasOffset, measureTextWidthLocal, theme, () => {
+        setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
+        setSelectedObject(null);
+      });
     }
     
     // 드래그 프리뷰 표시 (드래그 중일 때만)
@@ -1650,6 +1666,20 @@ const InfiniteTypewriterCanvas = () => {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     
+    // Check if X button was clicked (for single selected object) - circular click detection
+    const ctx = canvasRef.current?.getContext('2d');
+    if (ctx && (ctx as any)._deleteButtonBounds) {
+      const bounds = (ctx as any)._deleteButtonBounds;
+      const distance = Math.sqrt(
+        Math.pow(mouseX - bounds.centerX, 2) + Math.pow(mouseY - bounds.centerY, 2)
+      );
+      if (distance <= bounds.radius) {
+        bounds.onDelete();
+        e.preventDefault();
+        return;
+      }
+    }
+    
     const clickedObject = canvasObjects.find(obj => isPointInObjectLocal(obj, mouseX, mouseY));
     
     if (clickedObject) {
@@ -1696,6 +1726,7 @@ const InfiniteTypewriterCanvas = () => {
           // If clicked object is part of multi-selection, drag all selected objects
           setIsDraggingText(true);
           setDragStart({ x: mouseX, y: mouseY });
+          canvasRef.current.style.cursor = 'grabbing';
           // Keep current multi-selection
         } else {
           // Single object selection and drag
@@ -1703,6 +1734,7 @@ const InfiniteTypewriterCanvas = () => {
           setSelectedObjects([]);
           setIsDraggingText(true);
           setDragStart({ x: mouseX, y: mouseY });
+          canvasRef.current.style.cursor = 'grabbing';
         }
       }
     } else if (isSpacePressed || (e.metaKey && !clickedObject)) {
@@ -1772,10 +1804,33 @@ const InfiniteTypewriterCanvas = () => {
     setMousePosition({ x: mouseX, y: mouseY });
     setIsMouseInTextBox(isPointInTextBox(mouseX, mouseY));
     
+    // Check if hovering over X button and change cursor
+    const ctx = canvasRef.current?.getContext('2d');
+    let isHoveringDeleteButton = false;
+    if (ctx && (ctx as any)._deleteButtonBounds) {
+      const bounds = (ctx as any)._deleteButtonBounds;
+      const distance = Math.sqrt(
+        Math.pow(mouseX - bounds.centerX, 2) + Math.pow(mouseY - bounds.centerY, 2)
+      );
+      if (distance <= bounds.radius) {
+        canvasRef.current.style.cursor = 'pointer';
+        isHoveringDeleteButton = true;
+      }
+    }
+    
     // 마우스가 오브젝트 위에 있는지 확인 (드래그 중이 아닐 때만)
     if (!isDraggingText) {
       const objectUnderMouse = canvasObjects.find(obj => isPointInObjectLocal(obj, mouseX, mouseY));
       setHoveredObject(objectUnderMouse || null);
+      
+      // Set cursor based on what we're hovering over
+      if (!isHoveringDeleteButton) {
+        if (objectUnderMouse) {
+          canvasRef.current.style.cursor = 'grab';
+        } else {
+          canvasRef.current.style.cursor = 'default';
+        }
+      }
     }
     
     if (isDraggingText) {
@@ -1795,29 +1850,34 @@ const InfiniteTypewriterCanvas = () => {
         if (selectedObjects.length > 1) {
           // Group drag: move all selected objects
           const selectedIds = selectedObjects.map(obj => obj.id);
+          
+          // Update canvas objects
           setCanvasObjects(prev => prev.map(obj => 
             selectedIds.includes(obj.id)
               ? { ...obj, x: obj.x + worldDeltaX, y: obj.y + worldDeltaY }
               : obj
           ));
           
-          // Update selectedObjects array
-          setSelectedObjects(prev => prev.map(obj => ({
+          // Calculate updated positions for selectedObjects
+          const updatedSelectedObjects = selectedObjects.map(obj => ({
             ...obj, 
             x: obj.x + worldDeltaX, 
             y: obj.y + worldDeltaY
-          })));
+          }));
           
-          // 멀티 선택 프리뷰 계산
-          const referenceObj = selectedObjects[0];
-          const currentWorldX = referenceObj.x + worldDeltaX;
-          const currentWorldY = referenceObj.y + worldDeltaY;
+          // Update selectedObjects array
+          setSelectedObjects(updatedSelectedObjects);
+          
+          // 멀티 선택 프리뷰 계산 (updated objects 사용)
+          const referenceObj = updatedSelectedObjects[0];
+          const currentWorldX = referenceObj.x;
+          const currentWorldY = referenceObj.y;
           const snappedWorldX = snapToGrid(currentWorldX, worldGridSize);
           const snappedWorldY = snapToGrid(currentWorldY, worldGridSize);
-          const snapDeltaX = snappedWorldX - referenceObj.x;
-          const snapDeltaY = snappedWorldY - referenceObj.y;
+          const snapDeltaX = snappedWorldX - selectedObjects[0].x - worldDeltaX;
+          const snapDeltaY = snappedWorldY - selectedObjects[0].y - worldDeltaY;
           
-          previewObjects = selectedObjects.map(obj => ({
+          previewObjects = updatedSelectedObjects.map(obj => ({
             ...obj,
             x: obj.x + snapDeltaX,
             y: obj.y + snapDeltaY
@@ -1960,6 +2020,9 @@ const InfiniteTypewriterCanvas = () => {
     
     setIsDragging(false);
     setIsDraggingText(false);
+    
+    // Reset cursor after dragging
+    canvasRef.current.style.cursor = 'default';
     
     // 드래그 프리뷰 초기화
     setDragPreviewObjects([]);
