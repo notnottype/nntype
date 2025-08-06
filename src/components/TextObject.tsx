@@ -28,15 +28,15 @@ export const TextObject: React.FC<TextObjectProps> = ({
   
   // 멀티셀렉트된 경우: 배경색은 호버와 동일, 보더는 더 얇게
   const backgroundColor = isMultiSelected 
-    ? (theme === 'dark' ? 'rgba(135, 206, 235, 0.1)' : 'rgba(135, 206, 235, 0.05)')
+    ? (theme === 'dark' ? 'rgba(135, 206, 235, 0.06)' : 'rgba(135, 206, 235, 0.04)')
     : isSelected 
-    ? (theme === 'dark' ? 'rgba(135, 206, 235, 0.15)' : 'rgba(135, 206, 235, 0.1)')
+    ? (theme === 'dark' ? 'rgba(135, 206, 235, 0.08)' : 'rgba(135, 206, 235, 0.06)')
     : isHovered 
     ? (theme === 'dark' ? 'rgba(135, 206, 235, 0.1)' : 'rgba(135, 206, 235, 0.05)')
     : 'transparent';
     
   const borderColor = (isSelected || isHovered || isMultiSelected) 
-    ? (theme === 'dark' ? 'rgba(135, 206, 235, 0.8)' : 'rgba(135, 206, 235, 0.7)')
+    ? (theme === 'dark' ? 'rgba(135, 206, 235, 0.5)' : 'rgba(135, 206, 235, 0.4)')
     : 'transparent';
     
   const borderWidth = isMultiSelected ? '0.5px' : '1px';

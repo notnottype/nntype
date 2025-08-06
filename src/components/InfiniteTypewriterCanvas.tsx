@@ -47,7 +47,8 @@ import {
   createSelectionRectangle,
   drawSelectionRectangle,
   drawMultiSelectHighlight,
-  drawSingleSelectHighlight
+  drawSingleSelectHighlight,
+  getObjectsInSelectionRect
 } from '../utils';
 import { 
   getNextMode, 
@@ -60,11 +61,10 @@ import {
   createLink,
   areObjectsLinked 
 } from '../utils/modeUtils';
-import { renderLink, renderLinkPreview } from '../utils/linkUtils';
+import { renderLink, renderLinkPreview, findLinkAtPosition, calculatePreviewConnectionPoint } from '../utils/linkUtils';
 import { 
   renderSelectionRect, 
   renderSelectionHighlights, 
-  getObjectsInSelectionRect,
   moveSelectedObjects,
   clearSelection,
   addToSelection,
@@ -245,6 +245,8 @@ const InfiniteTypewriterCanvas = () => {
     dragArea: null
   });
   const [links, setLinks] = useState<LinkObjectType[]>([]);
+  const [selectedLinks, setSelectedLinks] = useState<Set<string>>(new Set());
+  const [hoveredLink, setHoveredLink] = useState<LinkObjectType | null>(null);
   const [pinHoveredObject, setPinHoveredObject] = useState<CanvasObjectType | null>(null);
 
   useEffect(() => {
@@ -361,7 +363,7 @@ const InfiniteTypewriterCanvas = () => {
         showInfo,
         showShortcuts,
         theme,
-        selectedObjectId: selectedObject?.id
+        selectedObjectId: selectedObject?.id ? Number(selectedObject.id) : undefined
       });
       saveTimeoutRef.current = null;
     };
@@ -403,7 +405,7 @@ const InfiniteTypewriterCanvas = () => {
         showInfo,
         showShortcuts,
         theme,
-        selectedObjectId: selectedObject?.id
+        selectedObjectId: selectedObject?.id ? Number(selectedObject.id) : undefined
       });
     };
 
@@ -457,7 +459,7 @@ const InfiniteTypewriterCanvas = () => {
         showInfo,
         showShortcuts,
         theme,
-        selectedObjectId: selectedObject?.id
+        selectedObjectId: selectedObject?.id ? Number(selectedObject.id) : undefined
       });
       uiSaveTimeoutRef.current = null;
     };
@@ -725,7 +727,9 @@ const InfiniteTypewriterCanvas = () => {
       const toObject = canvasObjects.find(obj => obj.id.toString() === link.to);
       
       if (fromObject && toObject) {
-        renderLink(ctx, link, fromObject, toObject, scale, canvasOffset);
+        const isSelected = selectedLinks.has(link.id);
+        const isHovered = hoveredLink?.id === link.id;
+        renderLink(ctx, link, fromObject, toObject, scale, canvasOffset, isSelected, isHovered, measureTextWidthLocal);
       }
     });
     
@@ -1094,6 +1098,7 @@ const InfiniteTypewriterCanvas = () => {
           // Clear all selections
           setSelectedObjects([]);
           setSelectedObject(null);
+          setSelectedLinks(new Set());
           
           // Reset all mode-specific states
           setLinkState({
@@ -1118,15 +1123,14 @@ const InfiniteTypewriterCanvas = () => {
           if (objectAtPin && objectAtPin.type === 'text') {
             if (!linkState.sourceObjectId) {
               // Select source object and start preview
-              const approximateCharWidth = objectAtPin.fontSize * 0.6;
-              const lineHeight = objectAtPin.fontSize * 1.6;
-              const lines = objectAtPin.content.split('\n');
-              const maxLineLength = Math.max(...lines.map(line => line.length));
-              const textWidth = maxLineLength * approximateCharWidth * objectAtPin.scale;
-              const textHeight = lines.length * lineHeight * objectAtPin.scale;
-              
-              const sourceCenterX = objectAtPin.x + textWidth / 2;
-              const sourceCenterY = objectAtPin.y + textHeight / 2;
+              // Calculate optimal connection point based on pin position
+              const connectionPoint = calculatePreviewConnectionPoint(
+                objectAtPin,
+                { x: pinPosition.worldX, y: pinPosition.worldY },
+                measureTextWidthLocal
+              );
+              const sourceCenterX = connectionPoint.x;
+              const sourceCenterY = connectionPoint.y;
               
               setLinkState(prev => ({
                 ...prev,
@@ -1171,7 +1175,7 @@ const InfiniteTypewriterCanvas = () => {
               y: selectionState.dragArea.start.y,
               width: selectionState.dragArea.end.x - selectionState.dragArea.start.x,
               height: selectionState.dragArea.end.y - selectionState.dragArea.start.y
-            }, canvasRef.current, fontLoaded);
+            }, scale, canvasOffset, measureTextWidthLocal);
             
             const newSelection = { ...selectionState };
             objectsInArea.forEach(obj => {
@@ -1283,12 +1287,14 @@ const InfiniteTypewriterCanvas = () => {
             
           } else if (e.altKey) {
             // Alt + Arrow: Move selected objects in world coordinates
-            if (currentMode === 'select' && selectionState.selectedObjects.size > 0) {
+            if (currentMode === 'select' && selectedObjects.length > 0) {
               const worldStepSize = stepSize / scale; // Convert to world units
               const worldDeltaX = deltaX / scale;
               const worldDeltaY = deltaY / scale;
               
-              const newObjects = moveSelectedObjects(canvasObjects, selectionState.selectedObjects, worldDeltaX, worldDeltaY);
+              // Convert selectedObjects array to Set for moveSelectedObjects function
+              const selectedIds = new Set(selectedObjects.map(obj => obj.id.toString()));
+              const newObjects = moveSelectedObjects(canvasObjects, selectedIds, worldDeltaX, worldDeltaY);
               setCanvasObjects(newObjects);
             }
             
@@ -1306,16 +1312,14 @@ const InfiniteTypewriterCanvas = () => {
             if (currentMode === 'link' && linkState.sourceObjectId) {
               const sourceObject = canvasObjects.find(obj => obj.id.toString() === linkState.sourceObjectId);
               if (sourceObject && sourceObject.type === 'text') {
-                // Calculate source object center position
-                const approximateCharWidth = sourceObject.fontSize * 0.6;
-                const lineHeight = sourceObject.fontSize * 1.6;
-                const lines = sourceObject.content.split('\n');
-                const maxLineLength = Math.max(...lines.map(line => line.length));
-                const textWidth = maxLineLength * approximateCharWidth * sourceObject.scale;
-                const textHeight = lines.length * lineHeight * sourceObject.scale;
-                
-                const sourceCenterX = sourceObject.x + textWidth / 2;
-                const sourceCenterY = sourceObject.y + textHeight / 2;
+                // Calculate optimal connection point based on pin position
+                const connectionPoint = calculatePreviewConnectionPoint(
+                  sourceObject,
+                  { x: newPin.worldX, y: newPin.worldY },
+                  measureTextWidthLocal
+                );
+                const sourceCenterX = connectionPoint.x;
+                const sourceCenterY = connectionPoint.y;
                 
                 setLinkState(prev => ({
                   ...prev,
@@ -1480,7 +1484,7 @@ const InfiniteTypewriterCanvas = () => {
     setCanvasObjects([]);
     
     // 선택 상태 초기화
-    setSelectedObjects(new Set());
+    setSelectedObjects([]);
     
     clearSession(); // 세션도 함께 클리어
   }, [maintainTypewriterLTWorldPosition, setSelectedObject, setCanvasOffset, setCanvasObjects, setSelectedObjects]);
@@ -1602,6 +1606,11 @@ const InfiniteTypewriterCanvas = () => {
           // Delete single selected object
           setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
           setSelectedObject(null);
+        } else if (selectedLinks.size > 0) {
+          // Delete selected links
+          const selectedLinkIds = Array.from(selectedLinks);
+          setLinks(prev => prev.filter(link => !selectedLinkIds.includes(link.id)));
+          setSelectedLinks(new Set());
         }
         return;
       }
@@ -1643,7 +1652,7 @@ const InfiniteTypewriterCanvas = () => {
                 showInfo,
                 showShortcuts,
                 theme,
-                selectedObjectId: selectedObject?.id
+                selectedObjectId: selectedObject?.id ? Number(selectedObject.id) : undefined
               });
             }
           }, 0);
@@ -1681,8 +1690,15 @@ const InfiniteTypewriterCanvas = () => {
     
     const clickedObject = canvasObjects.find(obj => isPointInObjectLocal(obj, mouseX, mouseY));
     
-    // Debug: Log when no object is clicked to see if selection should start
-    if (!clickedObject && !isSpacePressed && !(e.metaKey && !clickedObject)) {
+    // Check for link selection if no object was clicked
+    let clickedLink: LinkObjectType | null = null;
+    if (!clickedObject) {
+      const worldPos = { x: (mouseX - canvasOffset.x) / scale, y: (mouseY - canvasOffset.y) / scale };
+              clickedLink = findLinkAtPosition(worldPos, links, canvasObjects, 10 / scale, measureTextWidthLocal); // Adjust tolerance for scale
+    }
+    
+    // Debug: Log when no object or link is clicked to see if selection should start
+    if (!clickedObject && !clickedLink && !isSpacePressed && !(e.metaKey && !clickedObject)) {
     }
     
     if (clickedObject) {
@@ -1729,7 +1745,7 @@ const InfiniteTypewriterCanvas = () => {
           // If clicked object is part of multi-selection, drag all selected objects
           setIsDraggingText(true);
           setDragStart({ x: mouseX, y: mouseY });
-          canvasRef.current.style.cursor = 'grabbing';
+          if (canvasRef.current) canvasRef.current.style.cursor = 'grabbing';
           // Keep current multi-selection
         } else {
           // Single object selection and drag
@@ -1737,7 +1753,7 @@ const InfiniteTypewriterCanvas = () => {
           setSelectedObjects([]);
           setIsDraggingText(true);
           setDragStart({ x: mouseX, y: mouseY });
-          canvasRef.current.style.cursor = 'grabbing';
+          if (canvasRef.current) canvasRef.current.style.cursor = 'grabbing';
         }
       }
     } else if (isSpacePressed || (e.metaKey && !clickedObject)) {
@@ -1746,10 +1762,33 @@ const InfiniteTypewriterCanvas = () => {
       setSelectedObjects([]);
       setIsDragging(true);
       setDragStart({ x: e.clientX, y: e.clientY });
-    } else {
-      // Start area selection if no object clicked and not panning
+    } else if (clickedLink) {
+      // Handle link selection
       setSelectedObject(null);
       setSelectedObjects([]);
+      
+      if (e.metaKey) {
+        // Cmd+click: Add/remove from link selection
+        const newSelectedLinks = new Set(selectedLinks);
+        if (selectedLinks.has(clickedLink.id)) {
+          newSelectedLinks.delete(clickedLink.id);
+        } else {
+          newSelectedLinks.add(clickedLink.id);
+        }
+        setSelectedLinks(newSelectedLinks);
+      } else {
+        // Regular click: Select only this link
+        setSelectedLinks(new Set([clickedLink.id]));
+        setSelectionState(prev => ({ ...prev, selectedObjects: new Set() }));
+      }
+      
+      setIsDragging(false);
+      setIsDraggingText(false);
+    } else {
+      // Start area selection if no object or link clicked and not panning
+      setSelectedObject(null);
+      setSelectedObjects([]);
+      setSelectedLinks(new Set()); // Clear link selection too
       
       if (currentMode === 'select') {
         // Use new selection system for Select mode
@@ -1809,6 +1848,13 @@ const InfiniteTypewriterCanvas = () => {
     setMousePosition({ x: mouseX, y: mouseY });
     setIsMouseInTextBox(isPointInTextBox(mouseX, mouseY));
     
+    // Check for link hovering (only if not dragging)
+    if (!isDragging && !isDraggingText) {
+      const worldPos = { x: (mouseX - canvasOffset.x) / scale, y: (mouseY - canvasOffset.y) / scale };
+      const hoveredLinkAtPosition = findLinkAtPosition(worldPos, links, canvasObjects, 10 / scale, measureTextWidthLocal);
+      setHoveredLink(hoveredLinkAtPosition);
+    }
+    
     // Check if hovering over X button and change cursor
     const ctx = canvasRef.current?.getContext('2d');
     let isHoveringDeleteButton = false;
@@ -1818,7 +1864,7 @@ const InfiniteTypewriterCanvas = () => {
         Math.pow(mouseX - bounds.centerX, 2) + Math.pow(mouseY - bounds.centerY, 2)
       );
       if (distance <= bounds.radius) {
-        canvasRef.current.style.cursor = 'pointer';
+        if (canvasRef.current) canvasRef.current.style.cursor = 'pointer';
         isHoveringDeleteButton = true;
       }
     }
@@ -1831,9 +1877,9 @@ const InfiniteTypewriterCanvas = () => {
       // Set cursor based on what we're hovering over
       if (!isHoveringDeleteButton) {
         if (objectUnderMouse) {
-          canvasRef.current.style.cursor = 'grab';
+          if (canvasRef.current) canvasRef.current.style.cursor = 'grab';
         } else {
-          canvasRef.current.style.cursor = 'default';
+          if (canvasRef.current) canvasRef.current.style.cursor = 'default';
         }
       }
     }
@@ -2028,7 +2074,7 @@ const InfiniteTypewriterCanvas = () => {
     setIsDraggingText(false);
     
     // Reset cursor after dragging
-    canvasRef.current.style.cursor = 'default';
+    if (canvasRef.current) canvasRef.current.style.cursor = 'default';
     
     // 드래그 프리뷰 초기화
     setDragPreviewObjects([]);
@@ -2393,6 +2439,7 @@ const InfiniteTypewriterCanvas = () => {
       // Clear all selections when ESC is pressed
       setSelectedObjects([]);
       setSelectedObject(null);
+      setSelectedLinks(new Set());
     }
   };
 

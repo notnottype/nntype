@@ -167,9 +167,9 @@ export function renderSelectionHighlights(
   fontLoaded?: boolean
 ) {
   ctx.save();
-  ctx.strokeStyle = '#4a9eff';
-  ctx.fillStyle = 'rgba(74, 158, 255, 0.2)';
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(74, 158, 255, 0.4)';
+  ctx.fillStyle = 'rgba(74, 158, 255, 0.06)';
+  ctx.lineWidth = 1;
 
   objects.forEach(obj => {
     if (selectedIds.has(obj.id.toString())) {

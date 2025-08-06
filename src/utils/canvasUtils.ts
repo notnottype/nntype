@@ -434,8 +434,8 @@ export const drawSingleSelectHighlight = (
   theme: Theme,
   onDelete: () => void
 ) => {
-  const highlightColor = theme === 'dark' ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.2)';
-  const borderColor = theme === 'dark' ? 'rgba(147, 197, 253, 0.9)' : 'rgba(96, 165, 250, 0.8)';
+  const highlightColor = theme === 'dark' ? 'rgba(59, 130, 246, 0.08)' : 'rgba(59, 130, 246, 0.06)';
+  const borderColor = theme === 'dark' ? 'rgba(147, 197, 253, 0.4)' : 'rgba(96, 165, 250, 0.3)';
 
   if (object.type === 'text') {
     const textObj = object as TextObjectType;
