@@ -1,25 +1,29 @@
 import React from 'react'
-import { Type, Import, Grid, NotepadTextDashed, Trash2, Sun, Moon, Info, Layers, Key } from 'lucide-react'
+import { Import, Trash2, Grid, Sun, Moon, Info, Layers, Key } from 'lucide-react'
 import { ExportMenu } from './ExportMenu'
 import { Button } from './ui/Button'
+import { SettingsDropdown } from './SettingsDropdown'
+import { ModeSelector } from './ModeSelector'
+import { CanvasModeType } from '../types'
 
 interface HeaderProps {
   theme: 'light' | 'dark'
   showGrid: boolean
   showInfo: boolean
   showShortcuts: boolean
-  maxCharsPerLine: number
+  currentMode: CanvasModeType
   onThemeToggle: () => void
   onShowGridToggle: () => void
   onShowInfoToggle: () => void
   onShowShortcutsToggle: () => void
+  onModeChange: (mode: CanvasModeType) => void
   onImportFile: (event: React.ChangeEvent<HTMLInputElement>) => void
   onExportPNG: () => void
   onExportSVG: () => void
   onExportJSON: () => void
-  onAddA4Guide: () => void
   onClearAll: () => void
   onApiKeyClick: () => void
+  infoPanel?: React.ReactNode
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -27,44 +31,49 @@ export const Header: React.FC<HeaderProps> = ({
   showGrid,
   showInfo,
   showShortcuts,
-  maxCharsPerLine,
+  currentMode,
   onThemeToggle,
   onShowGridToggle,
   onShowInfoToggle,
   onShowShortcutsToggle,
+  onModeChange,
   onImportFile,
   onExportPNG,
   onExportSVG,
   onExportJSON,
-  onAddA4Guide,
   onClearAll,
-  onApiKeyClick
+  onApiKeyClick,
+  infoPanel
 }) => {
   return (
-    <div className={`${
-      theme === 'dark' 
-        ? 'bg-black/90 border-gray-800' 
-        : 'bg-white/90 border-gray-200'
-    } backdrop-blur-sm border-b p-4 flex items-center justify-between relative z-50`}>
-      {/* Left: Title */}
-      <div className="flex items-center gap-6 min-w-[180px]">
-        <h1 className={`text-lg font-medium flex items-center gap-2 ${
-          theme === 'dark' ? 'text-white' : 'text-gray-900'
-        }`}>
-          <Type className="w-5 h-5" />
-          NNType
-        </h1>
-      </div>
+    <React.Fragment>
+      {/* Top Header Container */}
+      <div className="absolute top-0 left-0 right-0 z-50 flex items-center px-2 py-1 pr-4 pointer-events-none">
+        {/* Logo - Left */}
+        <div className="pointer-events-auto flex items-center h-10 mt-1">
+          <img 
+            src="/nntype.svg" 
+            alt="NNType" 
+            className="w-28 h-14"
+            style={{ filter: theme === 'dark' ? 'invert(1)' : 'none' }}
+          />
+        </div>
 
-      {/* Center: Tools */}
-      <div className="flex items-center gap-2 justify-center flex-1 relative">
+        {/* Floating Toolbar - Center */}
+        <div className="absolute left-1/2 transform -translate-x-1/2 pointer-events-none flex items-center h-10 mt-2">
+          <div className={`flex items-center gap-1 px-2.5 py-2 rounded-lg shadow-xs backdrop-blur-sm border pointer-events-auto h-10 ${
+            theme === 'dark' 
+              ? 'bg-black/20 border-gray-700/30' 
+              : 'bg-white/40 border-gray-200/30'
+          }`}>
+
         {/* File Operations */}
-        <label className={`p-2 rounded-lg transition-colors cursor-pointer ${
+        <label className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
           theme === 'dark'
             ? 'text-gray-400 hover:text-white hover:bg-gray-800'
             : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
         }`} title="Import">
-          <Import className="w-4 h-4" />
+          <Import className="w-3.5 h-3.5" />
           <input type="file" accept=".json" onChange={onImportFile} className="hidden" />
         </label>
         
@@ -75,83 +84,77 @@ export const Header: React.FC<HeaderProps> = ({
           theme={theme}
         />
 
-        <span className="mx-2 text-gray-400 select-none">|</span>
+        <div className="mx-1 h-4 w-px bg-gray-300 dark:bg-gray-600" />
 
-        {/* Tools */}
+        {/* Mode Selector */}
+        <ModeSelector
+          currentMode={currentMode}
+          onModeChange={onModeChange}
+          theme={theme}
+        />
+
+        <div className="mx-1 h-4 w-px bg-gray-300 dark:bg-gray-600" />
+
+        {/* Grid Toggle */}
         <Button
           variant="control"
           theme={theme}
           onClick={onShowGridToggle}
-          className={showGrid ? 'text-blue-500 bg-blue-500/10' : ''}
+          className={`p-1.5 rounded-lg ${
+            showGrid ? 'text-blue-500 bg-blue-500/10' : ''
+          }`}
           title="Toggle Grid"
         >
-          <Grid className="w-4 h-4" />
+          <Grid className="w-3.5 h-3.5" />
         </Button>
 
+        {/* Theme Toggle */}
         <Button
           variant="control"
           theme={theme}
-          onClick={onAddA4Guide}
-          disabled={maxCharsPerLine !== 80}
-          className={maxCharsPerLine !== 80 ? 'opacity-50 cursor-not-allowed' : ''}
-          title="Add A4 Guide"
+          onClick={onThemeToggle}
+          className="p-1.5 rounded-lg"
+          title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
         >
-          <NotepadTextDashed className="w-4 h-4" />
+          {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
         </Button>
 
-        <span className="mx-2 text-gray-400 select-none">|</span>
+        {/* API Key */}
+        <Button
+          variant="control"
+          theme={theme}
+          onClick={onApiKeyClick}
+          className="p-1.5 rounded-lg"
+          title="OpenAI API Key"
+        >
+          <Key className="w-3.5 h-3.5" />
+        </Button>
+
+        <div className="mx-1 h-4 w-px bg-gray-300 dark:bg-gray-600" />
 
         {/* Reset */}
         <Button
           variant="control"
           theme={theme}
           onClick={onClearAll}
-          title="Reset"
+          className="p-1.5 rounded-lg"
+          title="Reset Canvas"
         >
-          <Trash2 className="w-4 h-4" />
+          <Trash2 className="w-3.5 h-3.5" />
         </Button>
+
+          </div>
+        </div>
+
+        {/* Spacer for flex layout */}
+        <div className="flex-1"></div>
+
+        {/* Info Panel - Right */}
+        <div className="pointer-events-auto flex items-center h-10">
+          {infoPanel}
+        </div>
       </div>
 
-      {/* Right: Settings */}
-      <div className="flex items-center gap-2 min-w-[180px] justify-end">
-        <Button
-          variant="control"
-          theme={theme}
-          onClick={onApiKeyClick}
-          title="OpenAI API Key 설정"
-        >
-          <Key className="w-4 h-4" />
-        </Button>
-
-        <Button
-          variant="control"
-          theme={theme}
-          onClick={onThemeToggle}
-          title="Toggle Theme"
-        >
-          {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-        </Button>
-
-        <Button
-          variant="control"
-          theme={theme}
-          onClick={onShowInfoToggle}
-          className={showInfo ? 'text-blue-500 bg-blue-500/10' : ''}
-          title="캔버스 정보 토글"
-        >
-          <Info className="w-4 h-4" />
-        </Button>
-
-        <Button
-          variant="control"
-          theme={theme}
-          onClick={onShowShortcutsToggle}
-          className={showShortcuts ? 'text-blue-500 bg-blue-500/10' : ''}
-          title="단축키 안내 토글"
-        >
-          <Layers className="w-4 h-4" />
-        </Button>
-      </div>
-    </div>
+    </React.Fragment>
   )
 }

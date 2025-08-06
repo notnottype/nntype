@@ -19,7 +19,16 @@ export interface A4GuideObjectType {
   height: number;
 }
 
-export type CanvasObjectType = TextObjectType | A4GuideObjectType;
+export interface LinkObjectType {
+  id: string;
+  type: 'link';
+  from: string; // source text object ID
+  to: string;   // target text object ID
+  style: 'arrow' | 'line' | 'dashed';
+  color: string;
+}
+
+export type CanvasObjectType = TextObjectType | A4GuideObjectType | LinkObjectType;
 
 export type Theme = 'light' | 'dark';
 
@@ -41,6 +50,30 @@ export interface SelectionRectangle {
   y: number;
   width: number;
   height: number;
+}
+
+export type CanvasModeType = 'typography' | 'link' | 'select';
+
+export interface PinPosition {
+  x: number;
+  y: number;
+  worldX: number;
+  worldY: number;
+}
+
+export interface SelectionState {
+  selectedObjects: Set<string>;
+  dragArea: {
+    start: { x: number; y: number };
+    end: { x: number; y: number };
+  } | null;
+}
+
+export interface LinkState {
+  sourceObjectId: string | null;
+  targetObjectId: string | null;
+  isCreating: boolean;
+  previewPath: { from: PinPosition; to: PinPosition } | null;
 }
 
 export interface CanvasState {
@@ -69,6 +102,13 @@ export interface CanvasState {
   baseFontSize: number;
   fontLoaded: boolean;
   pxPerMm: number;
+  // Multi-mode system
+  currentMode: CanvasModeType;
+  previousMode: CanvasModeType | null;
+  pinPosition: PinPosition;
+  selectionState: SelectionState;
+  linkState: LinkState;
+  links: LinkObjectType[];
 }
 
 export interface ExportData {

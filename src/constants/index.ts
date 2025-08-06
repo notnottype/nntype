@@ -31,11 +31,11 @@ export const BASE_FONT_SIZE_LEVELS_PT = [6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20,
 
 export const THEME_COLORS: Record<'dark' | 'light', ThemeColors> = {
   dark: {
-    background: '#0a0a0a',
+    background: '#2a2a2a',
     text: 'rgba(255, 255, 255, 0.9)',
-    grid: 'rgba(255, 255, 255, 0.05)',
-    selection: 'rgba(59, 130, 246, 0.2)',
-    selectionBorder: 'rgba(59, 130, 246, 0.6)',
+    grid: 'rgba(255, 255, 255, 0.03)',
+    selection: 'rgba(59, 130, 246, 0.08)',
+    selectionBorder: 'rgba(59, 130, 246, 0.3)',
     hover: 'rgba(135, 206, 235, 0.15)',
     hoverBorder: 'rgba(135, 206, 235, 0.8)',
     a4Guide: 'rgba(59, 130, 246, 0.3)',
@@ -45,9 +45,9 @@ export const THEME_COLORS: Record<'dark' | 'light', ThemeColors> = {
   light: {
     background: '#ffffff',
     text: 'rgba(0, 0, 0, 0.9)',
-    grid: 'rgba(0, 0, 0, 0.05)',
-    selection: 'rgba(59, 130, 246, 0.2)',
-    selectionBorder: 'rgba(59, 130, 246, 0.6)',
+    grid: 'rgba(0, 0, 0, 0.03)',
+    selection: 'rgba(59, 130, 246, 0.06)',
+    selectionBorder: 'rgba(59, 130, 246, 0.25)',
     hover: 'rgba(135, 206, 235, 0.1)',
     hoverBorder: 'rgba(135, 206, 235, 0.7)',
     a4Guide: 'rgba(59, 130, 246, 0.4)',

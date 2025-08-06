@@ -1,9 +1,13 @@
 import React from 'react';
-import { Theme } from '../types';
+import { Theme, CanvasModeType } from '../types';
 import { X, Bug, Copy, RotateCcw, Settings, Layers } from 'lucide-react';
 
 interface ShortcutsOverlayProps {
   theme: Theme;
+  typewriterY: number;
+  baseFontSize: number;
+  typewriterX: number;
+  getTextBoxWidth: () => number;
   onClose?: () => void;
   onDebug?: () => void;
   onReset?: () => void;
@@ -60,56 +64,151 @@ interface ShortcutsOverlayProps {
 //   );
 // };
 
-export const ShortcutsOverlay = ({ theme }: { theme: Theme }) => {
+export const ShortcutsOverlay = ({ theme, typewriterY, baseFontSize, typewriterX, getTextBoxWidth, currentMode }: { 
+  theme: Theme; 
+  typewriterY: number; 
+  baseFontSize: number; 
+  typewriterX: number; 
+  getTextBoxWidth: () => number;
+  currentMode: CanvasModeType;
+}) => {
+  const textBoxWidth = getTextBoxWidth();
+  const textBoxLeft = typewriterX - textBoxWidth / 2;
+  const topPosition = typewriterY + baseFontSize + 48; // 타이프라이터 박스 아래 48px 간격 (더 하단)
+  
+  // Mode-specific shortcuts
+  const getModeShortcuts = () => {
+    switch (currentMode) {
+      case 'select':
+        return {
+          title: 'Select Mode Shortcuts',
+          leftColumn: {
+            title: 'Selection & Navigation',
+            shortcuts: [
+              { label: 'Move Pin', key: '↑↓←→' },
+              { label: 'Move Canvas', key: 'Shift + ↑↓←→' },
+              { label: 'Select/Deselect', key: 'Space' },
+              { label: 'Move Objects', key: 'Alt + ↑↓←→' },
+            ]
+          },
+          rightColumn: {
+            title: 'Mode & Actions',
+            shortcuts: [
+              { label: 'Next Mode', key: 'Tab' },
+              { label: 'Previous Mode', key: 'Shift + Tab' },
+              { label: 'Clear All Selection', key: 'Esc' },
+              { label: 'Delete Objects', key: 'Del' },
+            ]
+          }
+        };
+      case 'link':
+        return {
+          title: 'Link Mode Shortcuts',
+          leftColumn: {
+            title: 'Link Creation',
+            shortcuts: [
+              { label: 'Move Pin', key: '↑↓←→' },
+              { label: 'Move Canvas', key: 'Shift + ↑↓←→' },
+              { label: 'Select Source', key: 'Space' },
+              { label: 'Create Link', key: 'Space (2nd obj)' },
+            ]
+          },
+          rightColumn: {
+            title: 'Mode & Navigation',
+            shortcuts: [
+              { label: 'Next Mode', key: 'Tab' },
+              { label: 'Previous Mode', key: 'Shift + Tab' },
+              { label: 'Cancel Link', key: 'Esc' },
+              { label: 'Delete Links', key: 'Del' },
+            ]
+          }
+        };
+      default: // typography
+        return {
+          title: 'Typography Mode Shortcuts',
+          leftColumn: {
+            title: 'Navigation & View',
+            shortcuts: [
+              { label: 'Pan Canvas', key: 'Space + Drag' },
+              { label: 'Move View', key: 'Shift + ↑↓←→' },
+              { label: 'Canvas Zoom', key: 'Ctrl + +/-' },
+              { label: 'Display Font Size', key: 'Ctrl + Mouse Wheel' },
+              { label: 'Logical Font Size', key: 'Alt + +/-' },
+            ]
+          },
+          rightColumn: {
+            title: 'Editing & History',
+            shortcuts: [
+              { label: 'Next Mode', key: 'Tab' },
+              { label: 'Previous Mode', key: 'Shift + Tab' },
+              { label: 'Undo', key: 'Ctrl+Z' },
+              { label: 'Redo', key: 'Ctrl+Shift+Z' },
+            ]
+          }
+        };
+    }
+  };
+
+  const shortcuts = getModeShortcuts();
+  
   return (
     <div
-      className={`absolute top-4 right-4 ${
+      className={`absolute z-60 ${
         theme === 'dark'
-          ? 'bg-black/40 text-white'
-          : 'bg-white/50 text-gray-900'
-      } backdrop-blur-sm rounded-xl shadow-sm text-[11px] font-mono`}
+          ? 'bg-black/20 text-gray-100 border border-gray-700/30'
+          : 'bg-white/40 text-gray-800 border border-gray-200/30'
+      } backdrop-blur-sm rounded-lg`}
       style={{
-        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-        fontSize: '11px',
-        padding: '12px',
-        maxHeight: '45vh',
-        minWidth: '260px', // minWidth 확장 (중복 제거)
-        maxWidth: '340px',
-        backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.5)',
+        top: `${topPosition}px`,
+        left: `${textBoxLeft}px`,
+        width: `${textBoxWidth}px`,
+        padding: '16px 18px',
+        maxHeight: '42vh',
         overflowY: 'auto',
+        fontFamily: 'Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace',
+        fontSize: '13px',
+        fontWeight: '400',
+        lineHeight: '1.4',
+        borderRadius: '4px',
       }}
     >
-      <div className={`font-semibold mb-2 text-sm flex items-center gap-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`} style={{whiteSpace: 'nowrap'}}>
-        <Layers className="w-4 h-4 opacity-80" />
-        Keyboard Shortcuts
-      </div>
-      <div className="border-b border-gray-300/40 mb-2" />
-      <div className="space-y-2">
-        <div className="font-bold text-xs mt-1 mb-0.5" style={{whiteSpace: 'nowrap'}}>Navigation & View</div>
-        <div className="flex flex-col gap-0.5 pl-2">
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Pan Canvas</span>: <span className="font-mono">Space + Drag</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Move View</span>: <span className="font-mono">Shift + Arrow Keys</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Canvas Zoom</span>: <span className="font-mono">Shift + Alt + +/-</span></div>
+      <div className="grid grid-cols-2 gap-5">
+        {/* Left Column */}
+        <div className="space-y-3">
+          <div>
+            <div className={`font-bold text-xs uppercase tracking-wider mb-2.5 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+              {shortcuts.leftColumn.title}
+            </div>
+            <div className="space-y-2">
+              {shortcuts.leftColumn.shortcuts.map((shortcut, index) => (
+                <div key={index} className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                  <span className="text-xs">{shortcut.label}</span>
+                  <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>
+                    {shortcut.key}
+                  </kbd>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-        
-        <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Font & Size Control</div>
-        <div className="flex flex-col gap-0.5 pl-2">
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">UI Font Size</span>: <span className="font-mono">Ctrl/Cmd + +/-</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Base Font Size</span>: <span className="font-mono">Alt + +/-</span></div>
-        </div>
-        
-        <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Reset Functions</div>
-        <div className="flex flex-col gap-0.5 pl-2">
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Reset UI Zoom</span>: <span className="font-mono">Ctrl/Cmd + 0</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Reset Base Font</span>: <span className="font-mono">Alt + 0</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Reset Canvas</span>: <span className="font-mono">Cmd + R</span></div>
-        </div>
-        
-        <div className="font-bold text-xs mt-2 mb-0.5" style={{whiteSpace: 'nowrap'}}>Editing & History</div>
-        <div className="flex flex-col gap-0.5 pl-2">
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Undo</span>: <span className="font-mono">Ctrl+Z</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Redo</span>: <span className="font-mono">Ctrl+Shift+Z</span>, <span className="font-mono">Ctrl+Y</span></div>
-          <div style={{whiteSpace: 'nowrap'}}><span className="inline-block w-32">Delete Selected</span>: <span className="font-mono">Del</span></div>
+
+        {/* Right Column */}
+        <div className="space-y-3">
+          <div>
+            <div className={`font-bold text-xs uppercase tracking-wider mb-2.5 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+              {shortcuts.rightColumn.title}
+            </div>
+            <div className="space-y-2">
+              {shortcuts.rightColumn.shortcuts.map((shortcut, index) => (
+                <div key={index} className={`flex justify-between items-center py-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                  <span className="text-xs">{shortcut.label}</span>
+                  <kbd className={`px-1.5 py-0.5 text-xs rounded font-mono ${theme === 'dark' ? 'bg-gray-800/70 text-gray-300' : 'bg-gray-100/70 text-gray-600'}`}>
+                    {shortcut.key}
+                  </kbd>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>

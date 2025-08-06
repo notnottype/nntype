@@ -45,10 +45,31 @@ import {
   calculateSVGOutputSize,
   serializeSVG,
   createSelectionRectangle,
-  getObjectsInSelectionRect,
   drawSelectionRectangle,
-  drawMultiSelectHighlight
+  drawMultiSelectHighlight,
+  drawSingleSelectHighlight,
+  getObjectsInSelectionRect
 } from '../utils';
+import { 
+  getNextMode, 
+  getPreviousMode,
+  getModeDisplayProperties, 
+  createInitialPinPosition,
+  positionPinAtInputBox, 
+  updatePinPosition, 
+  findObjectAtPin,
+  createLink,
+  areObjectsLinked 
+} from '../utils/modeUtils';
+import { renderLink, renderLinkPreview, findLinkAtPosition, calculatePreviewConnectionPoint } from '../utils/linkUtils';
+import { 
+  renderSelectionRect, 
+  renderSelectionHighlights, 
+  moveSelectedObjects,
+  clearSelection,
+  addToSelection,
+  removeFromSelection 
+} from '../utils/selectionUtils';
 import { 
   INITIAL_UI_FONT_SIZE_PX,
   INITIAL_BASE_FONT_SIZE_PT,
@@ -63,7 +84,7 @@ import {
   THEME_COLORS
 } from '../constants';
 import { pxToPoints, pointsToPx } from '../utils/units';
-import { CanvasObjectType, A4GuideObjectType, Theme, AICommand, SelectionRectangle } from '../types';
+import { CanvasObjectType, TextObjectType, A4GuideObjectType, Theme, AICommand, SelectionRectangle, CanvasModeType, PinPosition, LinkState, SelectionState, LinkObjectType } from '../types';
 import { aiService } from '../services/aiService';
 import { wrapTextToLines } from '../utils';
 import { ExportMenu } from './ExportMenu';
@@ -79,6 +100,11 @@ const parseCommand = (text: string): AICommand | null => {
     }
   }
   return null;
+};
+
+// Helper function to check if object has position properties
+const hasPosition = (obj: CanvasObjectType): obj is TextObjectType | A4GuideObjectType => {
+  return obj.type === 'text' || obj.type === 'a4guide';
 };
 
 const InfiniteTypewriterCanvas = () => {
@@ -110,7 +136,7 @@ const InfiniteTypewriterCanvas = () => {
   const [isMouseInTextBox, setIsMouseInTextBox] = useState(false);
   const [hoveredObject, setHoveredObject] = useState<CanvasObjectType | null>(null);
   const [canvasWidth, setCanvasWidth] = useState(window.innerWidth);
-  const [canvasHeight, setCanvasHeight] = useState(window.innerHeight - 64);
+  const [canvasHeight, setCanvasHeight] = useState(window.innerHeight);
   const [canvasOffset, setCanvasOffset] = useState(() => {
     // 초기 렌더링 시 세션에서 LT 위치 복구하여 깜빡임 방지
     const sessionData = loadSession();
@@ -193,16 +219,40 @@ const InfiniteTypewriterCanvas = () => {
   const [baseFontSize, setBaseFontSize] = useState(() => {
     const sessionData = loadSession();
     return sessionData?.baseFontSize || INITIAL_UI_FONT_SIZE_PX;
-  }); // UI 폰트 크기 (픽셀)
+  }); // Display Font Size (픽셀) - 화면에 표시되는 크기
   const [baseFontSizePt, setBaseFontSizePt] = useState(() => {
     const sessionData = loadSession();
     return sessionData?.baseFontSizePt || INITIAL_BASE_FONT_SIZE_PT;
-  }); // Base 폰트 크기 (포인트)
+  }); // Logical Font Size (포인트) - 논리적 텍스트 크기
   const [needsLTPositionRestore, setNeedsLTPositionRestore] = useState<{ x: number; y: number } | null>(null); // LT 위치 복구 플래그
   const [typewriterPosition, setTypewriterPosition] = useState({ 
     x: window.innerWidth / 2, 
     y: (window.innerHeight - 64) / 2 
   });
+
+  // Multi-mode system state
+  const [currentMode, setCurrentMode] = useState<CanvasModeType>('typography');
+  const [previousMode, setPreviousMode] = useState<CanvasModeType | null>(null);
+  const [pinPosition, setPinPosition] = useState<PinPosition>({
+    x: window.innerWidth / 2,
+    y: (window.innerHeight - 64) / 2,
+    worldX: 0,
+    worldY: 0
+  });
+  const [linkState, setLinkState] = useState<LinkState>({
+    sourceObjectId: null,
+    targetObjectId: null,
+    isCreating: false,
+    previewPath: null
+  });
+  const [selectionState, setSelectionState] = useState<SelectionState>({
+    selectedObjects: new Set<string>(),
+    dragArea: null
+  });
+  const [links, setLinks] = useState<LinkObjectType[]>([]);
+  const [selectedLinks, setSelectedLinks] = useState<Set<string>>(new Set());
+  const [hoveredLink, setHoveredLink] = useState<LinkObjectType | null>(null);
+  const [pinHoveredObject, setPinHoveredObject] = useState<CanvasObjectType | null>(null);
 
   useEffect(() => {
     setPxPerMm(calculateDPIPixelsPerMM());
@@ -264,7 +314,7 @@ const InfiniteTypewriterCanvas = () => {
   }, []);
 
 
-  // Typewriter settings
+  // 타이프라이터 위치는 절대 스냅하지 않음 - 화면 중앙 고정
   const typewriterX = canvasWidth / 2;
   const typewriterY = canvasHeight / 2;
 
@@ -307,7 +357,7 @@ const InfiniteTypewriterCanvas = () => {
         showInfo,
         showShortcuts,
         theme,
-        selectedObjectId: selectedObject?.id
+        selectedObjectId: selectedObject?.id ? Number(selectedObject.id) : undefined
       });
       saveTimeoutRef.current = null;
     };
@@ -349,7 +399,7 @@ const InfiniteTypewriterCanvas = () => {
         showInfo,
         showShortcuts,
         theme,
-        selectedObjectId: selectedObject?.id
+        selectedObjectId: selectedObject?.id ? Number(selectedObject.id) : undefined
       });
     };
 
@@ -403,7 +453,7 @@ const InfiniteTypewriterCanvas = () => {
         showInfo,
         showShortcuts,
         theme,
-        selectedObjectId: selectedObject?.id
+        selectedObjectId: selectedObject?.id ? Number(selectedObject.id) : undefined
       });
       uiSaveTimeoutRef.current = null;
     };
@@ -471,9 +521,19 @@ const InfiniteTypewriterCanvas = () => {
       baseFontSize
     );
 
+    // 핀 위치가 있다면 월드 좌표 업데이트
+    if (pinPosition) {
+      const updatedPin = {
+        ...pinPosition,
+        worldX: (pinPosition.x - newOffset.x) / newScale,
+        worldY: (pinPosition.y - newOffset.y) / newScale
+      };
+      setPinPosition(updatedPin);
+    }
+
     setScale(newScale);
     setCanvasOffset(newOffset);
-  }, [getTextBoxWidth, measureTextWidthLocal, scale, canvasOffset, typewriterX, typewriterY, baseFontSize, maxCharsPerLine]);
+  }, [getTextBoxWidth, measureTextWidthLocal, scale, canvasOffset, typewriterX, typewriterY, baseFontSize, maxCharsPerLine, pinPosition]);
 
   const getCurrentWorldPosition = useCallback(() => {
     const textBoxWidth = getTextBoxWidth();
@@ -542,7 +602,7 @@ const InfiniteTypewriterCanvas = () => {
       
       // 2. 새로운 윈도우 크기 설정
       const newWidth = window.innerWidth;
-      const newHeight = window.innerHeight - 64;
+      const newHeight = window.innerHeight;
       const newTypewriterX = newWidth / 2;
       const newTypewriterY = newHeight / 2;
       
@@ -594,9 +654,10 @@ const InfiniteTypewriterCanvas = () => {
       worldToScreenLocal,
       measureTextWidthLocal,
       theme,
-      THEME_COLORS
+      THEME_COLORS,
+      selectedObjects
     );
-  }, [canvasObjects, scale, selectedObject, canvasWidth, canvasHeight, worldToScreenLocal, measureTextWidthLocal, theme]);
+  }, [canvasObjects, scale, selectedObject, canvasWidth, canvasHeight, worldToScreenLocal, measureTextWidthLocal, theme, selectedObjects]);
 
   // 드래그 프리뷰 객체 렌더링 함수 (호버 스타일과 동일한 보더박스)
   const drawDragPreviewObjects = useCallback((ctx: CanvasRenderingContext2D) => {
@@ -632,9 +693,24 @@ const InfiniteTypewriterCanvas = () => {
       drawHoverHighlight(ctx, hoveredObject, scale, worldToScreenLocal, measureTextWidthLocal, theme, THEME_COLORS);
     }
     
-    // 멀티 셀렉트된 오브젝트 하이라이트 표시
-    if (selectedObjects.length > 0) {
-      drawMultiSelectHighlight(ctx, selectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
+    // 멀티 셀렉트된 오브젝트 하이라이트 표시 (Typography mode only)
+    if (currentMode === 'typography' && selectedObjects.length > 0) {
+      // 드래그 중일 때는 실제 캔버스 객체 위치에서 선택된 것들을 찾아서 하이라이트
+      if (isDraggingText && selectedObjects.length > 1) {
+        const selectedIds = selectedObjects.map(obj => obj.id);
+        const currentSelectedObjects = canvasObjects.filter(obj => selectedIds.includes(obj.id));
+        drawMultiSelectHighlight(ctx, currentSelectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
+      } else {
+        drawMultiSelectHighlight(ctx, selectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
+      }
+    }
+    
+    // 단일 선택된 오브젝트 하이라이트 표시 with X button (Typography mode)
+    if (currentMode === 'typography' && selectedObject && selectedObjects.length === 0 && !isDraggingText) {
+      drawSingleSelectHighlight(ctx, selectedObject, scale, canvasOffset, measureTextWidthLocal, theme, () => {
+        setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
+        setSelectedObject(null);
+      });
     }
     
     // 드래그 프리뷰 표시 (드래그 중일 때만)
@@ -647,7 +723,125 @@ const InfiniteTypewriterCanvas = () => {
       drawSelectionRectangle(ctx, selectionRect, theme);
     }
     
-  }, [canvasWidth, canvasHeight, theme, showGrid, drawGridLocal, drawCanvasObjectsLocal, hoveredObject, selectedObjects, selectionRect, isSelecting, scale, worldToScreenLocal, canvasOffset, measureTextWidthLocal]);
+    // Multi-mode system rendering
+    
+    // Render links
+    links.forEach(link => {
+      const fromObject = canvasObjects.find(obj => obj.id.toString() === link.from);
+      const toObject = canvasObjects.find(obj => obj.id.toString() === link.to);
+      
+      if (fromObject && toObject) {
+        const isSelected = selectedLinks.has(link.id);
+        const isHovered = hoveredLink?.id === link.id;
+        renderLink(ctx, link, fromObject, toObject, scale, canvasOffset, isSelected, isHovered, measureTextWidthLocal);
+      }
+    });
+    
+    // Render link preview (Link mode)
+    if (currentMode === 'link' && linkState.previewPath) {
+      renderLinkPreview(ctx, linkState.previewPath.from, linkState.previewPath.to, scale, canvasOffset);
+    }
+    
+    // Render selection highlights (Select mode) - Use selectedObjects array for consistency
+    if (currentMode === 'select' && selectedObjects.length > 0) {
+      drawMultiSelectHighlight(ctx, selectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
+    }
+    
+    // Render selection area (Select mode)
+    if (currentMode === 'select' && selectionState.dragArea) {
+      const rect = {
+        x: selectionState.dragArea.start.x,
+        y: selectionState.dragArea.start.y,
+        width: selectionState.dragArea.end.x - selectionState.dragArea.start.x,
+        height: selectionState.dragArea.end.y - selectionState.dragArea.start.y
+      };
+      renderSelectionRect(ctx, rect, scale, canvasOffset);
+    }
+    
+    // Render pin position indicator (Link and Select modes)
+    if (currentMode === 'link' || currentMode === 'select') {
+      const pinScreenX = pinPosition.worldX * scale + canvasOffset.x;
+      const pinScreenY = pinPosition.worldY * scale + canvasOffset.y;
+      
+      ctx.save();
+      
+      // Enhanced pin appearance when hovering over objects
+      const isHoveringObject = pinHoveredObject !== null;
+      const pinColor = currentMode === 'link' ? '#ff6b6b' : '#4a9eff';
+      const hoverColor = currentMode === 'link' ? '#ff4444' : '#2563eb';
+      
+      ctx.strokeStyle = isHoveringObject ? hoverColor : pinColor;
+      ctx.fillStyle = isHoveringObject ? hoverColor : pinColor;
+      ctx.lineWidth = isHoveringObject ? 2 : 1;
+      
+      // Draw enhanced crosshair
+      const crossSize = isHoveringObject ? 12 : 10;
+      ctx.beginPath();
+      ctx.moveTo(pinScreenX - crossSize, pinScreenY);
+      ctx.lineTo(pinScreenX + crossSize, pinScreenY);
+      ctx.moveTo(pinScreenX, pinScreenY - crossSize);
+      ctx.lineTo(pinScreenX, pinScreenY + crossSize);
+      ctx.stroke();
+      
+      // Draw center dot when hovering
+      if (isHoveringObject) {
+        ctx.beginPath();
+        ctx.arc(pinScreenX, pinScreenY, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      // Draw enhanced arrow
+      const arrowOffset = crossSize + 5;
+      const arrowSize = isHoveringObject ? 6 : 4;
+      ctx.beginPath();
+      ctx.moveTo(pinScreenX, pinScreenY + arrowOffset);
+      ctx.lineTo(pinScreenX - arrowSize, pinScreenY + arrowOffset + arrowSize);
+      ctx.lineTo(pinScreenX + arrowSize, pinScreenY + arrowOffset + arrowSize);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Show object info tooltip when hovering - Disabled
+      /* if (isHoveringObject && pinHoveredObject) {
+        const tooltipX = pinScreenX + 20;
+        const tooltipY = pinScreenY - 20;
+        const maxWidth = 200;
+        
+        // Prepare tooltip text
+        const objContent = pinHoveredObject.type === 'text' 
+          ? (pinHoveredObject as any).content 
+          : `${pinHoveredObject.type} object`;
+        const displayText = objContent.length > 30 
+          ? objContent.substring(0, 30) + '...' 
+          : objContent;
+        
+        // Measure text for tooltip background
+        ctx.font = '12px "JetBrains Mono", monospace';
+        const textMetrics = ctx.measureText(displayText);
+        const tooltipWidth = Math.min(textMetrics.width + 16, maxWidth);
+        const tooltipHeight = 24;
+        
+        // Draw tooltip background
+        ctx.fillStyle = theme === 'dark' ? 'rgba(0, 0, 0, 0.9)' : 'rgba(255, 255, 255, 0.9)';
+        ctx.strokeStyle = isHoveringObject ? hoverColor : pinColor;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(tooltipX, tooltipY - tooltipHeight, tooltipWidth, tooltipHeight, 4);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Draw tooltip text
+        ctx.fillStyle = theme === 'dark' ? '#ffffff' : '#000000';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(displayText, tooltipX + 8, tooltipY - tooltipHeight / 2);
+        ctx.textAlign = 'start';
+        ctx.textBaseline = 'alphabetic';
+      } */
+      
+      ctx.restore();
+    }
+    
+    }, [canvasWidth, canvasHeight, theme, showGrid, drawGridLocal, drawCanvasObjectsLocal, hoveredObject, selectedObjects, selectionRect, isSelecting, scale, worldToScreenLocal, canvasOffset, measureTextWidthLocal, currentMode, links, linkState, selectionState, pinPosition, pinHoveredObject]);
 
   const animationRef = useRef<number | null>(null);
   const renderTriggeredRef = useRef(false);
@@ -830,19 +1024,340 @@ const InfiniteTypewriterCanvas = () => {
     event.target.value = '';
   };
 
-  // Keyboard event handlers for Spacebar
+  // Keyboard event handlers for multi-mode system
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (document.activeElement?.id === 'typewriter-input') return;
-      if (e.key === ' ') {
-        setIsSpacePressed(true);
+      // Handle Tab key for mode switching (all modes) - always allow Tab for mode switching
+      if (e.key === 'Tab') {
         e.preventDefault();
+        const nextMode = e.shiftKey ? getPreviousMode(currentMode) : getNextMode(currentMode);
+        setPreviousMode(currentMode);
+        setCurrentMode(nextMode);
+        
+        // Initialize pin position and hover detection for Link/Select modes
+        if (nextMode === 'link' || nextMode === 'select') {
+          // Only initialize pin position when coming from typography mode
+          // Preserve pin position when switching between link and select modes
+          if (currentMode === 'typography') {
+            // Position pin at input box top-left corner
+            const newPinPosition = positionPinAtInputBox(
+              typewriterX,
+              typewriterY,
+              getTextBoxWidth(),
+              baseFontSize,
+              canvasOffset,
+              scale
+            );
+            setPinPosition(newPinPosition);
+            
+            const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPinPosition, 20, measureTextWidthLocal);
+            setPinHoveredObject(hoveredObjectAtPin);
+            setHoveredObject(hoveredObjectAtPin);
+          } else {
+            // When switching between link and select modes, just update hover detection
+            const hoveredObjectAtPin = findObjectAtPin(canvasObjects, pinPosition, 20, measureTextWidthLocal);
+            setPinHoveredObject(hoveredObjectAtPin);
+            setHoveredObject(hoveredObjectAtPin);
+          }
+        } else {
+          setPinHoveredObject(null);
+          setHoveredObject(null);
+        }
+        
+        // Reset mode-specific states when switching modes
+        if (currentMode === 'link') {
+          setLinkState({
+            sourceObjectId: null,
+            targetObjectId: null,
+            isCreating: false,
+            previewPath: null
+          });
+        } else if (currentMode === 'select') {
+          setSelectionState(clearSelection(selectionState));
+        }
+        
+        // Clear all selections when switching modes
+        setSelectedObjects([]);
+        setSelectedObject(null);
+        
+        return;
       }
+
+      // In Typography mode, don't handle other keys when typing in textarea
+      if (currentMode === 'typography' && document.activeElement?.id === 'typewriter-input') {
+        return;
+      }
+
+      // Handle Escape key to reset to Typography mode (all modes)
+      if (e.key === 'Escape') {
+        if (currentMode !== 'typography') {
+          e.preventDefault();
+          setPreviousMode(currentMode);
+          setCurrentMode('typography');
+          
+          // Clear pin hover detection when returning to Typography mode
+          setPinHoveredObject(null);
+          setHoveredObject(null);
+          
+          // Clear all selections
+          setSelectedObjects([]);
+          setSelectedObject(null);
+          setSelectedLinks(new Set());
+          
+          // Reset all mode-specific states
+          setLinkState({
+            sourceObjectId: null,
+            targetObjectId: null,
+            isCreating: false,
+            previewPath: null
+          });
+          setSelectionState(clearSelection(selectionState));
+          return;
+        }
+      }
+      
+      // Handle Space key
+      if (e.key === ' ') {
+        if (currentMode === 'typography') {
+          setIsSpacePressed(true);
+          e.preventDefault();
+        } else if (currentMode === 'link') {
+          // Link mode: Space key to select source/target objects
+          const objectAtPin = findObjectAtPin(canvasObjects, pinPosition, 20, measureTextWidthLocal);
+          if (objectAtPin && objectAtPin.type === 'text') {
+            if (!linkState.sourceObjectId) {
+              // Select source object and start preview
+              // Calculate optimal connection point based on pin position
+              const connectionPoint = calculatePreviewConnectionPoint(
+                objectAtPin,
+                { x: pinPosition.worldX, y: pinPosition.worldY },
+                measureTextWidthLocal
+              );
+              const sourceCenterX = connectionPoint.x;
+              const sourceCenterY = connectionPoint.y;
+              
+              setLinkState(prev => ({
+                ...prev,
+                sourceObjectId: objectAtPin.id.toString(),
+                isCreating: true,
+                previewPath: {
+                  from: {
+                    x: sourceCenterX,
+                    y: sourceCenterY,
+                    worldX: sourceCenterX,
+                    worldY: sourceCenterY
+                  },
+                  to: pinPosition
+                }
+              }));
+            } else if (objectAtPin.id.toString() !== linkState.sourceObjectId) {
+              // Select target object and create link
+              const newLink = createLink(
+                linkState.sourceObjectId,
+                objectAtPin.id.toString()
+              );
+              
+              if (!areObjectsLinked(linkState.sourceObjectId, objectAtPin.id.toString(), links)) {
+                setLinks(prev => [...prev, newLink]);
+              }
+              
+              // Reset link state
+              setLinkState({
+                sourceObjectId: null,
+                targetObjectId: null,
+                isCreating: false,
+                previewPath: null
+              });
+            }
+          }
+          e.preventDefault();
+        } else if (currentMode === 'select') {
+          // Select mode: Space key to select objects in current area
+          if (selectionState.dragArea) {
+            const objectsInArea = getObjectsInSelectionRect(canvasObjects, {
+              x: selectionState.dragArea.start.x,
+              y: selectionState.dragArea.start.y,
+              width: selectionState.dragArea.end.x - selectionState.dragArea.start.x,
+              height: selectionState.dragArea.end.y - selectionState.dragArea.start.y
+            }, scale, canvasOffset, measureTextWidthLocal);
+            
+            const newSelection = { ...selectionState };
+            objectsInArea.forEach(obj => {
+              newSelection.selectedObjects.add(obj.id.toString());
+            });
+            
+            setSelectionState(newSelection);
+            
+            // Update selectedObjects to maintain consistency
+            setSelectedObjects(objectsInArea);
+            setSelectedObject(null);
+          } else {
+            // Select object at pin position
+            const objectAtPin = findObjectAtPin(canvasObjects, pinPosition, 20, measureTextWidthLocal);
+            if (objectAtPin) {
+              // Check if object is already selected in selectionState
+              const isInSelectionState = selectionState.selectedObjects.has(objectAtPin.id.toString());
+              
+              if (isInSelectionState) {
+                // Toggle OFF: remove from selection if already selected
+                const newSelectionState = removeFromSelection(selectionState, objectAtPin.id.toString());
+                setSelectionState(newSelectionState);
+                
+                // Clear visual selection states
+                if (selectedObject && selectedObject.id === objectAtPin.id) {
+                  setSelectedObject(null);
+                }
+                
+                if (selectedObjects.length > 0) {
+                  const newSelectedObjects = selectedObjects.filter(obj => obj.id !== objectAtPin.id);
+                  if (newSelectedObjects.length === 1) {
+                    setSelectedObject(newSelectedObjects[0]);
+                    setSelectedObjects([]);
+                  } else if (newSelectedObjects.length === 0) {
+                    setSelectedObjects([]);
+                    setSelectedObject(null);
+                  } else {
+                    setSelectedObjects(newSelectedObjects);
+                  }
+                }
+              } else {
+                // Toggle ON: add to selection if not selected
+                const newSelectionState = addToSelection(selectionState, objectAtPin.id.toString());
+                setSelectionState(newSelectionState);
+                
+                // Update visual selection states
+                if (selectionState.selectedObjects.size === 0) {
+                  // First selection - single select
+                  setSelectedObject(objectAtPin);
+                  setSelectedObjects([]);
+                } else if (selectionState.selectedObjects.size === 1 && selectedObject) {
+                  // Second selection - convert to multi-select
+                  setSelectedObjects([selectedObject, objectAtPin]);
+                  setSelectedObject(null);
+                } else if (selectedObjects.length > 0) {
+                  // Add to existing multi-selection
+                  setSelectedObjects([...selectedObjects, objectAtPin]);
+                  setSelectedObject(null);
+                }
+              }
+            }
+          }
+          e.preventDefault();
+        }
+      }
+      
+      // Handle arrow keys for different modes
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        if (currentMode === 'link' || currentMode === 'select') {
+          const stepSize = 20; // pixels
+          let deltaX = 0;
+          let deltaY = 0;
+          
+          switch (e.key) {
+            case 'ArrowUp':
+              deltaY = -stepSize;
+              break;
+            case 'ArrowDown':
+              deltaY = stepSize;
+              break;
+            case 'ArrowLeft':
+              deltaX = -stepSize;
+              break;
+            case 'ArrowRight':
+              deltaX = stepSize;
+              break;
+          }
+          
+          if (e.shiftKey) {
+            // Shift + Arrow: Move canvas while keeping pin fixed on screen
+            const newOffset = {
+              x: canvasOffset.x - deltaX,
+              y: canvasOffset.y - deltaY
+            };
+            setCanvasOffset(newOffset);
+            
+            // Update pin world coordinates to match the new canvas offset
+            const newPin = {
+              ...pinPosition,
+              worldX: (pinPosition.x - newOffset.x) / scale,
+              worldY: (pinPosition.y - newOffset.y) / scale
+            };
+            setPinPosition(newPin);
+            
+            // Check for object at pin position after canvas move
+            const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPin, 20, measureTextWidthLocal);
+            setPinHoveredObject(hoveredObjectAtPin);
+            setHoveredObject(hoveredObjectAtPin);
+            
+          } else if (e.altKey) {
+            // Alt + Arrow: Move selected objects in world coordinates
+            const hasSelection = selectedObjects.length > 0 || selectedObject !== null;
+            console.log('Alt + Arrow pressed:', { currentMode, selectedObjects: selectedObjects.length, selectedObject: selectedObject?.id, hasSelection });
+            
+            if (currentMode === 'select' && hasSelection) {
+              const worldStepSize = stepSize / scale; // Convert to world units
+              const worldDeltaX = deltaX / scale;
+              const worldDeltaY = deltaY / scale;
+              
+              // Combine single and multi-selected objects
+              const objectsToMove = selectedObjects.length > 0 ? selectedObjects : (selectedObject ? [selectedObject] : []);
+              console.log('Moving objects:', { worldDeltaX, worldDeltaY, objectIds: objectsToMove.map(obj => obj.id) });
+              
+              // Convert to Set for moveSelectedObjects function
+              const selectedIds = new Set(objectsToMove.map(obj => obj.id.toString()));
+              const newObjects = moveSelectedObjects(canvasObjects, selectedIds, worldDeltaX, worldDeltaY);
+              setCanvasObjects(newObjects);
+            }
+            
+          } else {
+            // Plain Arrow: Move pin only
+            const newPin = updatePinPosition(pinPosition, deltaX, deltaY, canvasOffset, scale);
+            setPinPosition(newPin);
+            
+            // Check for object at new pin position for hover effect
+            const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPin, 20, measureTextWidthLocal);
+            setPinHoveredObject(hoveredObjectAtPin);
+            setHoveredObject(hoveredObjectAtPin);
+            
+            // Update link preview if in link mode
+            if (currentMode === 'link' && linkState.sourceObjectId) {
+              const sourceObject = canvasObjects.find(obj => obj.id.toString() === linkState.sourceObjectId);
+              if (sourceObject && sourceObject.type === 'text') {
+                // Calculate optimal connection point based on pin position
+                const connectionPoint = calculatePreviewConnectionPoint(
+                  sourceObject,
+                  { x: newPin.worldX, y: newPin.worldY },
+                  measureTextWidthLocal
+                );
+                const sourceCenterX = connectionPoint.x;
+                const sourceCenterY = connectionPoint.y;
+                
+                setLinkState(prev => ({
+                  ...prev,
+                  previewPath: {
+                    from: {
+                      x: sourceCenterX,
+                      y: sourceCenterY,
+                      worldX: sourceCenterX,
+                      worldY: sourceCenterY
+                    },
+                    to: newPin
+                  }
+                }));
+              }
+            }
+          }
+          
+          e.preventDefault();
+        }
+      }
+      
+      
     };
 
     const handleGlobalKeyUp = (e: KeyboardEvent) => {
       if (document.activeElement?.id === 'typewriter-input') return;
-      if (e.key === ' ') {
+      if (e.key === ' ' && currentMode === 'typography') {
         setIsSpacePressed(false);
       }
     };
@@ -854,7 +1369,17 @@ const InfiniteTypewriterCanvas = () => {
       window.removeEventListener('keydown', handleGlobalKeyDown);
       window.removeEventListener('keyup', handleGlobalKeyUp);
     };
-  }, []);
+  }, [currentMode, pinPosition, linkState, selectionState, canvasObjects, links, canvasOffset, scale]);
+
+  // Focus canvas when switching to Link or Select mode
+  useEffect(() => {
+    if (currentMode !== 'typography' && canvasRef.current) {
+      // Small delay to ensure DOM is updated
+      setTimeout(() => {
+        canvasRef.current?.focus();
+      }, 10);
+    }
+  }, [currentMode]);
 
   // 타이프라이터 LT 월드 좌표 유지하면서 상태 변경하는 공통 함수 (현재 상태 기준)
   const maintainTypewriterLTWorldPosition = (
@@ -890,13 +1415,23 @@ const InfiniteTypewriterCanvas = () => {
       y: newLTScreen.y - targetScreenY
     };
     
-    // 4. 상태 업데이트
+    // 4. 핀 위치가 있다면 월드 좌표 업데이트
+    if (pinPosition) {
+      const updatedPin = {
+        ...pinPosition,
+        worldX: (pinPosition.x - newOffset.x) / newScale,
+        worldY: (pinPosition.y - newOffset.y) / newScale
+      };
+      setPinPosition(updatedPin);
+    }
+    
+    // 5. 상태 업데이트
     setBaseFontSize(newFontSize);
     setScale(newScale);
     setCanvasOffset(newOffset);
   };
 
-  // UI Font Size 조절 함수 (픽셀 기반 - 타이프라이터 입력박스 크기 조정)
+  // Display Font Size 조절 함수 (픽셀 기반 - 화면에 표시되는 크기 조정)
   const handleUISizeChange = (up: boolean) => {
     const currentIndex = findFontSizeLevel(baseFontSize, UI_FONT_SIZE_LEVELS_PX);
     
@@ -910,11 +1445,11 @@ const InfiniteTypewriterCanvas = () => {
       const newScale = scale * fontSizeRatio;
       
       maintainTypewriterLTWorldPosition(newFontSize, newScale);
-      // UI Font Size만 조정하고 Base Font Size는 독립적으로 유지
+      // Display Font Size만 조정하고 Logical Font Size는 독립적으로 유지
     }
   };
 
-  // Base Font Size 조절 함수 (포인트 기반 - 텍스트 객체 논리적 크기 조정)
+  // Logical Font Size 조절 함수 (포인트 기반 - 텍스트 객체 논리적 크기 조정)
   const handleBaseFontSizeChange = (up: boolean) => {
     const currentIndex = findFontSizeLevel(baseFontSizePt, BASE_FONT_SIZE_LEVELS_PT);
     
@@ -928,11 +1463,11 @@ const InfiniteTypewriterCanvas = () => {
       
       // 포인트 크기 변화 비율 계산 (역비율 적용)
       const ptRatio = newBaseFontSizePt / baseFontSizePt;
-      const newScale = scale / ptRatio; // Base Font Size 증가 시 캔버스 축소 (역비율)
+      const newScale = scale / ptRatio; // Logical Font Size 증가 시 캔버스 축소 (역비율)
       
-      // UI 폰트 크기는 유지하면서 스케일만 조정하여 LT 월드 좌표 유지
+      // Display Font Size는 유지하면서 스케일만 조정하여 LT 월드 좌표 유지
       maintainTypewriterLTWorldPosition(baseFontSize, newScale);
-      // Base Font Size만 업데이트
+      // Logical Font Size만 업데이트
       setBaseFontSizePt(newBaseFontSizePt);
     }
   };
@@ -943,16 +1478,16 @@ const InfiniteTypewriterCanvas = () => {
     maintainTypewriterLTWorldPosition(INITIAL_UI_FONT_SIZE_PX, 1.0);
   }, [maintainTypewriterLTWorldPosition]);
 
-  // Base Font 리셋 (Base Font Size를 초기값으로)
+  // Logical Font 리셋 (Logical Font Size를 초기값으로)
   const resetBaseFont = useCallback(() => {
     if (baseFontSizePt !== INITIAL_BASE_FONT_SIZE_PT) {
       // 포인트 크기 변화 비율 계산 (역비율 적용)
       const ptRatio = INITIAL_BASE_FONT_SIZE_PT / baseFontSizePt;
-      const newScale = scale / ptRatio; // Base Font Size 변경 시 캔버스 스케일 역비율 조정
+      const newScale = scale / ptRatio; // Logical Font Size 변경 시 캔버스 스케일 역비율 조정
       
-      // UI 폰트 크기는 유지하면서 스케일만 조정하여 LT 월드 좌표 유지
+      // Display Font Size는 유지하면서 스케일만 조정하여 LT 월드 좌표 유지
       maintainTypewriterLTWorldPosition(baseFontSize, newScale);
-      // Base Font Size를 초기값으로 업데이트
+      // Logical Font Size를 초기값으로 업데이트
       setBaseFontSizePt(INITIAL_BASE_FONT_SIZE_PT);
     }
   }, [baseFontSizePt, scale, baseFontSize, maintainTypewriterLTWorldPosition]);
@@ -962,8 +1497,18 @@ const InfiniteTypewriterCanvas = () => {
     maintainTypewriterLTWorldPosition(INITIAL_UI_FONT_SIZE_PX, 1.0);
     setBaseFontSizePt(INITIAL_BASE_FONT_SIZE_PT);
     setSelectedObject(null);
+    
+    // 캔버스 오프셋을 초기 위치로 리셋 (타이프라이터 위치 초기화)
+    setCanvasOffset({ x: 0, y: 0 });
+    
+    // 모든 캔버스 객체 삭제
+    setCanvasObjects([]);
+    
+    // 선택 상태 초기화
+    setSelectedObjects([]);
+    
     clearSession(); // 세션도 함께 클리어
-  }, [maintainTypewriterLTWorldPosition, setSelectedObject]);
+  }, [maintainTypewriterLTWorldPosition, setSelectedObject, setCanvasOffset, setCanvasObjects, setSelectedObjects]);
   
   // Keyboard events
   useEffect(() => {
@@ -975,7 +1520,7 @@ const InfiniteTypewriterCanvas = () => {
       if (e.key === 'Escape') {
       }
       const currentZoomIndex = findZoomLevel(scale, CANVAS_ZOOM_LEVELS);
-      // UI Font Size: Ctrl/Cmd + +/- (UI에서 표시되는 폰트 크기 조정)
+      // Display Font Size: Ctrl/Cmd + +/- (화면에 표시되는 폰트 크기 조정)
       if ((e.ctrlKey || e.metaKey) && !e.altKey) {
         if (e.key === '=' || e.key === '+') {
           e.preventDefault();
@@ -1017,7 +1562,7 @@ const InfiniteTypewriterCanvas = () => {
           return;
         }
       }
-      // Base Font Size: Alt/Option + +/- (텍스트 객체 논리적 크기 조정)
+      // Logical Font Size: Alt/Option + +/- (텍스트 객체 논리적 크기 조정)
       if (e.altKey && !e.ctrlKey && !e.metaKey) {
         // + 인식: =, +, Equal(Shift+Equal)
         if (e.key === '=' || e.key === '+' || e.code === 'Equal') {
@@ -1031,7 +1576,7 @@ const InfiniteTypewriterCanvas = () => {
           handleBaseFontSizeChange(false);
           return;
         }
-        // 0 인식: Base Font Size 리셋
+        // 0 인식: Logical Font Size 리셋
         if (e.key === '0') {
           e.preventDefault();
           resetBaseFont(); // Base Font 리셋
@@ -1062,8 +1607,18 @@ const InfiniteTypewriterCanvas = () => {
       // Delete key
       if (e.key === 'Delete' && !isInputFocused) {
         e.preventDefault();
-        if (selectedObjects.length > 0) {
-          // Delete multi-selected objects
+        
+        if (currentMode === 'select' && selectionState.selectedObjects.size > 0) {
+          // Delete objects selected in Select mode
+          const selectedIds = Array.from(selectionState.selectedObjects);
+          setCanvasObjects(prev => prev.filter(obj => !selectedIds.includes(obj.id.toString())));
+          
+          // Clear selection state
+          setSelectionState(clearSelection(selectionState));
+          setSelectedObjects([]);
+          setSelectedObject(null);
+        } else if (selectedObjects.length > 0) {
+          // Delete multi-selected objects (Typography mode)
           const selectedIds = selectedObjects.map(obj => obj.id);
           setCanvasObjects(prev => prev.filter(obj => !selectedIds.includes(obj.id)));
           setSelectedObjects([]);
@@ -1072,6 +1627,11 @@ const InfiniteTypewriterCanvas = () => {
           // Delete single selected object
           setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
           setSelectedObject(null);
+        } else if (selectedLinks.size > 0) {
+          // Delete selected links
+          const selectedLinkIds = Array.from(selectedLinks);
+          setLinks(prev => prev.filter(link => !selectedLinkIds.includes(link.id)));
+          setSelectedLinks(new Set());
         }
         return;
       }
@@ -1113,7 +1673,7 @@ const InfiniteTypewriterCanvas = () => {
                 showInfo,
                 showShortcuts,
                 theme,
-                selectedObjectId: selectedObject?.id
+                selectedObjectId: selectedObject?.id ? Number(selectedObject.id) : undefined
               });
             }
           }, 0);
@@ -1135,7 +1695,32 @@ const InfiniteTypewriterCanvas = () => {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     
+    // Check if X button was clicked (for single selected object) - circular click detection
+    const ctx = canvasRef.current?.getContext('2d');
+    if (ctx && (ctx as any)._deleteButtonBounds) {
+      const bounds = (ctx as any)._deleteButtonBounds;
+      const distance = Math.sqrt(
+        Math.pow(mouseX - bounds.centerX, 2) + Math.pow(mouseY - bounds.centerY, 2)
+      );
+      if (distance <= bounds.radius) {
+        bounds.onDelete();
+        e.preventDefault();
+        return;
+      }
+    }
+    
     const clickedObject = canvasObjects.find(obj => isPointInObjectLocal(obj, mouseX, mouseY));
+    
+    // Check for link selection if no object was clicked
+    let clickedLink: LinkObjectType | null = null;
+    if (!clickedObject) {
+      const worldPos = { x: (mouseX - canvasOffset.x) / scale, y: (mouseY - canvasOffset.y) / scale };
+              clickedLink = findLinkAtPosition(worldPos, links, canvasObjects, 10 / scale, measureTextWidthLocal); // Adjust tolerance for scale
+    }
+    
+    // Debug: Log when no object or link is clicked to see if selection should start
+    if (!clickedObject && !clickedLink && !isSpacePressed && !(e.metaKey && !clickedObject)) {
+    }
     
     if (clickedObject) {
       // Check if Cmd key is pressed for additive selection
@@ -1181,6 +1766,7 @@ const InfiniteTypewriterCanvas = () => {
           // If clicked object is part of multi-selection, drag all selected objects
           setIsDraggingText(true);
           setDragStart({ x: mouseX, y: mouseY });
+          if (canvasRef.current) canvasRef.current.style.cursor = 'grabbing';
           // Keep current multi-selection
         } else {
           // Single object selection and drag
@@ -1188,6 +1774,7 @@ const InfiniteTypewriterCanvas = () => {
           setSelectedObjects([]);
           setIsDraggingText(true);
           setDragStart({ x: mouseX, y: mouseY });
+          if (canvasRef.current) canvasRef.current.style.cursor = 'grabbing';
         }
       }
     } else if (isSpacePressed || (e.metaKey && !clickedObject)) {
@@ -1196,12 +1783,54 @@ const InfiniteTypewriterCanvas = () => {
       setSelectedObjects([]);
       setIsDragging(true);
       setDragStart({ x: e.clientX, y: e.clientY });
-    } else {
-      // Start multi-select if no object clicked and not panning
+    } else if (clickedLink) {
+      // Handle link selection
       setSelectedObject(null);
       setSelectedObjects([]);
-      setIsSelecting(true);
-      setSelectionRect(null);
+      
+      if (e.metaKey) {
+        // Cmd+click: Add/remove from link selection
+        const newSelectedLinks = new Set(selectedLinks);
+        if (selectedLinks.has(clickedLink.id)) {
+          newSelectedLinks.delete(clickedLink.id);
+        } else {
+          newSelectedLinks.add(clickedLink.id);
+        }
+        setSelectedLinks(newSelectedLinks);
+      } else {
+        // Regular click: Select only this link
+        setSelectedLinks(new Set([clickedLink.id]));
+        setSelectionState(prev => ({ ...prev, selectedObjects: new Set() }));
+      }
+      
+      setIsDragging(false);
+      setIsDraggingText(false);
+    } else {
+      // Start area selection if no object or link clicked and not panning
+      setSelectedObject(null);
+      setSelectedObjects([]);
+      setSelectedLinks(new Set()); // Clear link selection too
+      
+      if (currentMode === 'select') {
+        // Use new selection system for Select mode
+        const worldX = (mouseX - canvasOffset.x) / scale;
+        const worldY = (mouseY - canvasOffset.y) / scale;
+        
+        setSelectionState(prev => ({
+          ...prev,
+          dragArea: {
+            start: { x: worldX, y: worldY },
+            end: { x: worldX, y: worldY }
+          }
+        }));
+      } else {
+        // Use old selection system for Typography mode
+        setIsSelecting(true);
+        // Initialize selection rectangle with current mouse position
+        const initialRect = createSelectionRectangle(mouseX, mouseY, mouseX, mouseY);
+        setSelectionRect(initialRect);
+      }
+      
       setIsDragging(false);
       setIsDraggingText(false);
       setDragStart({ x: mouseX, y: mouseY });
@@ -1240,10 +1869,40 @@ const InfiniteTypewriterCanvas = () => {
     setMousePosition({ x: mouseX, y: mouseY });
     setIsMouseInTextBox(isPointInTextBox(mouseX, mouseY));
     
+    // Check for link hovering (only if not dragging)
+    if (!isDragging && !isDraggingText) {
+      const worldPos = { x: (mouseX - canvasOffset.x) / scale, y: (mouseY - canvasOffset.y) / scale };
+      const hoveredLinkAtPosition = findLinkAtPosition(worldPos, links, canvasObjects, 10 / scale, measureTextWidthLocal);
+      setHoveredLink(hoveredLinkAtPosition);
+    }
+    
+    // Check if hovering over X button and change cursor
+    const ctx = canvasRef.current?.getContext('2d');
+    let isHoveringDeleteButton = false;
+    if (ctx && (ctx as any)._deleteButtonBounds) {
+      const bounds = (ctx as any)._deleteButtonBounds;
+      const distance = Math.sqrt(
+        Math.pow(mouseX - bounds.centerX, 2) + Math.pow(mouseY - bounds.centerY, 2)
+      );
+      if (distance <= bounds.radius) {
+        if (canvasRef.current) canvasRef.current.style.cursor = 'pointer';
+        isHoveringDeleteButton = true;
+      }
+    }
+    
     // 마우스가 오브젝트 위에 있는지 확인 (드래그 중이 아닐 때만)
     if (!isDraggingText) {
       const objectUnderMouse = canvasObjects.find(obj => isPointInObjectLocal(obj, mouseX, mouseY));
       setHoveredObject(objectUnderMouse || null);
+      
+      // Set cursor based on what we're hovering over
+      if (!isHoveringDeleteButton) {
+        if (objectUnderMouse) {
+          if (canvasRef.current) canvasRef.current.style.cursor = 'grab';
+        } else {
+          if (canvasRef.current) canvasRef.current.style.cursor = 'default';
+        }
+      }
     }
     
     if (isDraggingText) {
@@ -1263,44 +1922,56 @@ const InfiniteTypewriterCanvas = () => {
         if (selectedObjects.length > 1) {
           // Group drag: move all selected objects
           const selectedIds = selectedObjects.map(obj => obj.id);
+          
+          // Update canvas objects
           setCanvasObjects(prev => prev.map(obj => 
-            selectedIds.includes(obj.id)
+            selectedIds.includes(obj.id) && hasPosition(obj)
               ? { ...obj, x: obj.x + worldDeltaX, y: obj.y + worldDeltaY }
               : obj
           ));
+          
+          // Calculate updated positions for selectedObjects
+          const updatedSelectedObjects = selectedObjects.map(obj => 
+            hasPosition(obj)
+              ? { ...obj, x: obj.x + worldDeltaX, y: obj.y + worldDeltaY }
+              : obj
+          );
           
           // Update selectedObjects array
-          setSelectedObjects(prev => prev.map(obj => ({
-            ...obj, 
-            x: obj.x + worldDeltaX, 
-            y: obj.y + worldDeltaY
-          })));
+          setSelectedObjects(updatedSelectedObjects);
           
-          // 멀티 선택 프리뷰 계산
-          const referenceObj = selectedObjects[0];
-          const currentWorldX = referenceObj.x + worldDeltaX;
-          const currentWorldY = referenceObj.y + worldDeltaY;
-          const snappedWorldX = snapToGrid(currentWorldX, worldGridSize);
-          const snappedWorldY = snapToGrid(currentWorldY, worldGridSize);
-          const snapDeltaX = snappedWorldX - referenceObj.x;
-          const snapDeltaY = snappedWorldY - referenceObj.y;
-          
-          previewObjects = selectedObjects.map(obj => ({
-            ...obj,
-            x: obj.x + snapDeltaX,
-            y: obj.y + snapDeltaY
-          }));
-        } else if (selectedObject) {
+          // 멀티 선택 프리뷰 계산 (updated objects 사용)
+          const positionedObjects = updatedSelectedObjects.filter(hasPosition);
+          if (positionedObjects.length > 0) {
+            const referenceObj = positionedObjects[0];
+            const currentWorldX = referenceObj.x;
+            const currentWorldY = referenceObj.y;
+            const snappedWorldX = snapToGrid(currentWorldX, worldGridSize);
+            const snappedWorldY = snapToGrid(currentWorldY, worldGridSize);
+            
+            const firstSelected = selectedObjects.find(hasPosition);
+            if (firstSelected) {
+              const snapDeltaX = snappedWorldX - firstSelected.x - worldDeltaX;
+              const snapDeltaY = snappedWorldY - firstSelected.y - worldDeltaY;
+              
+              previewObjects = updatedSelectedObjects.map(obj => 
+                hasPosition(obj)
+                  ? { ...obj, x: obj.x + snapDeltaX, y: obj.y + snapDeltaY }
+                  : obj
+              );
+            }
+          }
+        } else if (selectedObject && hasPosition(selectedObject)) {
           // Single object drag
           setCanvasObjects(prev => prev.map(obj => 
-            obj.id === selectedObject.id 
+            obj.id === selectedObject.id && hasPosition(obj)
               ? { ...obj, x: obj.x + worldDeltaX, y: obj.y + worldDeltaY }
               : obj
           ));
           
-          setSelectedObject(prev => prev ? 
+          setSelectedObject(prev => prev && hasPosition(prev) ? 
             { ...prev, x: prev.x + worldDeltaX, y: prev.y + worldDeltaY } 
-            : null
+            : prev
           );
           
           // 단일 선택 프리뷰 계산
@@ -1329,7 +2000,7 @@ const InfiniteTypewriterCanvas = () => {
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
       
-      // 그리드 단위로 스냅 (UI 폰트 크기 기반)
+      // 그리드 단위로 스냅 (Display Font Size 기반)
       const gridSize = baseFontSize * 1.8;
       const snappedDeltaX = snapToGrid(deltaX, gridSize);
       const snappedDeltaY = snapToGrid(deltaY, gridSize);
@@ -1347,7 +2018,7 @@ const InfiniteTypewriterCanvas = () => {
         });
       }
     } else if (isSelecting) {
-      // Update selection rectangle during drag
+      // Update selection rectangle during drag (Typography mode)
       const currentRect = createSelectionRectangle(
         dragStart.x,
         dragStart.y,
@@ -1362,9 +2033,21 @@ const InfiniteTypewriterCanvas = () => {
         currentRect,
         scale,
         canvasOffset,
-        (text: string, fontSize: number) => measureTextWidth(text, fontSize, canvasRef.current, fontLoaded)
+        measureTextWidthLocal
       );
       setSelectedObjects(selectedObjs);
+    } else if (currentMode === 'select' && selectionState.dragArea) {
+      // Update selection area during drag (Select mode)
+      const worldX = (mouseX - canvasOffset.x) / scale;
+      const worldY = (mouseY - canvasOffset.y) / scale;
+      
+      setSelectionState(prev => ({
+        ...prev,
+        dragArea: {
+          start: prev.dragArea!.start,
+          end: { x: worldX, y: worldY }
+        }
+      }));
     }
   };
 
@@ -1375,41 +2058,44 @@ const InfiniteTypewriterCanvas = () => {
       
       if (selectedObjects.length > 1) {
         // 멀티 선택 그리드 스냅
-        const referenceObj = selectedObjects[0];
-        const snappedWorldX = snapToGrid(referenceObj.x, worldGridSize);
-        const snappedWorldY = snapToGrid(referenceObj.y, worldGridSize);
-        const snapDeltaX = snappedWorldX - referenceObj.x;
-        const snapDeltaY = snappedWorldY - referenceObj.y;
-        
-        if (snapDeltaX !== 0 || snapDeltaY !== 0) {
-          const selectedIds = selectedObjects.map(obj => obj.id);
-          setCanvasObjects(prev => prev.map(obj => 
-            selectedIds.includes(obj.id)
-              ? { ...obj, x: obj.x + snapDeltaX, y: obj.y + snapDeltaY }
-              : obj
-          ));
+        const positionedObjects = selectedObjects.filter(hasPosition);
+        if (positionedObjects.length > 0) {
+          const referenceObj = positionedObjects[0];
+          const snappedWorldX = snapToGrid(referenceObj.x, worldGridSize);
+          const snappedWorldY = snapToGrid(referenceObj.y, worldGridSize);
+          const snapDeltaX = snappedWorldX - referenceObj.x;
+          const snapDeltaY = snappedWorldY - referenceObj.y;
           
-          setSelectedObjects(prev => prev.map(obj => ({
-            ...obj, 
-            x: obj.x + snapDeltaX, 
-            y: obj.y + snapDeltaY
-          })));
+          if (snapDeltaX !== 0 || snapDeltaY !== 0) {
+            const selectedIds = selectedObjects.map(obj => obj.id);
+            setCanvasObjects(prev => prev.map(obj => 
+              selectedIds.includes(obj.id) && hasPosition(obj)
+                ? { ...obj, x: obj.x + snapDeltaX, y: obj.y + snapDeltaY }
+                : obj
+            ));
+            
+            setSelectedObjects(prev => prev.map(obj => 
+              hasPosition(obj)
+                ? { ...obj, x: obj.x + snapDeltaX, y: obj.y + snapDeltaY }
+                : obj
+            ));
+          }
         }
-      } else if (selectedObject) {
+      } else if (selectedObject && hasPosition(selectedObject)) {
         // 단일 선택 그리드 스냅
         const snappedWorldX = snapToGrid(selectedObject.x, worldGridSize);
         const snappedWorldY = snapToGrid(selectedObject.y, worldGridSize);
         
         if (snappedWorldX !== selectedObject.x || snappedWorldY !== selectedObject.y) {
           setCanvasObjects(prev => prev.map(obj => 
-            obj.id === selectedObject.id 
+            obj.id === selectedObject.id && hasPosition(obj)
               ? { ...obj, x: snappedWorldX, y: snappedWorldY }
               : obj
           ));
           
-          setSelectedObject(prev => prev ? 
+          setSelectedObject(prev => prev && hasPosition(prev) ? 
             { ...prev, x: snappedWorldX, y: snappedWorldY } 
-            : null
+            : prev
           );
         }
       }
@@ -1417,6 +2103,9 @@ const InfiniteTypewriterCanvas = () => {
     
     setIsDragging(false);
     setIsDraggingText(false);
+    
+    // Reset cursor after dragging
+    if (canvasRef.current) canvasRef.current.style.cursor = 'default';
     
     // 드래그 프리뷰 초기화
     setDragPreviewObjects([]);
@@ -1426,6 +2115,15 @@ const InfiniteTypewriterCanvas = () => {
       setIsSelecting(false);
       setSelectionRect(null);
       // selectedObjects는 이미 설정되어 있음
+    }
+    
+    // End select area drag (Select mode)
+    if (currentMode === 'select' && selectionState.dragArea) {
+      // Clear the drag area but keep any selected objects
+      setSelectionState(prev => ({
+        ...prev,
+        dragArea: null
+      }));
     }
     
     // 드래그가 끝난 후 텍스트 입력 필드에 포커스 복원 (텍스트 박스가 보일 때만)
@@ -1497,6 +2195,20 @@ const InfiniteTypewriterCanvas = () => {
     }
   }, [showTextBox]);
 
+  // Focus input when switching to Typography mode
+  useEffect(() => {
+    if (currentMode === 'typography' && showTextBox) {
+      setTimeout(() => {
+        const input = document.getElementById('typewriter-input') as HTMLInputElement | null;
+        if (input) {
+          input.focus();
+          // Move cursor to end of text
+          input.setSelectionRange(input.value.length, input.value.length);
+        }
+      }, 100); // Small delay to ensure mode change is complete
+    }
+  }, [currentMode, showTextBox]);
+
   // [UNDO/REDO] 상태 스냅샷 타입 정의
   interface CanvasSnapshot {
     canvasObjects: CanvasObjectType[];
@@ -1520,12 +2232,22 @@ const InfiniteTypewriterCanvas = () => {
 
   // [UNDO/REDO] 스냅샷을 상태에 적용하는 함수
   const applySnapshot = useCallback((snap: CanvasSnapshot) => {
+    // 핀 위치가 있다면 월드 좌표 업데이트
+    if (pinPosition) {
+      const updatedPin = {
+        ...pinPosition,
+        worldX: (pinPosition.x - snap.canvasOffset.x) / snap.scale,
+        worldY: (pinPosition.y - snap.canvasOffset.y) / snap.scale
+      };
+      setPinPosition(updatedPin);
+    }
+    
     setCanvasObjects(snap.canvasObjects);
     setCanvasOffset(snap.canvasOffset);
     setScale(snap.scale);
     setCurrentTypingText(snap.currentTypingText);
     setBaseFontSize(snap.baseFontSize);
-  }, [setCanvasObjects, setCanvasOffset, setScale, setCurrentTypingText, setBaseFontSize]);
+  }, [setCanvasObjects, setCanvasOffset, setScale, setCurrentTypingText, setBaseFontSize, pinPosition]);
 
   // [UNDO/REDO] 상태 변경 시 undoStack에 push
   const pushUndo = useCallback(() => {
@@ -1631,6 +2353,30 @@ const InfiniteTypewriterCanvas = () => {
   // 예시: 텍스트 추가, 오브젝트 이동/삭제, 패닝, 줌, 전체 삭제 등
   // 텍스트 추가
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Tab key is handled by global handler, don't handle it here
+    if (e.key === 'Tab') {
+      return; // Let global handler take care of mode switching
+    }
+
+    // Handle Escape key to reset to Typography mode
+    if (e.key === 'Escape') {
+      if (currentMode !== 'typography') {
+        e.preventDefault();
+        setPreviousMode(currentMode);
+        setCurrentMode('typography');
+        
+        // Reset all mode-specific states
+        setLinkState({
+          sourceObjectId: null,
+          targetObjectId: null,
+          isCreating: false,
+          previewPath: null
+        });
+        setSelectionState(clearSelection(selectionState));
+        return;
+      }
+    }
+
     // Handle backslash + Enter for line breaks (without adding text to canvas)
     if (e.key === 'Enter') {
       // Check if the text ends with backslash and user pressed Enter
@@ -1731,6 +2477,10 @@ const InfiniteTypewriterCanvas = () => {
       e.preventDefault();
     } else if (e.key === 'Escape') {
       setCurrentTypingText('');
+      // Clear all selections when ESC is pressed
+      setSelectedObjects([]);
+      setSelectedObject(null);
+      setSelectedLinks(new Set());
     }
   };
 
@@ -1975,23 +2725,23 @@ const InfiniteTypewriterCanvas = () => {
   const isComposingRef = useRef(false);
 
   return (
-    <div className={`w-full h-screen flex flex-col ${theme === 'dark' ? 'bg-black' : 'bg-gray-50'}`}>
+    <div className="w-full h-screen relative bg-transparent">
       <Header
         theme={theme}
         showGrid={showGrid}
         showInfo={showInfo}
         showShortcuts={showShortcuts}
-        maxCharsPerLine={maxCharsPerLine}
+        currentMode={currentMode}
         onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
         onShowGridToggle={() => setShowGrid(prev => !prev)}
         onShowInfoToggle={() => setShowInfo(prev => !prev)}
         onShowShortcutsToggle={() => setShowShortcuts(prev => !prev)}
+        onModeChange={setCurrentMode}
         onApiKeyClick={() => setShowApiKeyInput(true)}
         onImportFile={importFile}
         onExportPNG={exportAsPNG}
         onExportSVG={exportAsSVG}
         onExportJSON={exportAsJSON}
-        onAddA4Guide={handleAddA4Guide}
         onClearAll={clearAll}
       />
 
@@ -2027,6 +2777,11 @@ const InfiniteTypewriterCanvas = () => {
         getCurrentLineHeight={getCurrentLineHeight}
         handleInputChange={handleInputChange}
         handleInputKeyDown={handleInputKeyDown}
+        currentMode={currentMode}
+        pinPosition={pinPosition}
+        linkState={linkState}
+        selectionState={selectionState}
+        onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
         handleCompositionStart={handleCompositionStart}
         handleCompositionEnd={handleCompositionEnd}
         handleMaxCharsChange={handleMaxCharsChange}
@@ -2066,6 +2821,10 @@ const InfiniteTypewriterCanvas = () => {
             zoomToLevel(zoomLevels[newIndex]);
           }
         }}
+        onShowShortcutsToggle={() => setShowShortcuts(!showShortcuts)}
+        showGrid={showGrid}
+        onShowGridToggle={() => setShowGrid(!showGrid)}
+        onShowInfoToggle={() => setShowInfo(!showInfo)}
       />
 
       {/* API Key Input Modal */}

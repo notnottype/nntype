@@ -1,7 +1,35 @@
 import React from 'react'
 import { CornerUpLeft, CornerUpRight, Loader2, AlertCircle } from 'lucide-react'
 import { pxToPoints } from '../utils/units'
-import { AIState } from '../types'
+import { AIState, CanvasModeType, PinPosition, LinkState, SelectionState } from '../types'
+import { getModeDisplayProperties } from '../utils/modeUtils'
+
+// Add CSS for placeholder styling
+const placeholderStyle = document.createElement('style')
+placeholderStyle.textContent = `
+  .typewriter-input-typography::placeholder {
+    color: var(--placeholder-color);
+    font-size: var(--base-font-size);
+    font-weight: normal;
+    font-family: "JetBrains Mono", monospace;
+  }
+  .typewriter-input-link::placeholder {
+    color: #ff6b6b;
+    font-size: 12px;
+    font-weight: bold;
+    font-family: "JetBrains Mono", monospace;
+  }
+  .typewriter-input-select::placeholder {
+    color: #4a9eff;
+    font-size: 12px;
+    font-weight: bold;
+    font-family: "JetBrains Mono", monospace;
+  }
+`
+if (!document.head.querySelector('#typewriter-placeholder-styles')) {
+  placeholderStyle.id = 'typewriter-placeholder-styles'
+  document.head.appendChild(placeholderStyle)
+}
 
 interface TypewriterInputProps {
   showTextBox: boolean
@@ -27,6 +55,12 @@ interface TypewriterInputProps {
   handleUndo: () => void
   handleRedo: () => void
   THEME_COLORS: any
+  
+  // Multi-mode system props
+  currentMode: CanvasModeType
+  pinPosition: PinPosition
+  linkState: LinkState
+  selectionState: SelectionState
 }
 
 export const TypewriterInput: React.FC<TypewriterInputProps> = ({
@@ -52,9 +86,18 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
   handleMaxCharsChange,
   handleUndo,
   handleRedo,
-  THEME_COLORS
+  THEME_COLORS,
+  currentMode,
+  pinPosition,
+  linkState,
+  selectionState
 }) => {
   if (!showTextBox) return null
+
+  const modeProps = getModeDisplayProperties(currentMode, theme);
+  
+  // In Link and Select modes, hide the textarea to prevent conflicts
+  const showTextArea = currentMode === 'typography';
 
   return (
     <>
@@ -72,10 +115,15 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
           pointerEvents: 'auto',
         }}
       >
-        {/* Input Field */}
+
+
+        {/* Input Field - Only show in Typography mode */}
+        {showTextArea && (
         <textarea
           id="typewriter-input"
+          className={`typewriter-input-${currentMode}`}
           value={currentTypingText}
+          placeholder={modeProps.placeholder}
           onChange={handleInputChange}
           onKeyDown={handleInputKeyDown}
           onCompositionStart={handleCompositionStart}
@@ -85,15 +133,15 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
             e.currentTarget.focus();
           }}
           disabled={aiState.isProcessing}
-          rows={currentTypingText.split('\n').length}
+          rows={currentTypingText.split('\\n').length}
           style={{
             width: '100%',
             minHeight: baseFontSize * 1.6,
-            height: Math.max(baseFontSize * 1.6, (currentTypingText.split('\n').length * baseFontSize * 1.6)),
+            height: Math.max(baseFontSize * 1.6, (currentTypingText.split('\\n').length * baseFontSize * 1.6)),
             fontFamily: '"JetBrains Mono", monospace',
             fontSize: baseFontSize,
             background: THEME_COLORS[theme].inputBg,
-            border: `1px solid ${THEME_COLORS[theme].inputBorder}`,
+            border: `1px solid ${modeProps.borderColor}`,
             outline: 'none',
             color: THEME_COLORS[theme].text,
             backdropFilter: 'blur(1px)',
@@ -108,19 +156,53 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
             overflow: 'hidden',
             whiteSpace: 'pre-wrap',
             verticalAlign: 'baseline',
-            textAlign: 'left'
+            textAlign: 'left',
+            // CSS variable for typography mode placeholder color
+            '--placeholder-color': theme === 'dark' ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.4)',
+            '--base-font-size': `${baseFontSize}px`
           }}
         />
+        )}
+
+        {/* Mode Status Display for Link and Select modes - Show mode name */}
+        {!showTextArea && (
+          <div
+            style={{
+              width: '100%',
+              minHeight: baseFontSize * 1.6,
+              height: baseFontSize * 1.6,
+              fontFamily: '"JetBrains Mono", monospace',
+              fontSize: baseFontSize,
+              lineHeight: `${baseFontSize * 1.6}px`,
+              background: THEME_COLORS[theme].inputBg,
+              border: `1px solid ${modeProps.borderColor}`,
+              outline: 'none',
+              color: currentMode === 'link' ? '#ff6b6b' : '#4a9eff',
+              backdropFilter: 'blur(1px)',
+              borderRadius: '4px',
+              padding: '0px 8px',
+              boxSizing: 'border-box',
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+              opacity: 0.8,
+              fontWeight: 'normal'
+            }}
+          >
+            {modeProps.placeholder}
+          </div>
+        )}
 
         {/* AI Status Indicator - Loading ring overlay without background */}
-        {aiState.isProcessing && (
+        {showTextArea && aiState.isProcessing && (
           <div
             style={{
               position: 'absolute',
               top: 0,
               left: 0,
               width: '100%',
-              height: Math.max(baseFontSize * 1.6, (currentTypingText.split('\n').length * baseFontSize * 1.6)),
+              height: Math.max(baseFontSize * 1.6, (currentTypingText.split('\\n').length * baseFontSize * 1.6)),
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-start',
@@ -165,7 +247,8 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
           </div>
         )}
 
-        {/* Controls Container */}
+        {/* Controls Container - Show in all modes */}
+        {(
         <div
           style={{
             width: '100%',
@@ -202,7 +285,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
                       border: 'none',
                       outline: 'none',
                       color: maxCharsPerLine === chars
-                        ? '#60a5fa'
+                        ? (theme === 'dark' ? '#d1d5db' : '#6b7280')
                         : (theme === 'dark' ? '#bfc9d1' : '#6b7280'),
                       fontWeight: fontWeight,
                       fontFamily: 'JetBrains Mono, monospace',
@@ -326,9 +409,11 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
             </button>
           </div>
         </div>
+        )}
       </div>
       
-      {/* Font Size Indicator */}
+      {/* Font Size Indicator - Show in all modes */}
+      {(
       <div
         style={{
           position: 'absolute',
@@ -350,6 +435,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
           <div>Logical&nbsp;&nbsp;{baseFontSizePt.toFixed(0)}pt</div>
         </div>
       </div>
+      )}
 
 
     </>
