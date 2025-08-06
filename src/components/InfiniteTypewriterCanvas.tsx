@@ -219,11 +219,11 @@ const InfiniteTypewriterCanvas = () => {
   const [baseFontSize, setBaseFontSize] = useState(() => {
     const sessionData = loadSession();
     return sessionData?.baseFontSize || INITIAL_UI_FONT_SIZE_PX;
-  }); // UI 폰트 크기 (픽셀)
+  }); // Display Font Size (픽셀) - 화면에 표시되는 크기
   const [baseFontSizePt, setBaseFontSizePt] = useState(() => {
     const sessionData = loadSession();
     return sessionData?.baseFontSizePt || INITIAL_BASE_FONT_SIZE_PT;
-  }); // Base 폰트 크기 (포인트)
+  }); // Logical Font Size (포인트) - 논리적 텍스트 크기
   const [needsLTPositionRestore, setNeedsLTPositionRestore] = useState<{ x: number; y: number } | null>(null); // LT 위치 복구 플래그
   const [typewriterPosition, setTypewriterPosition] = useState({ 
     x: window.innerWidth / 2, 
@@ -1431,7 +1431,7 @@ const InfiniteTypewriterCanvas = () => {
     setCanvasOffset(newOffset);
   };
 
-  // UI Font Size 조절 함수 (픽셀 기반 - 타이프라이터 입력박스 크기 조정)
+  // Display Font Size 조절 함수 (픽셀 기반 - 화면에 표시되는 크기 조정)
   const handleUISizeChange = (up: boolean) => {
     const currentIndex = findFontSizeLevel(baseFontSize, UI_FONT_SIZE_LEVELS_PX);
     
@@ -1445,11 +1445,11 @@ const InfiniteTypewriterCanvas = () => {
       const newScale = scale * fontSizeRatio;
       
       maintainTypewriterLTWorldPosition(newFontSize, newScale);
-      // UI Font Size만 조정하고 Base Font Size는 독립적으로 유지
+      // Display Font Size만 조정하고 Logical Font Size는 독립적으로 유지
     }
   };
 
-  // Base Font Size 조절 함수 (포인트 기반 - 텍스트 객체 논리적 크기 조정)
+  // Logical Font Size 조절 함수 (포인트 기반 - 텍스트 객체 논리적 크기 조정)
   const handleBaseFontSizeChange = (up: boolean) => {
     const currentIndex = findFontSizeLevel(baseFontSizePt, BASE_FONT_SIZE_LEVELS_PT);
     
@@ -1463,11 +1463,11 @@ const InfiniteTypewriterCanvas = () => {
       
       // 포인트 크기 변화 비율 계산 (역비율 적용)
       const ptRatio = newBaseFontSizePt / baseFontSizePt;
-      const newScale = scale / ptRatio; // Base Font Size 증가 시 캔버스 축소 (역비율)
+      const newScale = scale / ptRatio; // Logical Font Size 증가 시 캔버스 축소 (역비율)
       
-      // UI 폰트 크기는 유지하면서 스케일만 조정하여 LT 월드 좌표 유지
+      // Display Font Size는 유지하면서 스케일만 조정하여 LT 월드 좌표 유지
       maintainTypewriterLTWorldPosition(baseFontSize, newScale);
-      // Base Font Size만 업데이트
+      // Logical Font Size만 업데이트
       setBaseFontSizePt(newBaseFontSizePt);
     }
   };
@@ -1478,16 +1478,16 @@ const InfiniteTypewriterCanvas = () => {
     maintainTypewriterLTWorldPosition(INITIAL_UI_FONT_SIZE_PX, 1.0);
   }, [maintainTypewriterLTWorldPosition]);
 
-  // Base Font 리셋 (Base Font Size를 초기값으로)
+  // Logical Font 리셋 (Logical Font Size를 초기값으로)
   const resetBaseFont = useCallback(() => {
     if (baseFontSizePt !== INITIAL_BASE_FONT_SIZE_PT) {
       // 포인트 크기 변화 비율 계산 (역비율 적용)
       const ptRatio = INITIAL_BASE_FONT_SIZE_PT / baseFontSizePt;
-      const newScale = scale / ptRatio; // Base Font Size 변경 시 캔버스 스케일 역비율 조정
+      const newScale = scale / ptRatio; // Logical Font Size 변경 시 캔버스 스케일 역비율 조정
       
-      // UI 폰트 크기는 유지하면서 스케일만 조정하여 LT 월드 좌표 유지
+      // Display Font Size는 유지하면서 스케일만 조정하여 LT 월드 좌표 유지
       maintainTypewriterLTWorldPosition(baseFontSize, newScale);
-      // Base Font Size를 초기값으로 업데이트
+      // Logical Font Size를 초기값으로 업데이트
       setBaseFontSizePt(INITIAL_BASE_FONT_SIZE_PT);
     }
   }, [baseFontSizePt, scale, baseFontSize, maintainTypewriterLTWorldPosition]);
@@ -1520,7 +1520,7 @@ const InfiniteTypewriterCanvas = () => {
       if (e.key === 'Escape') {
       }
       const currentZoomIndex = findZoomLevel(scale, CANVAS_ZOOM_LEVELS);
-      // UI Font Size: Ctrl/Cmd + +/- (UI에서 표시되는 폰트 크기 조정)
+      // Display Font Size: Ctrl/Cmd + +/- (화면에 표시되는 폰트 크기 조정)
       if ((e.ctrlKey || e.metaKey) && !e.altKey) {
         if (e.key === '=' || e.key === '+') {
           e.preventDefault();
@@ -1562,7 +1562,7 @@ const InfiniteTypewriterCanvas = () => {
           return;
         }
       }
-      // Base Font Size: Alt/Option + +/- (텍스트 객체 논리적 크기 조정)
+      // Logical Font Size: Alt/Option + +/- (텍스트 객체 논리적 크기 조정)
       if (e.altKey && !e.ctrlKey && !e.metaKey) {
         // + 인식: =, +, Equal(Shift+Equal)
         if (e.key === '=' || e.key === '+' || e.code === 'Equal') {
@@ -1576,7 +1576,7 @@ const InfiniteTypewriterCanvas = () => {
           handleBaseFontSizeChange(false);
           return;
         }
-        // 0 인식: Base Font Size 리셋
+        // 0 인식: Logical Font Size 리셋
         if (e.key === '0') {
           e.preventDefault();
           resetBaseFont(); // Base Font 리셋
@@ -2000,7 +2000,7 @@ const InfiniteTypewriterCanvas = () => {
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
       
-      // 그리드 단위로 스냅 (UI 폰트 크기 기반)
+      // 그리드 단위로 스냅 (Display Font Size 기반)
       const gridSize = baseFontSize * 1.8;
       const snappedDeltaX = snapToGrid(deltaX, gridSize);
       const snappedDeltaY = snapToGrid(deltaY, gridSize);

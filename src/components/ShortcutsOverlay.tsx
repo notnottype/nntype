@@ -132,7 +132,8 @@ export const ShortcutsOverlay = ({ theme, typewriterY, baseFontSize, typewriterX
               { label: 'Pan Canvas', key: 'Space + Drag' },
               { label: 'Move View', key: 'Shift + ↑↓←→' },
               { label: 'Canvas Zoom', key: 'Ctrl + +/-' },
-              { label: 'UI Font Size', key: 'Ctrl + Mouse Wheel' },
+              { label: 'Display Font Size', key: 'Ctrl + Mouse Wheel' },
+              { label: 'Logical Font Size', key: 'Alt + +/-' },
             ]
           },
           rightColumn: {

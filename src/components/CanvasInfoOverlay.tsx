@@ -124,15 +124,15 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
 
   return (
     <div
-      className={`fixed top-3 right-4 z-60 rounded-lg transition-[width] duration-200 ease-out ${
-        isCollapsed ? 'w-10 h-10' : 'w-72'
+      className={`fixed z-60 transition-[width] duration-200 ease-out ${
+        isCollapsed ? 'top-3 right-4 w-10 h-10 rounded-lg' : 'top-0 right-0 w-72 h-screen'
       } ${
         theme === 'dark'
           ? 'bg-black/20 text-gray-100 border border-gray-700/30'
           : 'bg-white/40 text-gray-800 border border-gray-200/30'
       } backdrop-blur-sm shadow-xs`}
       style={{
-        height: isCollapsed ? '40px' : 'calc(100vh - 16px)',
+        height: isCollapsed ? '40px' : '100vh',
         padding: isCollapsed ? '4px' : '16px 14px',
         paddingTop: isCollapsed ? '4px' : '16px',
         overflowY: 'auto',
