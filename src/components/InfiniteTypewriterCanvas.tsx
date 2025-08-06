@@ -1507,8 +1507,25 @@ const InfiniteTypewriterCanvas = () => {
     // 선택 상태 초기화
     setSelectedObjects([]);
     
-    clearSession(); // 세션도 함께 클리어
-  }, [maintainTypewriterLTWorldPosition, setSelectedObject, setCanvasOffset, setCanvasObjects, setSelectedObjects]);
+    // 리셋된 상태를 세션에 저장 (clearSession 대신)
+    saveSession({
+      canvasObjects: [],
+      canvasOffset: { x: 0, y: 0 },
+      scale: 1.0,
+      typewriterPosition: { x: typewriterX, y: typewriterY },
+      typewriterLTWorldPosition: getCurrentLTWorldPosition(),
+      currentTypingText: '',
+      baseFontSize: INITIAL_UI_FONT_SIZE_PX,
+      baseFontSizePt: INITIAL_BASE_FONT_SIZE_PT,
+      maxCharsPerLine,
+      showGrid,
+      showTextBox,
+      showInfo,
+      showShortcuts,
+      theme,
+      selectedObjectId: undefined
+    });
+  }, [maintainTypewriterLTWorldPosition, setSelectedObject, setCanvasOffset, setCanvasObjects, setSelectedObjects, typewriterX, typewriterY, getCurrentLTWorldPosition, maxCharsPerLine, showGrid, showTextBox, showInfo, showShortcuts, theme, saveSession]);;
   
   // Keyboard events
   useEffect(() => {
@@ -1536,7 +1553,9 @@ const InfiniteTypewriterCanvas = () => {
           return;
         } else if (e.key === 'Home' || e.key === 'r' || e.key === 'R') {
           e.preventDefault();
-          resetCanvas();
+          // Alt+0, Cmd+0 순서대로 실행: Logical Font Size 리셋 → Display Font Size 리셋
+          resetBaseFont(); // Alt+0 액션 (Logical Font Size 리셋)
+          resetUIZoom();   // Cmd+0 액션 (Display Font Size 리셋)
           return;
         } else if (e.key === 'c' || e.key === 'C') {
           e.preventDefault();
