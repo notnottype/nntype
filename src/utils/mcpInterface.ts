@@ -1,5 +1,5 @@
 /**
- * MCP (Model Context Protocol) Interface for NNType
+ * MCP (Model Context Protocol) Interface for nntype
  * Provides standardized functions for external AI integration
  */
 

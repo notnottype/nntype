@@ -1,5 +1,5 @@
 /**
- * Enhanced collision detection system for NNType
+ * Enhanced collision detection system for nntype
  * Optimized for performance and future MCP integration
  */
 

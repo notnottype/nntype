@@ -1,6 +1,6 @@
 # Enhanced Event Handling Implementation Guide
 
-This guide explains the improved event handling system inspired by Excalidraw's architecture, designed to enhance NNType's event management with better performance, touch support, and maintainability.
+This guide explains the improved event handling system inspired by Excalidraw's architecture, designed to enhance nntype's event management with better performance, touch support, and maintainability.
 
 ## 🎯 Key Improvements
 

@@ -1,5 +1,5 @@
 /**
- * NNType - Infinite Typewriter Canvas
+ * nntype - Infinite Typewriter Canvas
  * 
  * © 2025 Hyeonsong Kim (@kimhxsong)
  * Contact: kimhxsong@gmail.com

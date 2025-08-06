@@ -505,7 +505,7 @@ export class ConsentManager {
   private static showConsentDialog(callback: (granted: boolean) => void): void {
     // Simple implementation - you should replace with proper UI
     const message = `
-      NNType would like to collect anonymous usage data to improve the application.
+      nntype would like to collect anonymous usage data to improve the application.
       No personal information is collected. Would you like to enable analytics?
     `;
     

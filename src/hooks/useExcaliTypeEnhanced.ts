@@ -1,6 +1,6 @@
 /**
  * Master hook that integrates all enhanced features
- * Provides a unified interface for the enhanced NNType experience
+ * Provides a unified interface for the enhanced nntype experience
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
@@ -12,7 +12,7 @@ import { CanvasObjectType, SelectionRectangle, Theme } from '../types';
 import { getAnalytics } from '../utils/analytics';
 import { throttle, debounce } from '../utils/eventUtils';
 
-interface UseNNTypeEnhancedProps {
+interface UsenntypeEnhancedProps {
   // Canvas dimensions
   width: number;
   height: number;
@@ -56,7 +56,7 @@ interface UseNNTypeEnhancedProps {
   enablePerformanceMonitoring?: boolean;
 }
 
-export const useNNTypeEnhanced = ({
+export const usenntypeEnhanced = ({
   width,
   height,
   canvasObjects,
@@ -85,7 +85,7 @@ export const useNNTypeEnhanced = ({
   enableTouchGestures = true,
   enableAnalytics = false,
   enablePerformanceMonitoring = true
-}: UseNNTypeEnhancedProps) => {
+}: UsenntypeEnhancedProps) => {
   
   // Canvas container ref for the advanced rendering system
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -314,11 +314,11 @@ export const useNNTypeEnhanced = ({
 
   // Error boundary integration
   const handleError = useCallback((error: Error, errorInfo: any) => {
-    console.error('NNType Enhanced Error:', error, errorInfo);
+    console.error('nntype Enhanced Error:', error, errorInfo);
     
     if (enableAnalytics) {
       getAnalytics()?.trackError(error, {
-        component: 'NNTypeEnhanced',
+        component: 'nntypeEnhanced',
         ...errorInfo
       });
     }

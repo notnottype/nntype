@@ -1,7 +1,7 @@
-# NNType Project Structure
+# nntype Project Structure
 
 ## Overview
-NNType is a React-based infinite canvas typewriter application with TypeScript, built using Vite for optimal development experience and performance.
+nntype is a React-based infinite canvas typewriter application with TypeScript, built using Vite for optimal development experience and performance.
 
 ## Directory Structure
 

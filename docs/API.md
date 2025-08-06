@@ -1,4 +1,4 @@
-# NNType API Documentation
+# nntype API Documentation
 
 ## Core Types & Interfaces
 

@@ -158,7 +158,7 @@ export const EventHandlerMigration: React.FC<EventHandlerMigrationProps> = ({
         })
       };
       
-      console.log('NNType Debug: Event system =', shouldUseEnhanced ? 'Enhanced' : 'Legacy');
+      console.log('nntype Debug: Event system =', shouldUseEnhanced ? 'Enhanced' : 'Legacy');
     }
   }, [shouldUseEnhanced, hasError, errorCount]);
   

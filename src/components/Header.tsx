@@ -53,7 +53,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="pointer-events-auto flex items-center h-10 mt-1">
           <img 
             src="/nntype.svg" 
-            alt="NNType" 
+            alt="nntype" 
             className="w-28 h-14"
             style={{ filter: theme === 'dark' ? 'invert(1)' : 'none' }}
           />

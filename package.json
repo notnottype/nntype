@@ -2,7 +2,7 @@
   "name": "nntype",
   "version": "0.1.250806.2",
   "private": true,
-  "description": "NNType - Infinite Canvas Typewriter",
+  "description": "nntype - Infinite Canvas Typewriter",
   "license": "GPL-3.0",
   "author": {
     "name": "Hyeonsong Kim",

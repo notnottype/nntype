@@ -1,8 +1,8 @@
-# NNType Documentation Index
+# nntype Documentation Index
 
 ## 📚 Documentation Overview
 
-Welcome to the NNType documentation hub. This index provides quick access to all project documentation, organized by topic and audience.
+Welcome to the nntype documentation hub. This index provides quick access to all project documentation, organized by topic and audience.
 
 ## 🚀 Quick Start
 
