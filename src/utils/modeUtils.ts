@@ -4,7 +4,7 @@
 
 import { CanvasModeType, PinPosition, LinkState, SelectionState, CanvasObjectType, LinkObjectType } from '../types';
 
-export const CANVAS_MODES: CanvasModeType[] = ['select', 'link', 'typography'];
+export const CANVAS_MODES: CanvasModeType[] = ['typography', 'select', 'link'];
 
 /**
  * Get the next mode in the cycle
@@ -52,14 +52,14 @@ export function getModeDisplayProperties(mode: CanvasModeType, theme: 'light' | 
       return {
         icon: '→',
         borderColor: getBorderColor(theme),
-        placeholder: '→ LINK MODE - Navigate with Shift+arrows, Space to link',
+        placeholder: 'LINK MODE',
         description: 'Link Mode - Connect text objects with arrows'
       };
     case 'select':
       return {
         icon: '■',
         borderColor: getBorderColor(theme),
-        placeholder: '■ SELECT MODE - Shift+arrows to select, Ctrl+Shift+arrows to move',
+        placeholder: 'SELECT MODE',
         description: 'Select Mode - Multi-select and batch operations'
       };
   }

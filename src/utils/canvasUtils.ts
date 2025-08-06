@@ -321,16 +321,19 @@ export const drawSelectionRectangle = (
   const selectionColor = theme === 'dark' ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.2)';
   const borderColor = theme === 'dark' ? 'rgba(59, 130, 246, 0.8)' : 'rgba(59, 130, 246, 0.6)';
   
-  // Fill selection rectangle
-  ctx.fillStyle = selectionColor;
-  ctx.fillRect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
-  
-  // Draw selection rectangle border
-  ctx.strokeStyle = borderColor;
-  ctx.lineWidth = 1;
-  ctx.setLineDash([5, 5]);
-  ctx.strokeRect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
-  ctx.setLineDash([]);
+  // Only draw if rectangle has meaningful dimensions
+  if (selectionRect.width > 0 && selectionRect.height > 0) {
+    // Fill selection rectangle
+    ctx.fillStyle = selectionColor;
+    ctx.fillRect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
+    
+    // Draw selection rectangle border
+    ctx.strokeStyle = borderColor;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 5]);
+    ctx.strokeRect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
+    ctx.setLineDash([]);
+  }
 };
 
 export const drawMultiSelectHighlight = (

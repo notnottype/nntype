@@ -1019,13 +1019,7 @@ const InfiniteTypewriterCanvas = () => {
   // Keyboard event handlers for multi-mode system
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // In Link and Select modes, always handle global keys
-      // In Typography mode, only handle if not in textarea
-      if (currentMode === 'typography' && document.activeElement?.id === 'typewriter-input') {
-        return;
-      }
-      
-      // Handle Tab key for mode switching (all modes)
+      // Handle Tab key for mode switching (all modes) - always allow Tab for mode switching
       if (e.key === 'Tab') {
         e.preventDefault();
         const nextMode = e.shiftKey ? getPreviousMode(currentMode) : getNextMode(currentMode);
@@ -1078,6 +1072,11 @@ const InfiniteTypewriterCanvas = () => {
         setSelectedObjects([]);
         setSelectedObject(null);
         
+        return;
+      }
+
+      // In Typography mode, don't handle other keys when typing in textarea
+      if (currentMode === 'typography' && document.activeElement?.id === 'typewriter-input') {
         return;
       }
 
@@ -1682,6 +1681,10 @@ const InfiniteTypewriterCanvas = () => {
     
     const clickedObject = canvasObjects.find(obj => isPointInObjectLocal(obj, mouseX, mouseY));
     
+    // Debug: Log when no object is clicked to see if selection should start
+    if (!clickedObject && !isSpacePressed && !(e.metaKey && !clickedObject)) {
+    }
+    
     if (clickedObject) {
       // Check if Cmd key is pressed for additive selection
       if (e.metaKey && !isSpacePressed) {
@@ -1763,7 +1766,9 @@ const InfiniteTypewriterCanvas = () => {
       } else {
         // Use old selection system for Typography mode
         setIsSelecting(true);
-        setSelectionRect(null);
+        // Initialize selection rectangle with current mouse position
+        const initialRect = createSelectionRectangle(mouseX, mouseY, mouseX, mouseY);
+        setSelectionRect(initialRect);
       }
       
       setIsDragging(false);
@@ -1952,8 +1957,9 @@ const InfiniteTypewriterCanvas = () => {
       const selectedObjs = getObjectsInSelectionRect(
         canvasObjects,
         currentRect,
-        canvasRef.current,
-        fontLoaded
+        scale,
+        canvasOffset,
+        measureTextWidthLocal
       );
       setSelectedObjects(selectedObjs);
     } else if (currentMode === 'select' && selectionState.dragArea) {
@@ -2112,6 +2118,20 @@ const InfiniteTypewriterCanvas = () => {
     }
   }, [showTextBox]);
 
+  // Focus input when switching to Typography mode
+  useEffect(() => {
+    if (currentMode === 'typography' && showTextBox) {
+      setTimeout(() => {
+        const input = document.getElementById('typewriter-input') as HTMLInputElement | null;
+        if (input) {
+          input.focus();
+          // Move cursor to end of text
+          input.setSelectionRange(input.value.length, input.value.length);
+        }
+      }, 100); // Small delay to ensure mode change is complete
+    }
+  }, [currentMode, showTextBox]);
+
   // [UNDO/REDO] 상태 스냅샷 타입 정의
   interface CanvasSnapshot {
     canvasObjects: CanvasObjectType[];
@@ -2246,60 +2266,9 @@ const InfiniteTypewriterCanvas = () => {
   // 예시: 텍스트 추가, 오브젝트 이동/삭제, 패닝, 줌, 전체 삭제 등
   // 텍스트 추가
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Handle Tab key for mode switching
+    // Tab key is handled by global handler, don't handle it here
     if (e.key === 'Tab') {
-      e.preventDefault();
-      const nextMode = e.shiftKey ? getPreviousMode(currentMode) : getNextMode(currentMode);
-      setPreviousMode(currentMode);
-      setCurrentMode(nextMode);
-      
-      // Initialize pin position and hover detection for Link/Select modes
-      if (nextMode === 'link' || nextMode === 'select') {
-        // Only initialize pin position when coming from typography mode
-        // Preserve pin position when switching between link and select modes
-        if (currentMode === 'typography') {
-          // Position pin at input box top-left corner
-          const newPinPosition = positionPinAtInputBox(
-            typewriterX,
-            typewriterY,
-            getTextBoxWidth(),
-            baseFontSize,
-            canvasOffset,
-            scale
-          );
-          setPinPosition(newPinPosition);
-          
-          const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPinPosition, 20, measureTextWidthLocal);
-          setPinHoveredObject(hoveredObjectAtPin);
-          setHoveredObject(hoveredObjectAtPin);
-        } else {
-          // When switching between link and select modes, just update hover detection
-          const hoveredObjectAtPin = findObjectAtPin(canvasObjects, pinPosition, 20, measureTextWidthLocal);
-          setPinHoveredObject(hoveredObjectAtPin);
-          setHoveredObject(hoveredObjectAtPin);
-        }
-      } else {
-        setPinHoveredObject(null);
-        setHoveredObject(null);
-      }
-      
-      // Reset mode-specific states when switching modes
-      if (currentMode === 'link') {
-        setLinkState({
-          sourceObjectId: null,
-          targetObjectId: null,
-          isCreating: false,
-          previewPath: null
-        });
-      } else if (currentMode === 'select') {
-        setSelectionState(clearSelection(selectionState));
-      }
-      
-      // Always clear selections when switching modes
-      setSelectedObjects([]);
-      setSelectedObject(null);
-      
-      return;
+      return; // Let global handler take care of mode switching
     }
 
     // Handle Escape key to reset to Typography mode
@@ -2674,17 +2643,17 @@ const InfiniteTypewriterCanvas = () => {
         showGrid={showGrid}
         showInfo={showInfo}
         showShortcuts={showShortcuts}
-        maxCharsPerLine={maxCharsPerLine}
+        currentMode={currentMode}
         onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
         onShowGridToggle={() => setShowGrid(prev => !prev)}
         onShowInfoToggle={() => setShowInfo(prev => !prev)}
         onShowShortcutsToggle={() => setShowShortcuts(prev => !prev)}
+        onModeChange={setCurrentMode}
         onApiKeyClick={() => setShowApiKeyInput(true)}
         onImportFile={importFile}
         onExportPNG={exportAsPNG}
         onExportSVG={exportAsSVG}
         onExportJSON={exportAsJSON}
-        onAddA4Guide={handleAddA4Guide}
         onClearAll={clearAll}
       />
 

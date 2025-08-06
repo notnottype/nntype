@@ -164,7 +164,7 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
         tabIndex={0}
       />
       
-      {showShortcuts && (
+      {(showShortcuts || currentMode === 'select' || currentMode === 'link') && (
         <div className="relative z-50">
           <ShortcutsOverlay 
             theme={theme} 

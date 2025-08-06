@@ -164,7 +164,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
         />
         )}
 
-        {/* Mode Status Display for Link and Select modes - Empty disabled input */}
+        {/* Mode Status Display for Link and Select modes - Show mode name */}
         {!showTextArea && (
           <div
             style={{
@@ -177,18 +177,20 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
               background: THEME_COLORS[theme].inputBg,
               border: `1px solid ${modeProps.borderColor}`,
               outline: 'none',
-              color: theme === 'dark' ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.4)',
+              color: currentMode === 'link' ? '#ff6b6b' : '#4a9eff',
               backdropFilter: 'blur(1px)',
               borderRadius: '4px',
-              padding: '0px !important',
+              padding: '0px 8px',
               boxSizing: 'border-box',
               textAlign: 'left',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-start',
-              opacity: 0.3
+              opacity: 0.8,
+              fontWeight: 'normal'
             }}
           >
+            {modeProps.placeholder}
           </div>
         )}
 

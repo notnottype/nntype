@@ -47,9 +47,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
             className={`
               p-2 rounded-lg transition-all duration-200
               ${isActive 
-                ? theme === 'dark'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-blue-500 text-white shadow-md'
+                ? 'text-blue-500 bg-blue-500/10'
                 : theme === 'dark'
                   ? 'text-gray-400 hover:text-white hover:bg-gray-800'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
