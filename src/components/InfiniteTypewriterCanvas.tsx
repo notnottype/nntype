@@ -84,7 +84,7 @@ import {
   THEME_COLORS
 } from '../constants';
 import { pxToPoints, pointsToPx } from '../utils/units';
-import { CanvasObjectType, A4GuideObjectType, Theme, AICommand, SelectionRectangle, CanvasModeType, PinPosition, LinkState, SelectionState, LinkObjectType } from '../types';
+import { CanvasObjectType, TextObjectType, A4GuideObjectType, Theme, AICommand, SelectionRectangle, CanvasModeType, PinPosition, LinkState, SelectionState, LinkObjectType } from '../types';
 import { aiService } from '../services/aiService';
 import { wrapTextToLines } from '../utils';
 import { ExportMenu } from './ExportMenu';
@@ -100,6 +100,11 @@ const parseCommand = (text: string): AICommand | null => {
     }
   }
   return null;
+};
+
+// Helper function to check if object has position properties
+const hasPosition = (obj: CanvasObjectType): obj is TextObjectType | A4GuideObjectType => {
+  return obj.type === 'text' || obj.type === 'a4guide';
 };
 
 const InfiniteTypewriterCanvas = () => {
@@ -309,19 +314,8 @@ const InfiniteTypewriterCanvas = () => {
   }, []);
 
 
-  // Typewriter settings with input box LT x-coordinate snapping
-  const snapInterval = 20;
-  const centeredX = canvasWidth / 2;
-  
-  // Calculate approximate text box width (will be refined later by getTextBoxWidth)
-  const approximateTextBoxWidth = maxCharsPerLine * (baseFontSize * 0.6);
-  
-  // Calculate input box left edge and snap it to grid
-  const inputBoxLeft = centeredX - approximateTextBoxWidth / 2;
-  const snappedInputBoxLeft = Math.round(inputBoxLeft / snapInterval) * snapInterval;
-  
-  // Adjust typewriter center position to align input box left edge
-  const typewriterX = snappedInputBoxLeft + approximateTextBoxWidth / 2;
+  // 타이프라이터 위치는 절대 스냅하지 않음 - 화면 중앙 고정
+  const typewriterX = canvasWidth / 2;
   const typewriterY = canvasHeight / 2;
 
   // Auto-save session when state changes (optimized)
@@ -527,9 +521,19 @@ const InfiniteTypewriterCanvas = () => {
       baseFontSize
     );
 
+    // 핀 위치가 있다면 월드 좌표 업데이트
+    if (pinPosition) {
+      const updatedPin = {
+        ...pinPosition,
+        worldX: (pinPosition.x - newOffset.x) / newScale,
+        worldY: (pinPosition.y - newOffset.y) / newScale
+      };
+      setPinPosition(updatedPin);
+    }
+
     setScale(newScale);
     setCanvasOffset(newOffset);
-  }, [getTextBoxWidth, measureTextWidthLocal, scale, canvasOffset, typewriterX, typewriterY, baseFontSize, maxCharsPerLine]);
+  }, [getTextBoxWidth, measureTextWidthLocal, scale, canvasOffset, typewriterX, typewriterY, baseFontSize, maxCharsPerLine, pinPosition]);
 
   const getCurrentWorldPosition = useCallback(() => {
     const textBoxWidth = getTextBoxWidth();
@@ -1287,13 +1291,20 @@ const InfiniteTypewriterCanvas = () => {
             
           } else if (e.altKey) {
             // Alt + Arrow: Move selected objects in world coordinates
-            if (currentMode === 'select' && selectedObjects.length > 0) {
+            const hasSelection = selectedObjects.length > 0 || selectedObject !== null;
+            console.log('Alt + Arrow pressed:', { currentMode, selectedObjects: selectedObjects.length, selectedObject: selectedObject?.id, hasSelection });
+            
+            if (currentMode === 'select' && hasSelection) {
               const worldStepSize = stepSize / scale; // Convert to world units
               const worldDeltaX = deltaX / scale;
               const worldDeltaY = deltaY / scale;
               
-              // Convert selectedObjects array to Set for moveSelectedObjects function
-              const selectedIds = new Set(selectedObjects.map(obj => obj.id.toString()));
+              // Combine single and multi-selected objects
+              const objectsToMove = selectedObjects.length > 0 ? selectedObjects : (selectedObject ? [selectedObject] : []);
+              console.log('Moving objects:', { worldDeltaX, worldDeltaY, objectIds: objectsToMove.map(obj => obj.id) });
+              
+              // Convert to Set for moveSelectedObjects function
+              const selectedIds = new Set(objectsToMove.map(obj => obj.id.toString()));
               const newObjects = moveSelectedObjects(canvasObjects, selectedIds, worldDeltaX, worldDeltaY);
               setCanvasObjects(newObjects);
             }
@@ -1404,7 +1415,17 @@ const InfiniteTypewriterCanvas = () => {
       y: newLTScreen.y - targetScreenY
     };
     
-    // 4. 상태 업데이트
+    // 4. 핀 위치가 있다면 월드 좌표 업데이트
+    if (pinPosition) {
+      const updatedPin = {
+        ...pinPosition,
+        worldX: (pinPosition.x - newOffset.x) / newScale,
+        worldY: (pinPosition.y - newOffset.y) / newScale
+      };
+      setPinPosition(updatedPin);
+    }
+    
+    // 5. 상태 업데이트
     setBaseFontSize(newFontSize);
     setScale(newScale);
     setCanvasOffset(newOffset);
@@ -1904,46 +1925,53 @@ const InfiniteTypewriterCanvas = () => {
           
           // Update canvas objects
           setCanvasObjects(prev => prev.map(obj => 
-            selectedIds.includes(obj.id)
+            selectedIds.includes(obj.id) && hasPosition(obj)
               ? { ...obj, x: obj.x + worldDeltaX, y: obj.y + worldDeltaY }
               : obj
           ));
           
           // Calculate updated positions for selectedObjects
-          const updatedSelectedObjects = selectedObjects.map(obj => ({
-            ...obj, 
-            x: obj.x + worldDeltaX, 
-            y: obj.y + worldDeltaY
-          }));
+          const updatedSelectedObjects = selectedObjects.map(obj => 
+            hasPosition(obj)
+              ? { ...obj, x: obj.x + worldDeltaX, y: obj.y + worldDeltaY }
+              : obj
+          );
           
           // Update selectedObjects array
           setSelectedObjects(updatedSelectedObjects);
           
           // 멀티 선택 프리뷰 계산 (updated objects 사용)
-          const referenceObj = updatedSelectedObjects[0];
-          const currentWorldX = referenceObj.x;
-          const currentWorldY = referenceObj.y;
-          const snappedWorldX = snapToGrid(currentWorldX, worldGridSize);
-          const snappedWorldY = snapToGrid(currentWorldY, worldGridSize);
-          const snapDeltaX = snappedWorldX - selectedObjects[0].x - worldDeltaX;
-          const snapDeltaY = snappedWorldY - selectedObjects[0].y - worldDeltaY;
-          
-          previewObjects = updatedSelectedObjects.map(obj => ({
-            ...obj,
-            x: obj.x + snapDeltaX,
-            y: obj.y + snapDeltaY
-          }));
-        } else if (selectedObject) {
+          const positionedObjects = updatedSelectedObjects.filter(hasPosition);
+          if (positionedObjects.length > 0) {
+            const referenceObj = positionedObjects[0];
+            const currentWorldX = referenceObj.x;
+            const currentWorldY = referenceObj.y;
+            const snappedWorldX = snapToGrid(currentWorldX, worldGridSize);
+            const snappedWorldY = snapToGrid(currentWorldY, worldGridSize);
+            
+            const firstSelected = selectedObjects.find(hasPosition);
+            if (firstSelected) {
+              const snapDeltaX = snappedWorldX - firstSelected.x - worldDeltaX;
+              const snapDeltaY = snappedWorldY - firstSelected.y - worldDeltaY;
+              
+              previewObjects = updatedSelectedObjects.map(obj => 
+                hasPosition(obj)
+                  ? { ...obj, x: obj.x + snapDeltaX, y: obj.y + snapDeltaY }
+                  : obj
+              );
+            }
+          }
+        } else if (selectedObject && hasPosition(selectedObject)) {
           // Single object drag
           setCanvasObjects(prev => prev.map(obj => 
-            obj.id === selectedObject.id 
+            obj.id === selectedObject.id && hasPosition(obj)
               ? { ...obj, x: obj.x + worldDeltaX, y: obj.y + worldDeltaY }
               : obj
           ));
           
-          setSelectedObject(prev => prev ? 
+          setSelectedObject(prev => prev && hasPosition(prev) ? 
             { ...prev, x: prev.x + worldDeltaX, y: prev.y + worldDeltaY } 
-            : null
+            : prev
           );
           
           // 단일 선택 프리뷰 계산
@@ -2030,41 +2058,44 @@ const InfiniteTypewriterCanvas = () => {
       
       if (selectedObjects.length > 1) {
         // 멀티 선택 그리드 스냅
-        const referenceObj = selectedObjects[0];
-        const snappedWorldX = snapToGrid(referenceObj.x, worldGridSize);
-        const snappedWorldY = snapToGrid(referenceObj.y, worldGridSize);
-        const snapDeltaX = snappedWorldX - referenceObj.x;
-        const snapDeltaY = snappedWorldY - referenceObj.y;
-        
-        if (snapDeltaX !== 0 || snapDeltaY !== 0) {
-          const selectedIds = selectedObjects.map(obj => obj.id);
-          setCanvasObjects(prev => prev.map(obj => 
-            selectedIds.includes(obj.id)
-              ? { ...obj, x: obj.x + snapDeltaX, y: obj.y + snapDeltaY }
-              : obj
-          ));
+        const positionedObjects = selectedObjects.filter(hasPosition);
+        if (positionedObjects.length > 0) {
+          const referenceObj = positionedObjects[0];
+          const snappedWorldX = snapToGrid(referenceObj.x, worldGridSize);
+          const snappedWorldY = snapToGrid(referenceObj.y, worldGridSize);
+          const snapDeltaX = snappedWorldX - referenceObj.x;
+          const snapDeltaY = snappedWorldY - referenceObj.y;
           
-          setSelectedObjects(prev => prev.map(obj => ({
-            ...obj, 
-            x: obj.x + snapDeltaX, 
-            y: obj.y + snapDeltaY
-          })));
+          if (snapDeltaX !== 0 || snapDeltaY !== 0) {
+            const selectedIds = selectedObjects.map(obj => obj.id);
+            setCanvasObjects(prev => prev.map(obj => 
+              selectedIds.includes(obj.id) && hasPosition(obj)
+                ? { ...obj, x: obj.x + snapDeltaX, y: obj.y + snapDeltaY }
+                : obj
+            ));
+            
+            setSelectedObjects(prev => prev.map(obj => 
+              hasPosition(obj)
+                ? { ...obj, x: obj.x + snapDeltaX, y: obj.y + snapDeltaY }
+                : obj
+            ));
+          }
         }
-      } else if (selectedObject) {
+      } else if (selectedObject && hasPosition(selectedObject)) {
         // 단일 선택 그리드 스냅
         const snappedWorldX = snapToGrid(selectedObject.x, worldGridSize);
         const snappedWorldY = snapToGrid(selectedObject.y, worldGridSize);
         
         if (snappedWorldX !== selectedObject.x || snappedWorldY !== selectedObject.y) {
           setCanvasObjects(prev => prev.map(obj => 
-            obj.id === selectedObject.id 
+            obj.id === selectedObject.id && hasPosition(obj)
               ? { ...obj, x: snappedWorldX, y: snappedWorldY }
               : obj
           ));
           
-          setSelectedObject(prev => prev ? 
+          setSelectedObject(prev => prev && hasPosition(prev) ? 
             { ...prev, x: snappedWorldX, y: snappedWorldY } 
-            : null
+            : prev
           );
         }
       }
@@ -2201,12 +2232,22 @@ const InfiniteTypewriterCanvas = () => {
 
   // [UNDO/REDO] 스냅샷을 상태에 적용하는 함수
   const applySnapshot = useCallback((snap: CanvasSnapshot) => {
+    // 핀 위치가 있다면 월드 좌표 업데이트
+    if (pinPosition) {
+      const updatedPin = {
+        ...pinPosition,
+        worldX: (pinPosition.x - snap.canvasOffset.x) / snap.scale,
+        worldY: (pinPosition.y - snap.canvasOffset.y) / snap.scale
+      };
+      setPinPosition(updatedPin);
+    }
+    
     setCanvasObjects(snap.canvasObjects);
     setCanvasOffset(snap.canvasOffset);
     setScale(snap.scale);
     setCurrentTypingText(snap.currentTypingText);
     setBaseFontSize(snap.baseFontSize);
-  }, [setCanvasObjects, setCanvasOffset, setScale, setCurrentTypingText, setBaseFontSize]);
+  }, [setCanvasObjects, setCanvasOffset, setScale, setCurrentTypingText, setBaseFontSize, pinPosition]);
 
   // [UNDO/REDO] 상태 변경 시 undoStack에 push
   const pushUndo = useCallback(() => {

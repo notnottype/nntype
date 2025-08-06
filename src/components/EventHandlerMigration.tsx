@@ -65,10 +65,10 @@ interface EventHandlerMigrationProps {
   aiState: AIState;
   getTextBoxWidth: () => number;
   getCurrentLineHeight: (selectedObject: any, baseFontSize: number, scale: number) => number;
-  handleInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  handleInputKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
-  handleCompositionStart: (e: React.CompositionEvent<HTMLInputElement>) => void;
-  handleCompositionEnd: (e: React.CompositionEvent<HTMLInputElement>) => void;
+  handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  handleInputKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  handleCompositionStart: (e: React.CompositionEvent<HTMLTextAreaElement>) => void;
+  handleCompositionEnd: (e: React.CompositionEvent<HTMLTextAreaElement>) => void;
   handleMaxCharsChange: (chars: number) => void;
   handleUndo: () => void;
   handleRedo: () => void;
@@ -249,6 +249,15 @@ export const EventHandlerMigration: React.FC<EventHandlerMigrationProps> = ({
         onDeleteSelected={props.onDeleteSelected}
         onZoomIn={props.onZoomIn}
         onZoomOut={props.onZoomOut}
+        onShowShortcutsToggle={() => {}}
+        showGrid={false}
+        onShowGridToggle={() => {}}
+        onShowInfoToggle={() => {}}
+        currentMode="typography"
+        pinPosition="LT"
+        linkState={{ isActive: false, sourceObjectId: null, targetObjectId: null }}
+        selectionState={{ isActive: false, startX: 0, startY: 0, endX: 0, endY: 0 }}
+        onThemeToggle={() => {}}
       />
       
       {FEATURE_FLAGS.DEBUG_MODE && (

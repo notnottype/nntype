@@ -22,6 +22,7 @@ interface CanvasContainerProps {
   onMouseMove: (e: React.MouseEvent<HTMLCanvasElement>) => void
   onMouseUp: () => void
   onMouseLeave: () => void
+  onWheel?: (e: React.WheelEvent<HTMLCanvasElement>) => void
   
   // TypewriterInput props
   showTextBox: boolean
@@ -38,10 +39,10 @@ interface CanvasContainerProps {
   aiState: AIState
   getTextBoxWidth: () => number
   getCurrentLineHeight: (selectedObject: any, baseFontSize: number, scale: number) => number
-  handleInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-  handleInputKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
-  handleCompositionStart: (e: React.CompositionEvent<HTMLInputElement>) => void
-  handleCompositionEnd: (e: React.CompositionEvent<HTMLInputElement>) => void
+  handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
+  handleInputKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  handleCompositionStart: (e: React.CompositionEvent<HTMLTextAreaElement>) => void
+  handleCompositionEnd: (e: React.CompositionEvent<HTMLTextAreaElement>) => void
   handleMaxCharsChange: (chars: number) => void
   handleUndo: () => void
   handleRedo: () => void
@@ -95,6 +96,7 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
   onMouseMove,
   onMouseUp,
   onMouseLeave,
+  onWheel,
   showTextBox,
   currentTypingText,
   typewriterX,
@@ -161,6 +163,7 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
         onMouseLeave={onMouseLeave}
+        onWheel={onWheel}
         tabIndex={0}
       />
       
