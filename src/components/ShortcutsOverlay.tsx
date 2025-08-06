@@ -85,10 +85,10 @@ export const ShortcutsOverlay = ({ theme, typewriterY, baseFontSize, typewriterX
           leftColumn: {
             title: 'Selection & Navigation',
             shortcuts: [
-              { label: 'Move Pin', key: 'Shift + ↑↓←→' },
-              { label: 'Select Object', key: 'Space' },
-              { label: 'Multi-Select', key: 'Shift + Space' },
-              { label: 'Drag Selection', key: 'Shift + Drag' },
+              { label: 'Move Pin', key: '↑↓←→' },
+              { label: 'Move Canvas', key: 'Shift + ↑↓←→' },
+              { label: 'Select/Deselect', key: 'Space' },
+              { label: 'Move Objects', key: 'Alt + ↑↓←→' },
             ]
           },
           rightColumn: {
@@ -96,8 +96,8 @@ export const ShortcutsOverlay = ({ theme, typewriterY, baseFontSize, typewriterX
             shortcuts: [
               { label: 'Next Mode', key: 'Tab' },
               { label: 'Previous Mode', key: 'Shift + Tab' },
-              { label: 'Delete Selected', key: 'Del' },
-              { label: 'Move Objects', key: 'Ctrl+Shift + ↑↓←→' },
+              { label: 'Clear All Selection', key: 'Esc' },
+              { label: 'Delete Objects', key: 'Del' },
             ]
           }
         };
@@ -107,10 +107,10 @@ export const ShortcutsOverlay = ({ theme, typewriterY, baseFontSize, typewriterX
           leftColumn: {
             title: 'Link Creation',
             shortcuts: [
-              { label: 'Move Pin', key: 'Shift + ↑↓←→' },
-              { label: 'Create Link', key: 'Space' },
-              { label: 'Cancel Link', key: 'Esc' },
-              { label: 'Select Source', key: 'Enter' },
+              { label: 'Move Pin', key: '↑↓←→' },
+              { label: 'Move Canvas', key: 'Shift + ↑↓←→' },
+              { label: 'Select Source', key: 'Space' },
+              { label: 'Create Link', key: 'Space (2nd obj)' },
             ]
           },
           rightColumn: {
@@ -118,7 +118,7 @@ export const ShortcutsOverlay = ({ theme, typewriterY, baseFontSize, typewriterX
             shortcuts: [
               { label: 'Next Mode', key: 'Tab' },
               { label: 'Previous Mode', key: 'Shift + Tab' },
-              { label: 'Pan Canvas', key: 'Space + Drag' },
+              { label: 'Cancel Link', key: 'Esc' },
               { label: 'Delete Links', key: 'Del' },
             ]
           }
@@ -131,8 +131,8 @@ export const ShortcutsOverlay = ({ theme, typewriterY, baseFontSize, typewriterX
             shortcuts: [
               { label: 'Pan Canvas', key: 'Space + Drag' },
               { label: 'Move View', key: 'Shift + ↑↓←→' },
-              { label: 'Canvas Zoom', key: 'Shift + Alt + +/-' },
-              { label: 'UI Font Size', key: 'Ctrl/Cmd + +/-' },
+              { label: 'Canvas Zoom', key: 'Ctrl + +/-' },
+              { label: 'UI Font Size', key: 'Ctrl + Mouse Wheel' },
             ]
           },
           rightColumn: {

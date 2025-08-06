@@ -66,7 +66,8 @@ import {
   getObjectsInSelectionRect,
   moveSelectedObjects,
   clearSelection,
-  addToSelection 
+  addToSelection,
+  removeFromSelection 
 } from '../utils/selectionUtils';
 import { 
   INITIAL_UI_FONT_SIZE_PX,
@@ -1171,24 +1172,49 @@ const InfiniteTypewriterCanvas = () => {
             // Select object at pin position
             const objectAtPin = findObjectAtPin(canvasObjects, pinPosition, 20, measureTextWidthLocal);
             if (objectAtPin) {
-              // Update selectionState
-              setSelectionState(addToSelection(selectionState, objectAtPin.id.toString()));
+              // Check if object is already selected in selectionState
+              const isInSelectionState = selectionState.selectedObjects.has(objectAtPin.id.toString());
               
-              // Update selectedObjects to maintain consistency
-              const isAlreadySelected = selectedObjects.some(obj => obj.id === objectAtPin.id);
-              if (!isAlreadySelected) {
-                if (selectedObjects.length === 0 && selectedObject) {
-                  // If there's a single selected object, start multi-selection with it
+              if (isInSelectionState) {
+                // Toggle OFF: remove from selection if already selected
+                const newSelectionState = removeFromSelection(selectionState, objectAtPin.id.toString());
+                setSelectionState(newSelectionState);
+                
+                // Clear visual selection states
+                if (selectedObject && selectedObject.id === objectAtPin.id) {
+                  setSelectedObject(null);
+                }
+                
+                if (selectedObjects.length > 0) {
+                  const newSelectedObjects = selectedObjects.filter(obj => obj.id !== objectAtPin.id);
+                  if (newSelectedObjects.length === 1) {
+                    setSelectedObject(newSelectedObjects[0]);
+                    setSelectedObjects([]);
+                  } else if (newSelectedObjects.length === 0) {
+                    setSelectedObjects([]);
+                    setSelectedObject(null);
+                  } else {
+                    setSelectedObjects(newSelectedObjects);
+                  }
+                }
+              } else {
+                // Toggle ON: add to selection if not selected
+                const newSelectionState = addToSelection(selectionState, objectAtPin.id.toString());
+                setSelectionState(newSelectionState);
+                
+                // Update visual selection states
+                if (selectionState.selectedObjects.size === 0) {
+                  // First selection - single select
+                  setSelectedObject(objectAtPin);
+                  setSelectedObjects([]);
+                } else if (selectionState.selectedObjects.size === 1 && selectedObject) {
+                  // Second selection - convert to multi-select
                   setSelectedObjects([selectedObject, objectAtPin]);
                   setSelectedObject(null);
                 } else if (selectedObjects.length > 0) {
                   // Add to existing multi-selection
                   setSelectedObjects([...selectedObjects, objectAtPin]);
                   setSelectedObject(null);
-                } else {
-                  // First object selection
-                  setSelectedObject(objectAtPin);
-                  setSelectedObjects([]);
                 }
               }
             }
@@ -1541,8 +1567,18 @@ const InfiniteTypewriterCanvas = () => {
       // Delete key
       if (e.key === 'Delete' && !isInputFocused) {
         e.preventDefault();
-        if (selectedObjects.length > 0) {
-          // Delete multi-selected objects
+        
+        if (currentMode === 'select' && selectionState.selectedObjects.size > 0) {
+          // Delete objects selected in Select mode
+          const selectedIds = Array.from(selectionState.selectedObjects);
+          setCanvasObjects(prev => prev.filter(obj => !selectedIds.includes(obj.id.toString())));
+          
+          // Clear selection state
+          setSelectionState(clearSelection(selectionState));
+          setSelectedObjects([]);
+          setSelectedObject(null);
+        } else if (selectedObjects.length > 0) {
+          // Delete multi-selected objects (Typography mode)
           const selectedIds = selectedObjects.map(obj => obj.id);
           setCanvasObjects(prev => prev.filter(obj => !selectedIds.includes(obj.id)));
           setSelectedObjects([]);
@@ -1676,11 +1712,28 @@ const InfiniteTypewriterCanvas = () => {
       setIsDragging(true);
       setDragStart({ x: e.clientX, y: e.clientY });
     } else {
-      // Start multi-select if no object clicked and not panning
+      // Start area selection if no object clicked and not panning
       setSelectedObject(null);
       setSelectedObjects([]);
-      setIsSelecting(true);
-      setSelectionRect(null);
+      
+      if (currentMode === 'select') {
+        // Use new selection system for Select mode
+        const worldX = (mouseX - canvasOffset.x) / scale;
+        const worldY = (mouseY - canvasOffset.y) / scale;
+        
+        setSelectionState(prev => ({
+          ...prev,
+          dragArea: {
+            start: { x: worldX, y: worldY },
+            end: { x: worldX, y: worldY }
+          }
+        }));
+      } else {
+        // Use old selection system for Typography mode
+        setIsSelecting(true);
+        setSelectionRect(null);
+      }
+      
       setIsDragging(false);
       setIsDraggingText(false);
       setDragStart({ x: mouseX, y: mouseY });
@@ -1826,7 +1879,7 @@ const InfiniteTypewriterCanvas = () => {
         });
       }
     } else if (isSelecting) {
-      // Update selection rectangle during drag
+      // Update selection rectangle during drag (Typography mode)
       const currentRect = createSelectionRectangle(
         dragStart.x,
         dragStart.y,
@@ -1843,6 +1896,18 @@ const InfiniteTypewriterCanvas = () => {
         fontLoaded
       );
       setSelectedObjects(selectedObjs);
+    } else if (currentMode === 'select' && selectionState.dragArea) {
+      // Update selection area during drag (Select mode)
+      const worldX = (mouseX - canvasOffset.x) / scale;
+      const worldY = (mouseY - canvasOffset.y) / scale;
+      
+      setSelectionState(prev => ({
+        ...prev,
+        dragArea: {
+          start: prev.dragArea!.start,
+          end: { x: worldX, y: worldY }
+        }
+      }));
     }
   };
 
@@ -1904,6 +1969,15 @@ const InfiniteTypewriterCanvas = () => {
       setIsSelecting(false);
       setSelectionRect(null);
       // selectedObjects는 이미 설정되어 있음
+    }
+    
+    // End select area drag (Select mode)
+    if (currentMode === 'select' && selectionState.dragArea) {
+      // Clear the drag area but keep any selected objects
+      setSelectionState(prev => ({
+        ...prev,
+        dragArea: null
+      }));
     }
     
     // 드래그가 끝난 후 텍스트 입력 필드에 포커스 복원 (텍스트 박스가 보일 때만)
