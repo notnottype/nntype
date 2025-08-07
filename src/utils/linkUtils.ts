@@ -16,7 +16,7 @@ export interface LinkRenderData {
 /**
  * Calculate text object bounds
  */
-function getTextObjectBounds(textObj: CanvasObjectType, measureTextWidth?: (text: string, fontSize: number) => number) {
+export function getTextObjectBounds(textObj: CanvasObjectType, measureTextWidth?: (text: string, fontSize: number) => number) {
   if (textObj.type !== 'text') {
     throw new Error('Object must be a text object');
   }
@@ -85,7 +85,7 @@ function calculateDistance(p1: { x: number; y: number }, p2: { x: number; y: num
  * Find the optimal connection points between two objects
  * Uses minimum distance between all possible edge midpoint combinations
  */
-function getBestConnectionPoints(
+export function getBestConnectionPoints(
   fromBounds: ReturnType<typeof getTextObjectBounds>,
   toBounds: ReturnType<typeof getTextObjectBounds>
 ): { start: { x: number; y: number }, end: { x: number; y: number } } {
@@ -299,19 +299,27 @@ export function renderLinkPreview(
   from: PinPosition,
   to: PinPosition,
   scale: number,
-  canvasOffset: { x: number; y: number }
+  canvasOffset: { x: number; y: number },
+  fromObject?: CanvasObjectType,
+  measureTextWidth?: (text: string, fontSize: number) => number
 ) {
-  const startX = from.worldX * scale + canvasOffset.x;
-  const startY = from.worldY * scale + canvasOffset.y;
-  const endX = to.worldX * scale + canvasOffset.x;
-  const endY = to.worldY * scale + canvasOffset.y;
+  console.log('🎨 renderLinkPreview 호출:', { from, to, scale, canvasOffset });
+  
+  // Use pre-calculated screen coordinates from the previewPath
+  const startX = from.x;
+  const startY = from.y;
+  const endX = to.x;
+  const endY = to.y;
 
   ctx.save();
+  
+  // Preview styling
   ctx.strokeStyle = '#ff6b6b';
   ctx.lineWidth = 2;
-  ctx.setLineDash([3, 3]);
-  ctx.globalAlpha = 0.7;
+  ctx.setLineDash([5, 5]);
+  ctx.globalAlpha = 0.8;
 
+  // Draw the preview line
   ctx.beginPath();
   ctx.moveTo(startX, startY);
   ctx.lineTo(endX, endY);
@@ -319,6 +327,20 @@ export function renderLinkPreview(
 
   // Draw preview arrowhead
   drawArrowhead(ctx, startX, startY, endX, endY, 8);
+
+  // Draw connection points for better visual feedback
+  ctx.fillStyle = '#ff6b6b';
+  ctx.globalAlpha = 0.9;
+  
+  // Start point
+  ctx.beginPath();
+  ctx.arc(startX, startY, 3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // End point
+  ctx.beginPath();
+  ctx.arc(endX, endY, 3, 0, Math.PI * 2);
+  ctx.fill();
 
   ctx.restore();
 }

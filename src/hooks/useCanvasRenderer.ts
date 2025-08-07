@@ -232,7 +232,22 @@ export const useCanvasRenderer = (selectedObject?: any, dragPreviewObjects?: any
     
     // Draw link preview
     if (currentMode === CanvasMode.LINK && linkState.previewPath) {
-      renderLinkPreview(ctx, linkState.previewPath.from, linkState.previewPath.to, scale, canvasOffset);
+      console.log('🎨 링크 프리뷰 그리기:', linkState.previewPath);
+      
+      // Find the source object for proper connection point calculation
+      const sourceObject = canvasObjects.find(obj => 
+        obj.id.toString() === linkState.sourceObjectId
+      );
+      
+      renderLinkPreview(
+        ctx, 
+        linkState.previewPath.from, 
+        linkState.previewPath.to, 
+        scale, 
+        canvasOffset,
+        sourceObject,
+        measureTextWidthLocal
+      );
     }
     
     // Selection highlights moved to before objects are drawn
@@ -255,6 +270,7 @@ export const useCanvasRenderer = (selectedObject?: any, dragPreviewObjects?: any
     canvasHeight,
     drawGridLocal,
     drawCanvasObjectsLocal,
+    
     hoveredObject,
     scale,
     canvasOffset,

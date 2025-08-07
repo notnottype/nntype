@@ -1,10 +1,12 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { CanvasObject, TextObject, GuideObject, CanvasMode, PinPosition, LinkState, SelectionState, LinkObject, SelectionRectangle } from '../types';
 import { 
   snapToGrid,
   isPointInObject,
   createSelectionRectangle,
-  getObjectsInSelectionRect
+  getObjectsInSelectionRect,
+  debounce,
+  throttle
 } from '../utils';
 import { 
   createLink,
@@ -63,6 +65,45 @@ export const useInfiniteCanvasEvents = () => {
     setSelectedLinks
   } = useCanvasStore();
 
+  // 스로틀링된 콘솔 출력 함수
+  const throttledConsoleLog = useRef(
+    throttle((data: any) => {
+      console.log('🔗 링크 프리뷰 패스 계산:', data);
+    }, 100) // 100ms마다 최대 1번만 콘솔 출력
+  ).current;
+
+  // 디바운스된 프리뷰 패스 계산 함수
+  const debouncedPreviewPathCalculation = useRef(
+    debounce((mouseX: number, mouseY: number) => {
+      if (currentMode === CanvasMode.LINK && linkState.isCreating && linkState.sourceObjectId) {
+        const worldPos = { x: (mouseX - canvasOffset.x) / scale, y: (mouseY - canvasOffset.y) / scale };
+        
+        // 스로틀링된 콘솔 출력
+        throttledConsoleLog({
+          sourceObjectId: linkState.sourceObjectId,
+          mouseWorldPos: worldPos,
+          mouseScreenPos: { x: mouseX, y: mouseY },
+          scale,
+          canvasOffset,
+          timestamp: new Date().toISOString()
+        });
+        
+        // 프리뷰 패스 업데이트
+        const newPreviewPath = {
+          from: pinPosition,
+          to: { x: mouseX, y: mouseY, worldX: worldPos.x, worldY: worldPos.y }
+        };
+        
+        console.log('🔗 프리뷰 패스 업데이트:', newPreviewPath);
+        
+        setLinkState({
+          ...linkState,
+          previewPath: newPreviewPath
+        });
+      }
+    }, 16) // 약 60fps에 해당하는 16ms 디바운스
+  ).current;
+
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!e.currentTarget) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -85,20 +126,25 @@ export const useInfiniteCanvasEvents = () => {
       if (clickedObject) {
         const newPinPosition = updatePinPosition(
           { x: mouseX, y: mouseY, worldX: worldPos.x, worldY: worldPos.y },
-          clickedObject,
-          scale,
+          0, // deltaX
+          0, // deltaY
           canvasOffset,
-          baseFontSize,
-          (text: string, fontSize: number) => text.length * fontSize * 0.6
+          scale
         );
         setPinPosition(newPinPosition);
 
         // 링크 생성 로직
         if (!linkState.isCreating) {
+          // 초기 프리뷰 패스 설정
+          const initialPreviewPath = {
+            from: newPinPosition,
+            to: newPinPosition // 시작할 때는 같은 위치
+          };
+          
           setLinkState({ 
             sourceObjectId: clickedObject.id.toString(), 
             isCreating: true,
-            previewPath: null 
+            previewPath: initialPreviewPath 
           });
         } else if (linkState.sourceObjectId !== clickedObject.id.toString()) {
           const sourceObject = canvasObjects.find(obj => obj.id.toString() === linkState.sourceObjectId);
@@ -213,7 +259,7 @@ export const useInfiniteCanvasEvents = () => {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // 링크 모드에서 핀 호버 처리
+    // 링크 모드에서 핀 호버 처리 및 프리뷰 패스 계산
     if (currentMode === CanvasMode.LINK && linkState.isCreating) {
       const worldPos = { x: (mouseX - canvasOffset.x) / scale, y: (mouseY - canvasOffset.y) / scale };
       const objectUnderMouse = canvasObjects.find(obj => 
@@ -223,6 +269,22 @@ export const useInfiniteCanvasEvents = () => {
         ) && obj.id.toString() !== linkState.sourceObjectId
       );
       setPinHoveredObject(objectUnderMouse || null);
+      
+      // 디바운스된 프리뷰 패스 계산 호출
+      debouncedPreviewPathCalculation(mouseX, mouseY);
+    }
+
+    // 링크 호버 처리 (드래그 중이 아닐 때만)
+    if (!isDragging && !isDraggingText) {
+      const worldPos = { x: (mouseX - canvasOffset.x) / scale, y: (mouseY - canvasOffset.y) / scale };
+      const hoveredLinkAtPosition = findLinkAtPosition(
+        worldPos, 
+        links, 
+        canvasObjects, 
+        10 / scale, 
+        (text: string, fontSize: number) => text.length * fontSize * 0.6
+      );
+      setHoveredLink(hoveredLinkAtPosition);
     }
 
     // 일반 호버 처리
@@ -291,10 +353,11 @@ export const useInfiniteCanvasEvents = () => {
       setDragStart({ x: mouseX, y: mouseY });
     }
   }, [
-    canvasObjects, selectedObjects, scale, canvasOffset, currentMode, linkState,
+    canvasObjects, selectedObjects, links, scale, canvasOffset, currentMode, linkState,
     isDraggingText, isDragging, isSelecting, dragStart, selectionRect,
     setCanvasObjects, setSelectedObjects, setCanvasOffset, setDragStart,
-    setSelectionRect, setHoveredObject, setPinHoveredObject
+    setSelectionRect, setHoveredObject, setPinHoveredObject, setHoveredLink,
+    debouncedPreviewPathCalculation, throttledConsoleLog
   ]);
 
   const handleMouseUp = useCallback(() => {
@@ -347,11 +410,10 @@ export const useInfiniteCanvasEvents = () => {
     } else if (isSelecting && selectionRect) {
       // 선택 영역 내 객체들 선택
       const objectsInSelection = getObjectsInSelectionRect(
-        selectionRect,
         canvasObjects,
+        selectionRect,
         scale,
         canvasOffset,
-        (worldX: number, worldY: number) => ({ x: worldX * scale + canvasOffset.x, y: worldY * scale + canvasOffset.y }),
         (text: string, fontSize: number) => text.length * fontSize * 0.6
       );
       

@@ -61,7 +61,7 @@ import {
   createLink,
   areObjectsLinked 
 } from '../utils/modeUtils';
-import { renderLink, renderLinkPreview, findLinkAtPosition, calculatePreviewConnectionPoint } from '../utils/linkUtils';
+import { renderLink, renderLinkPreview, findLinkAtPosition, calculatePreviewConnectionPoint, getTextObjectBounds, getBestConnectionPoints } from '../utils/linkUtils';
 import { 
   renderSelectionRect, 
   renderSelectionHighlights, 
@@ -1379,6 +1379,52 @@ const InfiniteTypewriterCanvas = () => {
     }
   }, [currentMode]);
 
+  // Link mode arrow preview update when pinPosition changes
+  useEffect(() => {
+    if (currentMode === CanvasMode.LINK && linkState.sourceObjectId && pinPosition) {
+      console.log('🔗 핀 포지션 변경으로 링크 프리뷰 업데이트:', { sourceId: linkState.sourceObjectId, pinPosition });
+      const sourceObject = canvasObjects.find(obj => obj.id.toString() === linkState.sourceObjectId);
+      if (sourceObject && sourceObject.type === 'text') {
+        console.log('📝 소스 객체 찾음:', sourceObject.content.substring(0, 20));
+        
+        // Calculate connection points using the same logic as the link preview
+        const sourceBounds = getTextObjectBounds(sourceObject, measureTextWidthLocal);
+        const targetBounds = {
+          left: pinPosition.worldX - 5,
+          right: pinPosition.worldX + 5,
+          top: pinPosition.worldY - 5,
+          bottom: pinPosition.worldY + 5,
+          centerX: pinPosition.worldX,
+          centerY: pinPosition.worldY,
+          width: 10,
+          height: 10
+        };
+        
+        // Get optimal connection points
+        const connectionPoints = getBestConnectionPoints(sourceBounds, targetBounds);
+        console.log('📊 연결점 계산 완료:', connectionPoints);
+        
+        setLinkState({
+          previewPath: {
+            from: {
+              x: connectionPoints.start.x * scale + canvasOffset.x,
+              y: connectionPoints.start.y * scale + canvasOffset.y,
+              worldX: connectionPoints.start.x,
+              worldY: connectionPoints.start.y
+            },
+            to: {
+              x: pinPosition.worldX * scale + canvasOffset.x,
+              y: pinPosition.worldY * scale + canvasOffset.y,
+              worldX: pinPosition.worldX,
+              worldY: pinPosition.worldY
+            }
+          }
+        });
+        console.log('✅ 링크 프리뷰 패스 업데이트됨');
+      }
+    }
+  }, [currentMode, pinPosition, linkState.sourceObjectId, canvasObjects, measureTextWidthLocal]);
+
   // Removed - using maintainTypewriterLTWorldPosition from useZoomAndFontControls hook
 
   // Removed - using handleUISizeChange from useZoomAndFontControls hook
@@ -1824,12 +1870,10 @@ const InfiniteTypewriterCanvas = () => {
         worldY: worldY
       };
       
-      // Only update if position actually changed
-      if (!pinPosition || 
-          Math.abs(newPin.x - pinPosition.x) > 0.1 || 
-          Math.abs(newPin.y - pinPosition.y) > 0.1) {
-        setPinPosition(newPin);
-      }
+      // Update pinPosition for real-time preview (especially for LINK mode)
+      setPinPosition(newPin);
+      
+      // Link preview will be handled by useEffect based on pinPosition changes
       
       // Update pin hover detection
       const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPin, 20, measureTextWidthLocal);
