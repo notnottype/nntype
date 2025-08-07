@@ -2,7 +2,7 @@
  * Selection utilities for multi-object selection and manipulation
  */
 
-import { CanvasObjectType, SelectionState, TextObjectType } from '../types';
+import { CanvasObject, SelectionState, TextObject } from '../types';
 import { measureTextWidth } from './index';
 
 /**
@@ -24,11 +24,11 @@ export function isPointInRect(
  * Get objects within a selection rectangle
  */
 export function getObjectsInSelectionRect(
-  objects: CanvasObjectType[],
+  objects: CanvasObject[],
   selectionRect: { x: number; y: number; width: number; height: number },
   canvas?: HTMLCanvasElement | null,
   fontLoaded?: boolean
-): CanvasObjectType[] {
+): CanvasObject[] {
   const { x, y, width, height } = selectionRect;
   const minX = Math.min(x, x + width);
   const maxX = Math.max(x, x + width);
@@ -37,7 +37,7 @@ export function getObjectsInSelectionRect(
 
   return objects.filter(obj => {
     if (obj.type === 'text') {
-      const textObj = obj as TextObjectType;
+      const textObj = obj as TextObject;
       const { width: textWidth, height: textHeight } = getTextDimensions(
         textObj, 
         1, // No scale needed for world coordinates
@@ -54,7 +54,7 @@ export function getObjectsInSelectionRect(
       );
     }
     
-    if (obj.type === 'a4guide') {
+    if (obj.type === 'guide') {
       return isRectIntersecting(
         obj.x, obj.y, obj.width, obj.height,
         minX, minY, maxX - minX, maxY - minY
@@ -125,7 +125,7 @@ export function renderSelectionRect(
  * Get accurate text dimensions for a text object
  */
 function getTextDimensions(
-  textObj: TextObjectType,
+  textObj: TextObject,
   scale: number,
   canvas?: HTMLCanvasElement | null,
   fontLoaded?: boolean
@@ -159,7 +159,7 @@ function getTextDimensions(
  */
 export function renderSelectionHighlights(
   ctx: CanvasRenderingContext2D,
-  objects: CanvasObjectType[],
+  objects: CanvasObject[],
   selectedIds: Set<string>,
   scale: number,
   canvasOffset: { x: number; y: number },
@@ -177,7 +177,7 @@ export function renderSelectionHighlights(
       const screenY = obj.y * scale + canvasOffset.y;
 
       if (obj.type === 'text') {
-        const textObj = obj as TextObjectType;
+        const textObj = obj as TextObject;
         const { width: textWidth, height: textHeight } = getTextDimensions(
           textObj, 
           scale, 
@@ -193,7 +193,7 @@ export function renderSelectionHighlights(
         
         // Highlight border
         ctx.strokeRect(screenX - 5, adjustedY - 5, textWidth + 10, textHeight + 10);
-      } else if (obj.type === 'a4guide') {
+      } else if (obj.type === 'guide') {
         const screenWidth = obj.width * scale;
         const screenHeight = obj.height * scale;
         
@@ -286,7 +286,7 @@ export function selectMultipleObjects(
  * Get selection bounds (for group operations)
  */
 export function getSelectionBounds(
-  objects: CanvasObjectType[],
+  objects: CanvasObject[],
   selectedIds: Set<string>,
   canvas?: HTMLCanvasElement | null,
   fontLoaded?: boolean
@@ -309,7 +309,7 @@ export function getSelectionBounds(
     let objMaxY = obj.y;
 
     if (obj.type === 'text') {
-      const textObj = obj as TextObjectType;
+      const textObj = obj as TextObject;
       const { width: textWidth, height: textHeight } = getTextDimensions(
         textObj, 
         1, // No scale needed for world coordinates
@@ -321,7 +321,7 @@ export function getSelectionBounds(
       objMinY = obj.y - textObj.fontSize;
       objMaxX += textWidth;
       objMaxY = objMinY + textHeight;
-    } else if (obj.type === 'a4guide') {
+    } else if (obj.type === 'guide') {
       objMaxX += obj.width;
       objMaxY += obj.height;
     }
@@ -339,11 +339,11 @@ export function getSelectionBounds(
  * Move selected objects
  */
 export function moveSelectedObjects(
-  objects: CanvasObjectType[],
+  objects: CanvasObject[],
   selectedIds: Set<string>,
   deltaX: number,
   deltaY: number
-): CanvasObjectType[] {
+): CanvasObject[] {
   return objects.map(obj => {
     if (selectedIds.has(obj.id.toString())) {
       return {

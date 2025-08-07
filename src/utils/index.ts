@@ -6,7 +6,7 @@ export * from './fontUtils';
 export * from './svgUtils';
 
 // Legacy functions kept for backward compatibility
-import { CanvasObjectType, TextObjectType, A4GuideObjectType } from '../types';
+import { CanvasObject, TextObject, GuideObject } from '../types';
 
 export const measureTextWidth = (
   text: string, 
@@ -26,7 +26,7 @@ export const snapToGrid = (value: number, gridSize: number): number => {
 };
 
 export const isPointInTextObject = (
-  obj: TextObjectType,
+  obj: TextObject,
   screenX: number,
   screenY: number,
   scale: number,
@@ -59,7 +59,7 @@ export const isPointInTextObject = (
 };
 
 export const isPointInA4GuideObject = (
-  obj: A4GuideObjectType,
+  obj: GuideObject,
   screenX: number,
   screenY: number,
   scale: number,
@@ -84,7 +84,7 @@ export const isPointInA4GuideObject = (
 };
 
 export const isPointInObject = (
-  obj: CanvasObjectType,
+  obj: CanvasObject,
   screenX: number,
   screenY: number,
   scale: number,
@@ -93,7 +93,7 @@ export const isPointInObject = (
 ): boolean => {
   if (obj.type === 'text') {
     return isPointInTextObject(obj, screenX, screenY, scale, worldToScreen, measureText);
-  } else if (obj.type === 'a4guide') {
+  } else if (obj.type === 'guide') {
     return isPointInA4GuideObject(obj, screenX, screenY, scale, worldToScreen);
   }
   return false;
@@ -195,7 +195,7 @@ export const wrapTextToLines = (
 };
 
 export const calculateContentBoundingBox = (
-  objects: CanvasObjectType[],
+  objects: CanvasObject[],
   currentTypingText: string,
   baseFontSize: number,
   getCurrentWorldPosition: () => { x: number; y: number },
@@ -207,7 +207,7 @@ export const calculateContentBoundingBox = (
   let maxY = -Infinity;
 
   objects.filter(obj => obj.type === 'text').forEach(obj => {
-    const textObj = obj as TextObjectType;
+    const textObj = obj as TextObject;
     const effectiveFontSizeInWorld = textObj.fontSize;
     const textWorldWidth = measureText(textObj.content, effectiveFontSizeInWorld);
     const textWorldHeight = effectiveFontSizeInWorld;

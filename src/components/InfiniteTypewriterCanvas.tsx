@@ -84,7 +84,7 @@ import {
   THEME_COLORS
 } from '../constants';
 import { pxToPoints, pointsToPx } from '../utils/units';
-import { CanvasObjectType, TextObjectType, A4GuideObjectType, Theme, AICommand, SelectionRectangle, CanvasModeType, PinPosition, LinkState, SelectionState, LinkObjectType } from '../types';
+import { CanvasObject, TextObject, GuideObject, Theme, AICommand, SelectionRectangle, CanvasMode, PinPosition, LinkState, SelectionState, LinkObjectType } from '../types';
 import { aiService } from '../services/aiService';
 import { wrapTextToLines } from '../utils';
 import { ExportMenu } from './ExportMenu';
@@ -103,13 +103,13 @@ const parseCommand = (text: string): AICommand | null => {
 };
 
 // Helper function to check if object has position properties
-const hasPosition = (obj: CanvasObjectType): obj is TextObjectType | A4GuideObjectType => {
-  return obj.type === 'text' || obj.type === 'a4guide';
+const hasPosition = (obj: CanvasObject): obj is TextObject | GuideObject => {
+  return obj.type === 'text' || obj.type === 'guide';
 };
 
 const InfiniteTypewriterCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [canvasObjects, setCanvasObjects] = useState<CanvasObjectType[]>(() => {
+  const [canvasObjects, setCanvasObjects] = useState<CanvasObject[]>(() => {
     const sessionData = loadSession();
     return sessionData?.canvasObjects || [];
   });
@@ -121,20 +121,20 @@ const InfiniteTypewriterCanvas = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [isDraggingText, setIsDraggingText] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [dragPreviewObjects, setDragPreviewObjects] = useState<CanvasObjectType[]>([]);
+  const [dragPreviewObjects, setDragPreviewObjects] = useState<CanvasObject[]>([]);
   const [scale, setScale] = useState(() => {
     const sessionData = loadSession();
     return sessionData?.scale || 1;
   });
   const [isTyping, setIsTyping] = useState(false);
   const [fontLoaded, setFontLoaded] = useState(false);
-  const [selectedObject, setSelectedObject] = useState<CanvasObjectType | null>(null);
-  const [selectedObjects, setSelectedObjects] = useState<CanvasObjectType[]>([]);
+  const [selectedObject, setSelectedObject] = useState<CanvasObject | null>(null);
+  const [selectedObjects, setSelectedObjects] = useState<CanvasObject[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectionRect, setSelectionRect] = useState<SelectionRectangle | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isMouseInTextBox, setIsMouseInTextBox] = useState(false);
-  const [hoveredObject, setHoveredObject] = useState<CanvasObjectType | null>(null);
+  const [hoveredObject, setHoveredObject] = useState<CanvasObject | null>(null);
   const [canvasWidth, setCanvasWidth] = useState(window.innerWidth);
   const [canvasHeight, setCanvasHeight] = useState(window.innerHeight);
   const [canvasOffset, setCanvasOffset] = useState(() => {
@@ -231,8 +231,8 @@ const InfiniteTypewriterCanvas = () => {
   });
 
   // Multi-mode system state
-  const [currentMode, setCurrentMode] = useState<CanvasModeType>('typography');
-  const [previousMode, setPreviousMode] = useState<CanvasModeType | null>(null);
+  const [currentMode, setCurrentMode] = useState<CanvasMode>(CanvasMode.TYPOGRAPHY);
+  const [previousMode, setPreviousMode] = useState<CanvasMode | null>(null);
   const [pinPosition, setPinPosition] = useState<PinPosition>({
     x: window.innerWidth / 2,
     y: (window.innerHeight - 64) / 2,
@@ -252,7 +252,7 @@ const InfiniteTypewriterCanvas = () => {
   const [links, setLinks] = useState<LinkObjectType[]>([]);
   const [selectedLinks, setSelectedLinks] = useState<Set<string>>(new Set());
   const [hoveredLink, setHoveredLink] = useState<LinkObjectType | null>(null);
-  const [pinHoveredObject, setPinHoveredObject] = useState<CanvasObjectType | null>(null);
+  const [pinHoveredObject, setPinHoveredObject] = useState<CanvasObject | null>(null);
 
   useEffect(() => {
     setPxPerMm(calculateDPIPixelsPerMM());
@@ -584,7 +584,7 @@ const InfiniteTypewriterCanvas = () => {
     }
   }, [needsLTPositionRestore, fontLoaded, typewriterX, typewriterY, getTextBoxWidth, baseFontSize, scale]);
 
-  const isPointInObjectLocal = useCallback((obj: CanvasObjectType, screenX: number, screenY: number) => {
+  const isPointInObjectLocal = useCallback((obj: CanvasObject, screenX: number, screenY: number) => {
     return isPointInObject(obj, screenX, screenY, scale, worldToScreenLocal, measureTextWidthLocal);
   }, [scale, worldToScreenLocal, measureTextWidthLocal]);
 
@@ -694,7 +694,7 @@ const InfiniteTypewriterCanvas = () => {
     }
     
     // 멀티 셀렉트된 오브젝트 하이라이트 표시 (Typography mode only)
-    if (currentMode === 'typography' && selectedObjects.length > 0) {
+    if (currentMode === CanvasMode.TYPOGRAPHY && selectedObjects.length > 0) {
       // 드래그 중일 때는 실제 캔버스 객체 위치에서 선택된 것들을 찾아서 하이라이트
       if (isDraggingText && selectedObjects.length > 1) {
         const selectedIds = selectedObjects.map(obj => obj.id);
@@ -706,7 +706,7 @@ const InfiniteTypewriterCanvas = () => {
     }
     
     // 단일 선택된 오브젝트 하이라이트 표시 with X button (Typography mode)
-    if (currentMode === 'typography' && selectedObject && selectedObjects.length === 0 && !isDraggingText) {
+    if (currentMode === CanvasMode.TYPOGRAPHY && selectedObject && selectedObjects.length === 0 && !isDraggingText) {
       drawSingleSelectHighlight(ctx, selectedObject, scale, canvasOffset, measureTextWidthLocal, theme, () => {
         setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
         setSelectedObject(null);
@@ -738,17 +738,17 @@ const InfiniteTypewriterCanvas = () => {
     });
     
     // Render link preview (Link mode)
-    if (currentMode === 'link' && linkState.previewPath) {
+    if (currentMode === CanvasMode.LINK && linkState.previewPath) {
       renderLinkPreview(ctx, linkState.previewPath.from, linkState.previewPath.to, scale, canvasOffset);
     }
     
     // Render selection highlights (Select mode) - Use selectedObjects array for consistency
-    if (currentMode === 'select' && selectedObjects.length > 0) {
+    if (currentMode === CanvasMode.SELECT && selectedObjects.length > 0) {
       drawMultiSelectHighlight(ctx, selectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
     }
     
     // Render selection area (Select mode)
-    if (currentMode === 'select' && selectionState.dragArea) {
+    if (currentMode === CanvasMode.SELECT && selectionState.dragArea) {
       const rect = {
         x: selectionState.dragArea.start.x,
         y: selectionState.dragArea.start.y,
@@ -759,7 +759,7 @@ const InfiniteTypewriterCanvas = () => {
     }
     
     // Render pin position indicator (Link and Select modes)
-    if (currentMode === 'link' || currentMode === 'select') {
+    if (currentMode === CanvasMode.LINK || currentMode === CanvasMode.SELECT) {
       const pinScreenX = pinPosition.worldX * scale + canvasOffset.x;
       const pinScreenY = pinPosition.worldY * scale + canvasOffset.y;
       
@@ -767,8 +767,8 @@ const InfiniteTypewriterCanvas = () => {
       
       // Enhanced pin appearance when hovering over objects
       const isHoveringObject = pinHoveredObject !== null;
-      const pinColor = currentMode === 'link' ? '#ff6b6b' : '#4a9eff';
-      const hoverColor = currentMode === 'link' ? '#ff4444' : '#2563eb';
+      const pinColor = currentMode === CanvasMode.LINK ? '#ff6b6b' : '#4a9eff';
+      const hoverColor = currentMode === CanvasMode.LINK ? '#ff4444' : '#2563eb';
       
       ctx.strokeStyle = isHoveringObject ? hoverColor : pinColor;
       ctx.fillStyle = isHoveringObject ? hoverColor : pinColor;
@@ -959,12 +959,12 @@ const InfiniteTypewriterCanvas = () => {
       ...prev,
       {
         id: Date.now(),
-        type: 'a4guide',
+        type: 'guide', guideType: 'a4',
         x: a4Guide.x,
         y: a4Guide.y,
         width: a4Guide.width,
         height: a4Guide.height
-      } as A4GuideObjectType
+      } as GuideObject
     ]);
   }, [maxCharsPerLine, typewriterX, typewriterY, getTextBoxWidth, baseFontSize, screenToWorldLocal]);
 
@@ -1035,10 +1035,10 @@ const InfiniteTypewriterCanvas = () => {
         setCurrentMode(nextMode);
         
         // Initialize pin position and hover detection for Link/Select modes
-        if (nextMode === 'link' || nextMode === 'select') {
+        if (nextMode === CanvasMode.LINK || nextMode === CanvasMode.SELECT) {
           // Only initialize pin position when coming from typography mode
           // Preserve pin position when switching between link and select modes
-          if (currentMode === 'typography') {
+          if (currentMode === CanvasMode.TYPOGRAPHY) {
             // Position pin at input box top-left corner
             const newPinPosition = positionPinAtInputBox(
               typewriterX,
@@ -1065,14 +1065,14 @@ const InfiniteTypewriterCanvas = () => {
         }
         
         // Reset mode-specific states when switching modes
-        if (currentMode === 'link') {
+        if (currentMode === CanvasMode.LINK) {
           setLinkState({
             sourceObjectId: null,
             targetObjectId: null,
             isCreating: false,
             previewPath: null
           });
-        } else if (currentMode === 'select') {
+        } else if (currentMode === CanvasMode.SELECT) {
           setSelectionState(clearSelection(selectionState));
         }
         
@@ -1084,16 +1084,16 @@ const InfiniteTypewriterCanvas = () => {
       }
 
       // In Typography mode, don't handle other keys when typing in textarea
-      if (currentMode === 'typography' && document.activeElement?.id === 'typewriter-input') {
+      if (currentMode === CanvasMode.TYPOGRAPHY && document.activeElement?.id === 'typewriter-input') {
         return;
       }
 
       // Handle Escape key to reset to Typography mode (all modes)
       if (e.key === 'Escape') {
-        if (currentMode !== 'typography') {
+        if (currentMode !== CanvasMode.TYPOGRAPHY) {
           e.preventDefault();
           setPreviousMode(currentMode);
-          setCurrentMode('typography');
+          setCurrentMode(CanvasMode.TYPOGRAPHY);
           
           // Clear pin hover detection when returning to Typography mode
           setPinHoveredObject(null);
@@ -1118,10 +1118,10 @@ const InfiniteTypewriterCanvas = () => {
       
       // Handle Space key
       if (e.key === ' ') {
-        if (currentMode === 'typography') {
+        if (currentMode === CanvasMode.TYPOGRAPHY) {
           setIsSpacePressed(true);
           e.preventDefault();
-        } else if (currentMode === 'link') {
+        } else if (currentMode === CanvasMode.LINK) {
           // Link mode: Space key to select source/target objects
           const objectAtPin = findObjectAtPin(canvasObjects, pinPosition, 20, measureTextWidthLocal);
           if (objectAtPin && objectAtPin.type === 'text') {
@@ -1171,7 +1171,7 @@ const InfiniteTypewriterCanvas = () => {
             }
           }
           e.preventDefault();
-        } else if (currentMode === 'select') {
+        } else if (currentMode === CanvasMode.SELECT) {
           // Select mode: Space key to select objects in current area
           if (selectionState.dragArea) {
             const objectsInArea = getObjectsInSelectionRect(canvasObjects, {
@@ -1248,7 +1248,7 @@ const InfiniteTypewriterCanvas = () => {
       
       // Handle arrow keys for different modes
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-        if (currentMode === 'link' || currentMode === 'select') {
+        if (currentMode === CanvasMode.LINK || currentMode === CanvasMode.SELECT) {
           const stepSize = 20; // pixels
           let deltaX = 0;
           let deltaY = 0;
@@ -1294,7 +1294,7 @@ const InfiniteTypewriterCanvas = () => {
             const hasSelection = selectedObjects.length > 0 || selectedObject !== null;
             console.log('Alt + Arrow pressed:', { currentMode, selectedObjects: selectedObjects.length, selectedObject: selectedObject?.id, hasSelection });
             
-            if (currentMode === 'select' && hasSelection) {
+            if (currentMode === CanvasMode.SELECT && hasSelection) {
               const worldStepSize = stepSize / scale; // Convert to world units
               const worldDeltaX = deltaX / scale;
               const worldDeltaY = deltaY / scale;
@@ -1320,7 +1320,7 @@ const InfiniteTypewriterCanvas = () => {
             setHoveredObject(hoveredObjectAtPin);
             
             // Update link preview if in link mode
-            if (currentMode === 'link' && linkState.sourceObjectId) {
+            if (currentMode === CanvasMode.LINK && linkState.sourceObjectId) {
               const sourceObject = canvasObjects.find(obj => obj.id.toString() === linkState.sourceObjectId);
               if (sourceObject && sourceObject.type === 'text') {
                 // Calculate optimal connection point based on pin position
@@ -1357,7 +1357,7 @@ const InfiniteTypewriterCanvas = () => {
 
     const handleGlobalKeyUp = (e: KeyboardEvent) => {
       if (document.activeElement?.id === 'typewriter-input') return;
-      if (e.key === ' ' && currentMode === 'typography') {
+      if (e.key === ' ' && currentMode === CanvasMode.TYPOGRAPHY) {
         setIsSpacePressed(false);
       }
     };
@@ -1373,7 +1373,7 @@ const InfiniteTypewriterCanvas = () => {
 
   // Focus canvas when switching to Link or Select mode
   useEffect(() => {
-    if (currentMode !== 'typography' && canvasRef.current) {
+    if (currentMode !== CanvasMode.TYPOGRAPHY && canvasRef.current) {
       // Small delay to ensure DOM is updated
       setTimeout(() => {
         canvasRef.current?.focus();
@@ -1627,7 +1627,7 @@ const InfiniteTypewriterCanvas = () => {
       if (e.key === 'Delete' && !isInputFocused) {
         e.preventDefault();
         
-        if (currentMode === 'select' && selectionState.selectedObjects.size > 0) {
+        if (currentMode === CanvasMode.SELECT && selectionState.selectedObjects.size > 0) {
           // Delete objects selected in Select mode
           const selectedIds = Array.from(selectionState.selectedObjects);
           setCanvasObjects(prev => prev.filter(obj => !selectedIds.includes(obj.id.toString())));
@@ -1830,7 +1830,7 @@ const InfiniteTypewriterCanvas = () => {
       setSelectedObjects([]);
       setSelectedLinks(new Set()); // Clear link selection too
       
-      if (currentMode === 'select') {
+      if (currentMode === CanvasMode.SELECT) {
         // Use new selection system for Select mode
         const worldX = (mouseX - canvasOffset.x) / scale;
         const worldY = (mouseY - canvasOffset.y) / scale;
@@ -1936,7 +1936,7 @@ const InfiniteTypewriterCanvas = () => {
       if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
         // 드래그 프리뷰 계산: 최종 스냅될 위치 미리보기
         const worldGridSize = baseFontSize / scale;
-        let previewObjects: CanvasObjectType[] = [];
+        let previewObjects: CanvasObject[] = [];
         
         if (selectedObjects.length > 1) {
           // Group drag: move all selected objects
@@ -2055,7 +2055,7 @@ const InfiniteTypewriterCanvas = () => {
         measureTextWidthLocal
       );
       setSelectedObjects(selectedObjs);
-    } else if (currentMode === 'select' && selectionState.dragArea) {
+    } else if (currentMode === CanvasMode.SELECT && selectionState.dragArea) {
       // Update selection area during drag (Select mode)
       const worldX = (mouseX - canvasOffset.x) / scale;
       const worldY = (mouseY - canvasOffset.y) / scale;
@@ -2137,7 +2137,7 @@ const InfiniteTypewriterCanvas = () => {
     }
     
     // End select area drag (Select mode)
-    if (currentMode === 'select' && selectionState.dragArea) {
+    if (currentMode === CanvasMode.SELECT && selectionState.dragArea) {
       // Clear the drag area but keep any selected objects
       setSelectionState(prev => ({
         ...prev,
@@ -2216,7 +2216,7 @@ const InfiniteTypewriterCanvas = () => {
 
   // Focus input when switching to Typography mode
   useEffect(() => {
-    if (currentMode === 'typography' && showTextBox) {
+    if (currentMode === CanvasMode.TYPOGRAPHY && showTextBox) {
       setTimeout(() => {
         const input = document.getElementById('typewriter-input') as HTMLInputElement | null;
         if (input) {
@@ -2230,7 +2230,7 @@ const InfiniteTypewriterCanvas = () => {
 
   // [UNDO/REDO] 상태 스냅샷 타입 정의
   interface CanvasSnapshot {
-    canvasObjects: CanvasObjectType[];
+    canvasObjects: CanvasObject[];
     canvasOffset: { x: number; y: number };
     scale: number;
     currentTypingText: string;
@@ -2379,10 +2379,10 @@ const InfiniteTypewriterCanvas = () => {
 
     // Handle Escape key to reset to Typography mode
     if (e.key === 'Escape') {
-      if (currentMode !== 'typography') {
+      if (currentMode !== CanvasMode.TYPOGRAPHY) {
         e.preventDefault();
         setPreviousMode(currentMode);
-        setCurrentMode('typography');
+        setCurrentMode(CanvasMode.TYPOGRAPHY);
         
         // Reset all mode-specific states
         setLinkState({
@@ -2682,12 +2682,12 @@ const InfiniteTypewriterCanvas = () => {
           ...prev,
           {
             id: Date.now(),
-            type: 'a4guide',
+            type: 'guide', guideType: 'a4',
             x: a4Guide.x,
             y: a4Guide.y,
             width: a4Guide.width,
             height: a4Guide.height
-          } as A4GuideObjectType
+          } as GuideObject
         ]);
       }}
       disabled={maxCharsPerLine !== 80}

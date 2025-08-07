@@ -1,6 +1,6 @@
 import React from 'react'
 import { Trash2 } from 'lucide-react'
-import { TextObjectType } from '../types'
+import { TextObject } from '../types'
 
 interface StatusMessagesProps {
   theme: 'light' | 'dark'

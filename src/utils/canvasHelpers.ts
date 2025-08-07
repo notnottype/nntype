@@ -3,21 +3,21 @@
  * Provides safe migration utilities for rendering
  */
 
-import { TextObjectType } from '../types';
+import { TextObject } from '../types';
 import { RichTextContent } from '../types/richText';
 import { legacyStringToRichText, isRichTextContent } from './richTextUtils';
 
 /**
- * Safely get plain text from TextObjectType content
+ * Safely get plain text from TextObject content
  */
 export const getPlainTextFromContent = (content: RichTextContent): string => {
   return content.plainText;
 };
 
 /**
- * Safely get lines from TextObjectType content for backward compatibility
+ * Safely get lines from TextObject content for backward compatibility
  */
-export const getLinesFromTextObject = (textObj: TextObjectType): string[] => {
+export const getLinesFromTextObject = (textObj: TextObject): string[] => {
   const plainText = getPlainTextFromContent(textObj.content);
   return plainText.split('\n');
 };
@@ -33,7 +33,7 @@ export const ensureRichTextContent = (content: RichTextContent): RichTextContent
  * Calculate text dimensions with rich text support
  */
 export const calculateTextDimensions = (
-  textObj: TextObjectType,
+  textObj: TextObject,
   scale: number,
   measureTextWidth: (text: string, fontSize: number) => number
 ): { width: number; height: number; lines: string[] } => {

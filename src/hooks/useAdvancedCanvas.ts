@@ -188,7 +188,7 @@ export const useAdvancedCanvas = ({
 
       const renderObj: RenderObject = {
         id: canvasObj.id,
-        layerId: canvasObj.type === 'a4guide' ? 'background' : 'content',
+        layerId: canvasObj.type === 'guide' ? 'background' : 'content',
         bounds,
         lastModified: Date.now(),
         renderFunction: canvasObj.type === 'text' 

@@ -48,8 +48,8 @@ export const ObjectContainer: React.FC<ObjectContainerProps> = ({
   const totalDragRef = useRef({ x: 0, y: 0 });
   
   const screenPos = worldToScreen(
-    object.type === 'text' ? object.x : object.type === 'a4guide' ? object.x : 0,
-    object.type === 'text' ? object.y : object.type === 'a4guide' ? object.y : 0
+    object.type === 'text' ? object.x : object.type === 'guide' ? object.x : 0,
+    object.type === 'text' ? object.y : object.type === 'guide' ? object.y : 0
   );
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -97,8 +97,8 @@ export const ObjectContainer: React.FC<ObjectContainerProps> = ({
       
       // 스냅 프리뷰 표시 (그리드가 활성화된 경우)
       if (showGrid && gridSize > 0) {
-        const currentX = object.type === 'text' ? object.x : object.type === 'a4guide' ? object.x : 0;
-        const currentY = object.type === 'text' ? object.y : object.type === 'a4guide' ? object.y : 0;
+        const currentX = object.type === 'text' ? object.x : object.type === 'guide' ? object.x : 0;
+        const currentY = object.type === 'text' ? object.y : object.type === 'guide' ? object.y : 0;
         const predictedX = currentX + totalDragRef.current.x;
         const predictedY = currentY + totalDragRef.current.y;
         
@@ -129,8 +129,8 @@ export const ObjectContainer: React.FC<ObjectContainerProps> = ({
       
       // 드래그 완료 시에만 스냅 적용
       if (onDragEnd && (Math.abs(totalDragRef.current.x) > 0.1 || Math.abs(totalDragRef.current.y) > 0.1)) {
-        const currentX = object.type === 'text' ? object.x : object.type === 'a4guide' ? object.x : 0;
-        const currentY = object.type === 'text' ? object.y : object.type === 'a4guide' ? object.y : 0;
+        const currentX = object.type === 'text' ? object.x : object.type === 'guide' ? object.x : 0;
+        const currentY = object.type === 'text' ? object.y : object.type === 'guide' ? object.y : 0;
         const finalX = currentX + totalDragRef.current.x;
         const finalY = currentY + totalDragRef.current.y;
         onDragEnd(finalX, finalY);

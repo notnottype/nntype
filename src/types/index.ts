@@ -1,4 +1,4 @@
-export interface TextObjectType {
+export interface TextObject {
   id: number;
   type: 'text';
   content: string;
@@ -10,16 +10,17 @@ export interface TextObjectType {
   color?: string; // 텍스트 색상
 }
 
-export interface A4GuideObjectType {
+export interface GuideObject {
   id: number;
-  type: 'a4guide';
+  type: 'guide';
+  guideType?: 'a4' | 'letter' | 'legal' | 'a3' | 'screen' | 'iphone' | 'ipad'; // Guide format
   x: number; // 좌상단 월드 좌표
   y: number;
   width: number; // 월드 단위 크기
   height: number;
 }
 
-export interface LinkObjectType {
+export interface LinkObject {
   id: string;
   type: 'link';
   from: string; // source text object ID
@@ -28,7 +29,7 @@ export interface LinkObjectType {
   color: string;
 }
 
-export type CanvasObjectType = TextObjectType | A4GuideObjectType | LinkObjectType;
+export type CanvasObject = TextObject | GuideObject | LinkObject;
 
 export type Theme = 'light' | 'dark';
 
@@ -52,7 +53,11 @@ export interface SelectionRectangle {
   height: number;
 }
 
-export type CanvasModeType = 'typography' | 'link' | 'select';
+export enum CanvasMode {
+  TYPOGRAPHY = 'typography',
+  LINK = 'link',
+  SELECT = 'select'
+}
 
 export interface PinPosition {
   x: number;
@@ -77,7 +82,7 @@ export interface LinkState {
 }
 
 export interface CanvasState {
-  canvasObjects: CanvasObjectType[];
+  canvasObjects: CanvasObject[];
   currentTypingText: string;
   isComposing: boolean;
   isDragging: boolean;
@@ -85,8 +90,8 @@ export interface CanvasState {
   dragStart: { x: number; y: number };
   scale: number;
   isTyping: boolean;
-  selectedObject: CanvasObjectType | null;
-  selectedObjects: CanvasObjectType[];
+  selectedObject: CanvasObject | null;
+  selectedObjects: CanvasObject[];
   isSelecting: boolean;
   selectionRect: SelectionRectangle | null;
   isExportMenuOpen: boolean;
@@ -103,18 +108,18 @@ export interface CanvasState {
   fontLoaded: boolean;
   pxPerMm: number;
   // Multi-mode system
-  currentMode: CanvasModeType;
-  previousMode: CanvasModeType | null;
+  currentMode: CanvasMode;
+  previousMode: CanvasMode | null;
   pinPosition: PinPosition;
   selectionState: SelectionState;
   linkState: LinkState;
-  links: LinkObjectType[];
+  links: LinkObject[];
 }
 
 export interface ExportData {
   version: string;
   type: string;
-  elements: CanvasObjectType[];
+  elements: CanvasObject[];
   appState: {
     canvasOffset: { x: number; y: number };
     scale: number;

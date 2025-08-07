@@ -1,4 +1,4 @@
-import { CanvasObjectType, TextObjectType, A4GuideObjectType, Theme, SelectionRectangle } from '../types';
+import { CanvasObject, TextObject, GuideObject, Theme, SelectionRectangle } from '../types';
 
 export const worldToScreen = (
   worldX: number, 
@@ -51,22 +51,22 @@ export const drawGrid = (
 
 export const drawCanvasObjects = (
   ctx: CanvasRenderingContext2D,
-  canvasObjects: CanvasObjectType[],
+  canvasObjects: CanvasObject[],
   scale: number,
-  selectedObject: CanvasObjectType | null,
+  selectedObject: CanvasObject | null,
   canvasWidth: number,
   canvasHeight: number,
   worldToScreenFn: (x: number, y: number) => { x: number; y: number },
   measureTextWidth: (text: string, fontSize: number) => number,
   theme: Theme,
   colors: any,
-  selectedObjects: CanvasObjectType[] = []
+  selectedObjects: CanvasObject[] = []
 ) => {
   ctx.textBaseline = 'alphabetic';
   
   // A4가이드를 먼저 그려서 배경에 배치
-  canvasObjects.filter(obj => obj.type === 'a4guide').forEach(obj => {
-    const a4Obj = obj as A4GuideObjectType;
+  canvasObjects.filter(obj => obj.type === 'guide').forEach(obj => {
+    const a4Obj = obj as GuideObject;
     const screenPos = worldToScreenFn(a4Obj.x, a4Obj.y);
     const screenWidth = a4Obj.width * scale;
     const screenHeight = a4Obj.height * scale;
@@ -91,7 +91,7 @@ export const drawCanvasObjects = (
   
   // 텍스트 오브젝트들을 나중에 그려서 전경에 배치
   canvasObjects.filter(obj => obj.type === 'text').forEach(obj => {
-    const textObj = obj as TextObjectType;
+    const textObj = obj as TextObject;
     const screenPos = worldToScreenFn(textObj.x, textObj.y);
     
     if (screenPos.x > -200 && screenPos.x < canvasWidth + 200 && 
@@ -149,7 +149,7 @@ export const drawCanvasObjects = (
 
 export const drawHoverHighlight = (
   ctx: CanvasRenderingContext2D,
-  hoveredObject: CanvasObjectType,
+  hoveredObject: CanvasObject,
   scale: number,
   worldToScreenFn: (x: number, y: number) => { x: number; y: number },
   measureTextWidth: (text: string, fontSize: number) => number,
@@ -162,7 +162,7 @@ export const drawHoverHighlight = (
   ctx.setLineDash([]);
   
   if (hoveredObject.type === 'text') {
-    const textObj = hoveredObject as TextObjectType;
+    const textObj = hoveredObject as TextObject;
     const screenPos = worldToScreenFn(textObj.x, textObj.y);
     const fontSize = textObj.fontSize * scale;
     
@@ -194,8 +194,8 @@ export const drawHoverHighlight = (
     // Draw border on top
     ctx.strokeStyle = colors[theme].hoverBorder;
     ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
-  } else if (hoveredObject.type === 'a4guide') {
-    const a4Obj = hoveredObject as A4GuideObjectType;
+  } else if (hoveredObject.type === 'guide') {
+    const a4Obj = hoveredObject as GuideObject;
     const screenPos = worldToScreenFn(a4Obj.x, a4Obj.y);
     const screenWidth = a4Obj.width * scale;
     const screenHeight = a4Obj.height * scale;
@@ -237,14 +237,14 @@ export const createSelectionRectangle = (
 };
 
 export const isObjectInSelectionRect = (
-  object: CanvasObjectType,
+  object: CanvasObject,
   selectionRect: SelectionRectangle,
   scale: number,
   canvasOffset: { x: number; y: number },
   measureText: (text: string, fontSize: number) => number
 ): boolean => {
   if (object.type === 'text') {
-    const textObj = object as TextObjectType;
+    const textObj = object as TextObject;
     const screenPos = worldToScreen(textObj.x, textObj.y, scale, canvasOffset);
     const fontSize = textObj.fontSize * scale;
     
@@ -278,8 +278,8 @@ export const isObjectInSelectionRect = (
     return !(textRight < rectLeft || textLeft > rectRight || textBottom < rectTop || textTop > rectBottom);
   }
   
-  if (object.type === 'a4guide') {
-    const guideObj = object as A4GuideObjectType;
+  if (object.type === 'guide') {
+    const guideObj = object as GuideObject;
     const screenPos = worldToScreen(guideObj.x, guideObj.y, scale, canvasOffset);
     const guideWidth = guideObj.width * scale;
     const guideHeight = guideObj.height * scale;
@@ -302,12 +302,12 @@ export const isObjectInSelectionRect = (
 };
 
 export const getObjectsInSelectionRect = (
-  objects: CanvasObjectType[],
+  objects: CanvasObject[],
   selectionRect: SelectionRectangle,
   scale: number,
   canvasOffset: { x: number; y: number },
   measureText: (text: string, fontSize: number) => number
-): CanvasObjectType[] => {
+): CanvasObject[] => {
   return objects.filter(obj => 
     isObjectInSelectionRect(obj, selectionRect, scale, canvasOffset, measureText)
   );
@@ -338,7 +338,7 @@ export const drawSelectionRectangle = (
 
 export const drawMultiSelectHighlight = (
   ctx: CanvasRenderingContext2D,
-  objects: CanvasObjectType[],
+  objects: CanvasObject[],
   scale: number,
   canvasOffset: { x: number; y: number },
   measureText: (text: string, fontSize: number) => number,
@@ -358,7 +358,7 @@ export const drawMultiSelectHighlight = (
   
   objects.forEach(obj => {
     if (obj.type === 'text') {
-      const textObj = obj as TextObjectType;
+      const textObj = obj as TextObject;
       const screenPos = worldToScreen(textObj.x, textObj.y, scale, canvasOffset);
       const fontSize = textObj.fontSize * scale;
       
@@ -387,8 +387,8 @@ export const drawMultiSelectHighlight = (
       minY = Math.min(minY, top);
       maxX = Math.max(maxX, right);
       maxY = Math.max(maxY, bottom);
-    } else if (obj.type === 'a4guide') {
-      const guideObj = obj as A4GuideObjectType;
+    } else if (obj.type === 'guide') {
+      const guideObj = obj as GuideObject;
       const screenPos = worldToScreen(guideObj.x, guideObj.y, scale, canvasOffset);
       const guideWidth = guideObj.width * scale;
       const guideHeight = guideObj.height * scale;
@@ -427,7 +427,7 @@ export const drawMultiSelectHighlight = (
 
 export const drawSingleSelectHighlight = (
   ctx: CanvasRenderingContext2D,
-  object: CanvasObjectType,
+  object: CanvasObject,
   scale: number,
   canvasOffset: { x: number; y: number },
   measureText: (text: string, fontSize: number) => number,
@@ -438,7 +438,7 @@ export const drawSingleSelectHighlight = (
   const borderColor = theme === 'dark' ? 'rgba(147, 197, 253, 0.4)' : 'rgba(96, 165, 250, 0.3)';
 
   if (object.type === 'text') {
-    const textObj = object as TextObjectType;
+    const textObj = object as TextObject;
     const screenPos = worldToScreen(textObj.x, textObj.y, scale, canvasOffset);
     const fontSize = textObj.fontSize * scale;
     

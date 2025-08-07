@@ -1,14 +1,14 @@
 import { useCallback, useEffect } from 'react';
-import { CanvasObjectType, TextObjectType, A4GuideObjectType, ThemeColors } from '../types';
+import { CanvasObject, TextObject, GuideObject, ThemeColors } from '../types';
 
 interface UseCanvasRendererProps {
   canvasRef: React.RefObject<HTMLCanvasElement>;
-  canvasObjects: CanvasObjectType[];
+  canvasObjects: CanvasObject[];
   canvasWidth: number;
   canvasHeight: number;
   canvasOffset: { x: number; y: number };
   scale: number;
-  selectedObject: CanvasObjectType | null;
+  selectedObject: CanvasObject | null;
   showGrid: boolean;
   theme: ThemeColors;
   baseFontSize: number;
@@ -62,8 +62,8 @@ export const useCanvasRenderer = ({
     ctx.textBaseline = 'alphabetic';
     
     // Draw A4 guides first (background)
-    canvasObjects.filter(obj => obj.type === 'a4guide').forEach(obj => {
-      const a4Obj = obj as A4GuideObjectType;
+    canvasObjects.filter(obj => obj.type === 'guide').forEach(obj => {
+      const a4Obj = obj as GuideObject;
       const screenPos = worldToScreen(a4Obj.x, a4Obj.y);
       const screenWidth = a4Obj.width * scale;
       const screenHeight = a4Obj.height * scale;
@@ -86,7 +86,7 @@ export const useCanvasRenderer = ({
     
     // Draw text objects (foreground)
     canvasObjects.filter(obj => obj.type === 'text').forEach(obj => {
-      const textObj = obj as TextObjectType;
+      const textObj = obj as TextObject;
       const screenPos = worldToScreen(textObj.x, textObj.y);
       
       if (screenPos.x > -200 && screenPos.x < canvasWidth + 200 && screenPos.y > -50 && screenPos.y < canvasHeight + 50) {

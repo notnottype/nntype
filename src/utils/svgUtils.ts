@@ -1,4 +1,4 @@
-import { CanvasObjectType, TextObjectType, A4GuideObjectType } from '../types';
+import { CanvasObject, TextObject, GuideObject } from '../types';
 
 export const createSVGElement = (
   viewBoxMinX: number,
@@ -29,7 +29,7 @@ export const addSVGBackground = (svg: SVGSVGElement, backgroundColor: string = "
 
 export const addTextObjectToSVG = (
   svg: SVGSVGElement,
-  textObj: TextObjectType,
+  textObj: TextObject,
   fillColor: string = "#000000"
 ): void => {
   const svgNS = "http://www.w3.org/2000/svg";
@@ -53,7 +53,7 @@ export const addTextObjectToSVG = (
   });
 };
 
-export const addA4GuideToSVG = (svg: SVGSVGElement, a4Obj: A4GuideObjectType): void => {
+export const addA4GuideToSVG = (svg: SVGSVGElement, a4Obj: GuideObject): void => {
   const svgNS = "http://www.w3.org/2000/svg";
   
   const a4Rect = document.createElementNS(svgNS, "rect");

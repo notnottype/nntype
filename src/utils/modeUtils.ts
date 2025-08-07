@@ -287,7 +287,7 @@ export function getObjectsInArea(
              centerY >= minY && centerY <= maxY;
     }
     
-    if (obj.type === 'a4guide') {
+    if (obj.type === 'guide') {
       // Check if A4 guide overlaps with selection area
       return !(obj.x + obj.width < minX || 
                obj.x > maxX ||

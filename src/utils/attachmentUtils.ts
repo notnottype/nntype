@@ -1,8 +1,8 @@
-import { CanvasObjectType, TextObjectType, A4GuideObjectType } from '../types';
+import { CanvasObject, TextObject, GuideObject } from '../types';
 
 // Calculate smart edge attachment points for an object
 export const getAttachmentPoints = (
-  obj: CanvasObjectType,
+  obj: CanvasObject,
   scale: number,
   worldToScreen: (x: number, y: number) => { x: number; y: number },
   measureText: (text: string, fontSize: number) => number
@@ -14,7 +14,7 @@ export const getAttachmentPoints = (
   }> = [];
 
   if (obj.type === 'text') {
-    const textObj = obj as TextObjectType;
+    const textObj = obj as TextObject;
     const lines = textObj.content.split('\n');
     const lineHeight = textObj.fontSize * 1.6;
     let maxWidth = 0;
@@ -49,8 +49,8 @@ export const getAttachmentPoints = (
         screenPos
       });
     });
-  } else if (obj.type === 'a4guide') {
-    const guideObj = obj as A4GuideObjectType;
+  } else if (obj.type === 'guide') {
+    const guideObj = obj as GuideObject;
     const centerX = guideObj.x + guideObj.width / 2;
     const centerY = guideObj.y + guideObj.height / 2;
     
@@ -117,7 +117,7 @@ export const drawAttachmentPoints = (
     screenPos: { x: number; y: number };
   }>,
   highlightedPoint: { position: string; worldPos: { x: number; y: number } } | null = null,
-  obj?: CanvasObjectType,
+  obj?: CanvasObject,
   scale?: number,
   worldToScreen?: (x: number, y: number) => { x: number; y: number },
   measureText?: (text: string, fontSize: number) => number
@@ -129,7 +129,7 @@ export const drawAttachmentPoints = (
     let bounds;
     
     if (obj.type === 'text') {
-      const textObj = obj as TextObjectType;
+      const textObj = obj as TextObject;
       const lines = textObj.content.split('\n');
       const lineHeight = textObj.fontSize * 1.6;
       let maxWidth = 0;
@@ -149,8 +149,8 @@ export const drawAttachmentPoints = (
         width: maxWidth,
         height: totalHeight
       };
-    } else if (obj.type === 'a4guide') {
-      const guideObj = obj as A4GuideObjectType;
+    } else if (obj.type === 'guide') {
+      const guideObj = obj as GuideObject;
       bounds = {
         x: guideObj.x,
         y: guideObj.y,
