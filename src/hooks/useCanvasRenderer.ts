@@ -13,7 +13,7 @@ import { renderSelectionRect } from '../utils/selectionUtils';
 import { CanvasMode, Theme, THEME_COLORS } from '../types';
 import useCanvasStore from '../store/canvasStore';
 
-export const useCanvasRenderer = () => {
+export const useCanvasRenderer = (selectedObject?: any) => {
   const {
     canvasWidth,
     canvasHeight,
@@ -100,6 +100,8 @@ export const useCanvasRenderer = () => {
     const pinScreenX = pinPosition.worldX * scale + canvasOffset.x;
     const pinScreenY = pinPosition.worldY * scale + canvasOffset.y;
     
+    // Pin drawing logic
+    
     ctx.save();
     
     const isHoveringObject = pinHoveredObject !== null;
@@ -161,7 +163,17 @@ export const useCanvasRenderer = () => {
     
     // Draw hover highlight
     if (hoveredObject) {
-      drawHoverHighlight(ctx, hoveredObject, scale, canvasOffset, measureTextWidthLocal, theme);
+      const colors = {
+        dark: { 
+          hover: 'rgba(59, 130, 246, 0.15)',
+          hoverBorder: 'rgba(147, 197, 253, 0.6)'
+        },
+        light: { 
+          hover: 'rgba(59, 130, 246, 0.1)',
+          hoverBorder: 'rgba(96, 165, 250, 0.5)'
+        }
+      };
+      drawHoverHighlight(ctx, hoveredObject, scale, worldToScreenLocal, measureTextWidthLocal, theme, colors);
     }
     
     // Draw drag preview
@@ -190,8 +202,57 @@ export const useCanvasRenderer = () => {
     }
     
     // Draw selection highlights
-    if (currentMode === CanvasMode.SELECT && selectedObjects.length > 0) {
+    if (selectedObjects.length > 0) {
       drawMultiSelectHighlight(ctx, selectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
+    } else if (selectedObject) {
+      // Draw single selection highlight
+      const colors = {
+        dark: { 
+          selection: 'rgba(59, 130, 246, 0.15)',
+          selectionBorder: 'rgba(147, 197, 253, 0.8)'
+        },
+        light: { 
+          selection: 'rgba(59, 130, 246, 0.1)',
+          selectionBorder: 'rgba(96, 165, 250, 0.6)'
+        }
+      };
+      
+      if (selectedObject.type === 'text') {
+        const textObj = selectedObject;
+        const screenPos = worldToScreenLocal(textObj.x, textObj.y);
+        const fontSize = textObj.fontSize * scale;
+        
+        // Handle multi-line text
+        const lines = textObj.content.split('\n');
+        const lineHeight = fontSize * 1.6;
+        let maxWidth = 0;
+        
+        // Calculate the maximum width among all lines
+        lines.forEach((line: string) => {
+          const lineWidth = measureTextWidthLocal(line, fontSize);
+          maxWidth = Math.max(maxWidth, lineWidth);
+        });
+        
+        const totalHeight = lines.length > 1 
+          ? (lines.length - 1) * lineHeight + fontSize 
+          : fontSize;
+        
+        const rectX = screenPos.x;
+        const rectY = screenPos.y - fontSize;
+        const rectWidth = maxWidth;
+        const rectHeight = totalHeight;
+        
+        // Draw background fill
+        ctx.fillStyle = colors[theme].selection;
+        ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
+        
+        // Draw border
+        ctx.strokeStyle = colors[theme].selectionBorder;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
+        ctx.setLineDash([]);
+      }
     }
     
     // Draw selection area
@@ -227,8 +288,10 @@ export const useCanvasRenderer = () => {
     currentMode,
     linkState,
     selectedObjects,
+    selectedObject,
     selectionState,
-    drawPinIndicator
+    drawPinIndicator,
+    worldToScreenLocal
   ]);
 
   return {

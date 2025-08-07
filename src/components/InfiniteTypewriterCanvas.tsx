@@ -206,9 +206,6 @@ const InfiniteTypewriterCanvas = () => {
     setTypewriterPosition,
     setGetTextBoxWidth,
   } = useCanvasStore();
-
-  // Import render function from useCanvasRenderer hook
-  const { render } = useCanvasRenderer();
   
   // Initialize from session
   useEffect(() => {
@@ -232,6 +229,9 @@ const InfiniteTypewriterCanvas = () => {
   });
   // baseFontSizePt is now managed by Zustand store
   const [needsLTPositionRestore, setNeedsLTPositionRestore] = useState<{ x: number; y: number } | null>(null); // LT 위치 복구 플래그
+
+  // Import render function from useCanvasRenderer hook (after local state declarations)
+  const { render } = useCanvasRenderer(selectedObject);
 
   useEffect(() => {
     setPxPerMm(calculateDPIPixelsPerMM());
@@ -467,7 +467,11 @@ const InfiniteTypewriterCanvas = () => {
   
   // 메모리 누수 방지: measureTextWidth 함수를 캐시
   const measureTextWidthLocal = useCallback((text: string, fontSize: number = baseFontSize) => {
-    return measureTextWidth(text, fontSize, canvasRef.current, fontLoaded);
+    if (canvasRef.current && fontLoaded) {
+      return measureTextWidth(text, fontSize, canvasRef.current, fontLoaded);
+    }
+    // Fallback calculation when canvas or font is not ready
+    return text.length * fontSize * 0.6;
   }, [baseFontSize, fontLoaded]);
 
   const getTextBoxWidth = useCallback(() => {
@@ -875,6 +879,7 @@ const InfiniteTypewriterCanvas = () => {
             setPinPosition(newPinPosition);
             
             const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPinPosition, 20, measureTextWidthLocal);
+            // Pin hover detection logic
             setPinHoveredObject(hoveredObjectAtPin);
             setHoveredObject(hoveredObjectAtPin);
           } else {
@@ -1857,11 +1862,54 @@ const InfiniteTypewriterCanvas = () => {
     
     // End select area drag (Select mode)
     if (currentMode === CanvasMode.SELECT && selectionState.dragArea) {
-      // Clear the drag area but keep any selected objects
-      setSelectionState({
-        ...selectionState,
-        dragArea: null
-      });
+      // Select objects in the drag area
+      const dragArea = selectionState.dragArea;
+      const selectionRect = {
+        x: Math.min(dragArea.start.x, dragArea.end.x),
+        y: Math.min(dragArea.start.y, dragArea.end.y),
+        width: Math.abs(dragArea.end.x - dragArea.start.x),
+        height: Math.abs(dragArea.end.y - dragArea.start.y)
+      };
+      
+      // Only select objects if the drag area has meaningful size
+      if (selectionRect.width > 1 || selectionRect.height > 1) {
+        const objectsInArea = getObjectsInSelectionRect(
+          canvasObjects, 
+          selectionRect, 
+          scale, 
+          canvasOffset, 
+          measureTextWidthLocal
+        );
+        
+        if (objectsInArea.length > 0) {
+          setSelectedObjects(objectsInArea);
+          setSelectedObject(null);
+          
+          // Update selectionState to track selected objects
+          const newSelectionState = { ...selectionState };
+          newSelectionState.selectedObjects.clear();
+          objectsInArea.forEach(obj => {
+            newSelectionState.selectedObjects.add(obj.id.toString());
+          });
+          newSelectionState.dragArea = null;
+          setSelectionState(newSelectionState);
+        } else {
+          // No objects selected, just clear the drag area
+          setSelectionState({
+            ...selectionState,
+            dragArea: null
+          });
+        }
+      } else {
+        // Drag area too small, treat as single click - clear selection
+        setSelectedObject(null);
+        setSelectedObjects([]);
+        setSelectionState({
+          ...selectionState,
+          dragArea: null,
+          selectedObjects: new Set()
+        });
+      }
     }
     
     // 드래그가 끝난 후 텍스트 입력 필드에 포커스 복원 (텍스트 박스가 보일 때만)
