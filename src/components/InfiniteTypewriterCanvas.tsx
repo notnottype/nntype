@@ -66,7 +66,6 @@ import {
   renderSelectionRect, 
   renderSelectionHighlights, 
   moveSelectedObjects,
-  clearSelection,
   addToSelection,
   removeFromSelection 
 } from '../utils/selectionUtils';
@@ -84,12 +83,20 @@ import {
   THEME_COLORS
 } from '../constants';
 import { pxToPoints, pointsToPx } from '../utils/units';
-import { CanvasObject, TextObject, GuideObject, Theme, AICommand, SelectionRectangle, CanvasMode, PinPosition, LinkState, SelectionState, LinkObjectType } from '../types';
+import { CanvasObject, TextObject, GuideObject, Theme, AICommand, SelectionRectangle, CanvasMode, PinPosition, LinkState, SelectionState, LinkObject } from '../types';
+import useCanvasStore from '../store/canvasStore';
 import { aiService } from '../services/aiService';
 import { wrapTextToLines } from '../utils';
 import { ExportMenu } from './ExportMenu';
 import { ApiKeyInput } from './ApiKeyInput';
 import { saveSession, loadSession, clearSession } from '../utils/sessionStorage';
+
+// Import extracted hooks
+import { useInfiniteCanvasEvents } from '../hooks/useInfiniteCanvasEvents';
+import { useCanvasRenderer } from '../hooks/useCanvasRenderer';
+import { useKeyboardEvents } from '../hooks/useKeyboardEvents';
+import { useZoomAndFontControls } from '../hooks/useZoomAndFontControls';
+import { useAICommands } from '../hooks/useAICommands';
 
 const parseCommand = (text: string): AICommand | null => {
   const trimmedText = text.trim();
@@ -109,150 +116,122 @@ const hasPosition = (obj: CanvasObject): obj is TextObject | GuideObject => {
 
 const InfiniteTypewriterCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [canvasObjects, setCanvasObjects] = useState<CanvasObject[]>(() => {
+  
+  // Zustand store
+  const {
+    canvasObjects,
+    setCanvasObjects,
+    currentTypingText,
+    setCurrentTypingText,
+    isComposing,
+    setIsComposing,
+    isDragging,
+    setIsDragging,
+    isDraggingText,
+    setIsDraggingText,
+    dragStart,
+    setDragStart,
+    scale,
+    setScale,
+    isTyping,
+    setIsTyping,
+    fontLoaded,
+    setFontLoaded,
+    isSelecting,
+    setIsSelecting,
+    selectionRect,
+    setSelectionRect,
+    canvasWidth,
+    canvasHeight,
+    setCanvasSize,
+    canvasOffset,
+    setCanvasOffset,
+    isSpacePressed,
+    setIsSpacePressed,
+    showGrid,
+    toggleGrid,
+    showInfo,
+    toggleInfo,
+    showShortcuts,
+    toggleShortcuts,
+    showTextBox,
+    setShowTextBox,
+    theme,
+    toggleTheme,
+    baseFontSize,
+    setBaseFontSize,
+    pxPerMm,
+    setPxPerMm,
+    currentMode,
+    setCurrentMode,
+    switchMode,
+    previousMode,
+    pinPosition,
+    setPinPosition,
+    linkState,
+    setLinkState,
+    selectionState,
+    setSelectionState,
+    links,
+    addLink,
+    deleteLink,
+    selectedObjectIds,
+    selectedObjects,
+    setSelectedObjects,
+    selectObject,
+    deselectObject,
+    clearSelection,
+    addTextObject,
+    addGuideObject,
+    updateCanvasObject,
+    deleteCanvasObject,
+    maxCharsPerLine,
+    setMaxCharsPerLine,
+    baseFontSizePt,
+    setBaseFontSizePt,
+    hoveredObject,
+    setHoveredObject,
+    hoveredLink,
+    setHoveredLink,
+    pinHoveredObject,
+    setPinHoveredObject,
+    selectedLinks,
+    setSelectedLinks,
+    undoStack,
+    redoStack,
+    pushToUndoStack,
+    pushToRedoStack,
+    clearUndoStack,
+    clearRedoStack,
+    setTypewriterPosition,
+    setGetTextBoxWidth,
+  } = useCanvasStore();
+
+  // Import render function from useCanvasRenderer hook
+  const { render } = useCanvasRenderer();
+  
+  // Initialize from session
+  useEffect(() => {
     const sessionData = loadSession();
-    return sessionData?.canvasObjects || [];
-  });
-  const [currentTypingText, setCurrentTypingText] = useState(() => {
-    const sessionData = loadSession();
-    return sessionData?.currentTypingText || '';
-  });
-  const [isComposing, setIsComposing] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isDraggingText, setIsDraggingText] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+    if (sessionData?.canvasObjects) {
+      setCanvasObjects(sessionData.canvasObjects);
+    }
+  }, [setCanvasObjects]);
+
+  // Local state (not in Zustand store)
   const [dragPreviewObjects, setDragPreviewObjects] = useState<CanvasObject[]>([]);
-  const [scale, setScale] = useState(() => {
-    const sessionData = loadSession();
-    return sessionData?.scale || 1;
-  });
-  const [isTyping, setIsTyping] = useState(false);
-  const [fontLoaded, setFontLoaded] = useState(false);
   const [selectedObject, setSelectedObject] = useState<CanvasObject | null>(null);
-  const [selectedObjects, setSelectedObjects] = useState<CanvasObject[]>([]);
-  const [isSelecting, setIsSelecting] = useState(false);
-  const [selectionRect, setSelectionRect] = useState<SelectionRectangle | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isMouseInTextBox, setIsMouseInTextBox] = useState(false);
-  const [hoveredObject, setHoveredObject] = useState<CanvasObject | null>(null);
-  const [canvasWidth, setCanvasWidth] = useState(window.innerWidth);
-  const [canvasHeight, setCanvasHeight] = useState(window.innerHeight);
-  const [canvasOffset, setCanvasOffset] = useState(() => {
-    // 초기 렌더링 시 세션에서 LT 위치 복구하여 깜빡임 방지
-    const sessionData = loadSession();
-    if (sessionData?.typewriterLTWorldPosition) {
-      try {
-        // 정확한 세션 데이터 값으로 계산
-        const initialTypewriterX = window.innerWidth / 2;
-        const initialTypewriterY = (window.innerHeight - 64) / 2;
-        
-        // 정확한 텍스트 박스 너비 계산 (세션 데이터 사용)
-        const textBoxWidth = sessionData.maxCharsPerLine * (sessionData.baseFontSize * 0.6);
-        
-        const currentLTScreen = {
-          x: initialTypewriterX - textBoxWidth / 2,
-          y: initialTypewriterY - sessionData.baseFontSize / 2
-        };
-        
-        const targetScreenX = sessionData.typewriterLTWorldPosition.x * sessionData.scale;
-        const targetScreenY = sessionData.typewriterLTWorldPosition.y * sessionData.scale;
-        
-        console.log('Initial canvas offset calculation:', {
-          typewriterLT: sessionData.typewriterLTWorldPosition,
-          scale: sessionData.scale,
-          currentLTScreen,
-          targetScreen: { x: targetScreenX, y: targetScreenY },
-          calculatedOffset: {
-            x: currentLTScreen.x - targetScreenX,
-            y: currentLTScreen.y - targetScreenY
-          }
-        });
-        
-        return {
-          x: currentLTScreen.x - targetScreenX,
-          y: currentLTScreen.y - targetScreenY
-        };
-      } catch (error) {
-        console.warn('Failed to calculate initial offset:', error);
-        return { x: 0, y: 0 };
-      }
-    }
-    return { x: 0, y: 0 };
-  });
-  const [isSpacePressed, setIsSpacePressed] = useState(false);
-  const [showGrid, setShowGrid] = useState(() => {
-    const sessionData = loadSession();
-    return sessionData?.showGrid ?? true;
-  });
-
-  // Dynamically measure CSS pixels per millimeter (accounts for DPI / zoom)
-  const [pxPerMm, setPxPerMm] = useState(96 / 25.4); // fallback default
-
-  const [showInfo, setShowInfo] = useState(() => {
-    const sessionData = loadSession();
-    return sessionData?.showInfo ?? true;
-  });
-  const [showShortcuts, setShowShortcuts] = useState(() => {
-    const sessionData = loadSession();
-    return sessionData?.showShortcuts ?? true;
-  });
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
-  const [showTextBox, setShowTextBox] = useState(() => {
-    const sessionData = loadSession();
-    return sessionData?.showTextBox ?? true;
-  });
-  const [theme, setTheme] = useState<Theme>(() => {
-    const sessionData = loadSession();
-    return sessionData?.theme || 'light';
-  });
 
   const [aiState, setAIState] = useState({
     isProcessing: false,
     error: null as string | null,
     lastResponse: null as string | null
   });
-
-  const [maxCharsPerLine, setMaxCharsPerLine] = useState(() => {
-    const sessionData = loadSession();
-    return sessionData?.maxCharsPerLine || 80;
-  }); // 한글 기준 80자, 동적 변경
-  const [baseFontSize, setBaseFontSize] = useState(() => {
-    const sessionData = loadSession();
-    return sessionData?.baseFontSize || INITIAL_UI_FONT_SIZE_PX;
-  }); // Display Font Size (픽셀) - 화면에 표시되는 크기
-  const [baseFontSizePt, setBaseFontSizePt] = useState(() => {
-    const sessionData = loadSession();
-    return sessionData?.baseFontSizePt || INITIAL_BASE_FONT_SIZE_PT;
-  }); // Logical Font Size (포인트) - 논리적 텍스트 크기
+  // baseFontSizePt is now managed by Zustand store
   const [needsLTPositionRestore, setNeedsLTPositionRestore] = useState<{ x: number; y: number } | null>(null); // LT 위치 복구 플래그
-  const [typewriterPosition, setTypewriterPosition] = useState({ 
-    x: window.innerWidth / 2, 
-    y: (window.innerHeight - 64) / 2 
-  });
-
-  // Multi-mode system state
-  const [currentMode, setCurrentMode] = useState<CanvasMode>(CanvasMode.TYPOGRAPHY);
-  const [previousMode, setPreviousMode] = useState<CanvasMode | null>(null);
-  const [pinPosition, setPinPosition] = useState<PinPosition>({
-    x: window.innerWidth / 2,
-    y: (window.innerHeight - 64) / 2,
-    worldX: 0,
-    worldY: 0
-  });
-  const [linkState, setLinkState] = useState<LinkState>({
-    sourceObjectId: null,
-    targetObjectId: null,
-    isCreating: false,
-    previewPath: null
-  });
-  const [selectionState, setSelectionState] = useState<SelectionState>({
-    selectedObjects: new Set<string>(),
-    dragArea: null
-  });
-  const [links, setLinks] = useState<LinkObjectType[]>([]);
-  const [selectedLinks, setSelectedLinks] = useState<Set<string>>(new Set());
-  const [hoveredLink, setHoveredLink] = useState<LinkObjectType | null>(null);
-  const [pinHoveredObject, setPinHoveredObject] = useState<CanvasObject | null>(null);
 
   useEffect(() => {
     setPxPerMm(calculateDPIPixelsPerMM());
@@ -262,8 +241,10 @@ const InfiniteTypewriterCanvas = () => {
 
   // Load Google Fonts
   useEffect(() => {
-    loadGoogleFonts().then(() => setFontLoaded(true));
-  }, []);
+    loadGoogleFonts().then(() => {
+      setFontLoaded(true);
+    });
+  }, [setFontLoaded]);
 
   // Load session on component mount
   useEffect(() => {
@@ -271,11 +252,10 @@ const InfiniteTypewriterCanvas = () => {
     if (sessionData) {
       console.log('Restoring session from:', new Date(sessionData.timestamp));
       
-      // Restore canvas state
+      // Restore canvas state  
       setCanvasObjects(sessionData.canvasObjects);
       setScale(sessionData.scale);
       setCurrentTypingText(sessionData.currentTypingText);
-      setBaseFontSize(sessionData.baseFontSize);
       if (sessionData.baseFontSizePt) {
         setBaseFontSizePt(sessionData.baseFontSizePt);
       }
@@ -292,12 +272,12 @@ const InfiniteTypewriterCanvas = () => {
         setCanvasOffset(sessionData.canvasOffset);
       }
       
-      // Restore UI state
-      setShowGrid(sessionData.showGrid);
+      // Restore UI state (now handled by Zustand)
+      if (sessionData.showGrid !== showGrid) toggleGrid();
       setShowTextBox(sessionData.showTextBox);
-      setShowInfo(sessionData.showInfo);
-      setShowShortcuts(sessionData.showShortcuts);
-      setTheme(sessionData.theme);
+      if (sessionData.showInfo !== showInfo) toggleInfo();
+      if (sessionData.showShortcuts !== showShortcuts) toggleShortcuts();
+      if (sessionData.theme !== theme) toggleTheme();
       
       // Restore selected object if exists
       if (sessionData.selectedObjectId) {
@@ -315,8 +295,13 @@ const InfiniteTypewriterCanvas = () => {
 
 
   // 타이프라이터 위치는 절대 스냅하지 않음 - 화면 중앙 고정
-  const typewriterX = canvasWidth / 2;
-  const typewriterY = canvasHeight / 2;
+  const typewriterX = useMemo(() => canvasWidth / 2, [canvasWidth]);
+  const typewriterY = useMemo(() => canvasHeight / 2, [canvasHeight]);
+
+  // Update typewriter position in store when canvas size changes
+  useEffect(() => {
+    setTypewriterPosition(typewriterX, typewriterY);
+  }, [typewriterX, typewriterY, setTypewriterPosition]);
 
   // Auto-save session when state changes (optimized)
   const saveTimeoutRef = useRef<number | null>(null);
@@ -486,8 +471,34 @@ const InfiniteTypewriterCanvas = () => {
   }, [baseFontSize, fontLoaded]);
 
   const getTextBoxWidth = useCallback(() => {
-    return measureTextWidthLocal('A'.repeat(maxCharsPerLine));
-  }, [measureTextWidthLocal, maxCharsPerLine]);
+    return measureTextWidthLocal('A'.repeat(maxCharsPerLine), baseFontSize);
+  }, [measureTextWidthLocal, maxCharsPerLine, baseFontSize]);
+
+  // Register getTextBoxWidth function in store
+  useEffect(() => {
+    setGetTextBoxWidth(getTextBoxWidth);
+  }, [getTextBoxWidth, setGetTextBoxWidth]);
+
+  // Import zoom and font controls from useZoomAndFontControls hook
+  const { 
+    handleUISizeChange,
+    handleBaseFontSizeChange: handleBaseFontSizeChangeFromHook,
+    zoomToLevel: zoomToLevelFromHook,
+    resetUIZoom: resetUIZoomFromHook,
+    resetBaseFont: resetBaseFontFromHook,
+    resetCanvas: resetCanvasFromHook,
+    maintainTypewriterLTWorldPosition 
+  } = useZoomAndFontControls(getTextBoxWidth);
+
+  // Initialize keyboard events
+  useKeyboardEvents(
+    isComposing,
+    handleUISizeChange,
+    resetUIZoomFromHook,
+    handleBaseFontSizeChangeFromHook,
+    resetBaseFontFromHook,
+    zoomToLevelFromHook
+  );
 
   // 공통 measureTextWidth 함수 (메모리 누수 방지)
   const createMeasureTextWidthFn = useCallback(() => {
@@ -507,33 +518,7 @@ const InfiniteTypewriterCanvas = () => {
   const screenToWorldLocal = useCallback((screenX: number, screenY: number) => 
     screenToWorld(screenX, screenY, scale, canvasOffset), [scale, canvasOffset]);
 
-  const zoomToLevel = useCallback((newScale: number) => {
-    const currentTextBoxWidth = getTextBoxWidth();
-    const newTextBoxWidth = measureTextWidthLocal('A'.repeat(maxCharsPerLine), baseFontSize);
-    const newOffset = calculateTextBoxOffset(
-      newScale, 
-      scale, 
-      canvasOffset, 
-      typewriterX, 
-      typewriterY, 
-      currentTextBoxWidth, 
-      newTextBoxWidth, 
-      baseFontSize
-    );
-
-    // 핀 위치가 있다면 월드 좌표 업데이트
-    if (pinPosition) {
-      const updatedPin = {
-        ...pinPosition,
-        worldX: (pinPosition.x - newOffset.x) / newScale,
-        worldY: (pinPosition.y - newOffset.y) / newScale
-      };
-      setPinPosition(updatedPin);
-    }
-
-    setScale(newScale);
-    setCanvasOffset(newOffset);
-  }, [getTextBoxWidth, measureTextWidthLocal, scale, canvasOffset, typewriterX, typewriterY, baseFontSize, maxCharsPerLine, pinPosition]);
+  // Removed local zoomToLevel - using zoomToLevelFromHook from useZoomAndFontControls
 
   const getCurrentWorldPosition = useCallback(() => {
     const textBoxWidth = getTextBoxWidth();
@@ -595,43 +580,57 @@ const InfiniteTypewriterCanvas = () => {
     });
   }, [typewriterX, typewriterY]);
 
+  // Canvas initialization and resize handler
+  const initializeCanvas = useCallback(() => {
+    // 1. 실시간 LT World 좌표 사용 (세션 데이터 지연 문제 해결)
+    const targetLTWorld = getCurrentLTWorldPosition();
+    
+    // 2. 새로운 윈도우 크기 설정
+    const newWidth = window.innerWidth;
+    const newHeight = window.innerHeight;
+    const newTypewriterX = newWidth / 2;
+    const newTypewriterY = newHeight / 2;
+    
+    setCanvasSize(newWidth, newHeight);
+    
+    // 3. 새로운 화면 중앙에서 저장된 LT World 좌표 유지
+    setTimeout(() => {
+      const newLTScreen = {
+        x: newTypewriterX - getTextBoxWidth() / 2,
+        y: newTypewriterY - baseFontSize / 2
+      };
+      
+      const targetScreenX = targetLTWorld.x * scale;
+      const targetScreenY = targetLTWorld.y * scale;
+      
+      const newOffset = {
+        x: newLTScreen.x - targetScreenX,
+        y: newLTScreen.y - targetScreenY
+      };
+      
+      setCanvasOffset(newOffset);
+    }, 0);
+  }, [getCurrentLTWorldPosition, getTextBoxWidth, baseFontSize, scale]);
+
+  // Canvas initialization - only on mount and resize
+  const isInitializedRef = useRef(false);
+  
   useEffect(() => {
     const handleResize = () => {
-      // 1. 실시간 LT World 좌표 사용 (세션 데이터 지연 문제 해결)
-      const targetLTWorld = getCurrentLTWorldPosition();
-      
-      // 2. 새로운 윈도우 크기 설정
-      const newWidth = window.innerWidth;
-      const newHeight = window.innerHeight;
-      const newTypewriterX = newWidth / 2;
-      const newTypewriterY = newHeight / 2;
-      
-      setCanvasWidth(newWidth);
-      setCanvasHeight(newHeight);
-      
-      // 3. 새로운 화면 중앙에서 저장된 LT World 좌표 유지
-      setTimeout(() => {
-        const newLTScreen = {
-          x: newTypewriterX - getTextBoxWidth() / 2,
-          y: newTypewriterY - baseFontSize / 2
-        };
-        
-        const targetScreenX = targetLTWorld.x * scale;
-        const targetScreenY = targetLTWorld.y * scale;
-        
-        const newOffset = {
-          x: newLTScreen.x - targetScreenX,
-          y: newLTScreen.y - targetScreenY
-        };
-        
-        setCanvasOffset(newOffset);
-      }, 0);
+      if (isInitializedRef.current) {
+        initializeCanvas();
+      }
     };
-    window.addEventListener('resize', handleResize);
     
-    // 초기 로드 시에만 centerTypewriter 실행
+    // Initialize canvas on first load only
+    if (!isInitializedRef.current) {
+      initializeCanvas();
+      isInitializedRef.current = true;
+    }
+    
+    window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [getCurrentLTWorldPosition, getTextBoxWidth, baseFontSize, scale]);
+  }, [initializeCanvas]);
 
   // 초기 중앙 배치는 세션 로드에서 처리 (중복 제거)
 
@@ -669,189 +668,17 @@ const InfiniteTypewriterCanvas = () => {
     });
   }, [dragPreviewObjects, scale, worldToScreenLocal, measureTextWidthLocal, theme]);
 
-  const render = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    // Background
-    ctx.fillStyle = THEME_COLORS[theme].background;
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-    
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    
-    if (showGrid) {
-      drawGridLocal(ctx);
-    }
-    drawCanvasObjectsLocal(ctx);
-    
-    // 호버된 오브젝트 하이라이트 표시
-    if (hoveredObject) {
-      drawHoverHighlight(ctx, hoveredObject, scale, worldToScreenLocal, measureTextWidthLocal, theme, THEME_COLORS);
-    }
-    
-    // 멀티 셀렉트된 오브젝트 하이라이트 표시 (Typography mode only)
-    if (currentMode === CanvasMode.TYPOGRAPHY && selectedObjects.length > 0) {
-      // 드래그 중일 때는 실제 캔버스 객체 위치에서 선택된 것들을 찾아서 하이라이트
-      if (isDraggingText && selectedObjects.length > 1) {
-        const selectedIds = selectedObjects.map(obj => obj.id);
-        const currentSelectedObjects = canvasObjects.filter(obj => selectedIds.includes(obj.id));
-        drawMultiSelectHighlight(ctx, currentSelectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
-      } else {
-        drawMultiSelectHighlight(ctx, selectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
-      }
-    }
-    
-    // 단일 선택된 오브젝트 하이라이트 표시 with X button (Typography mode)
-    if (currentMode === CanvasMode.TYPOGRAPHY && selectedObject && selectedObjects.length === 0 && !isDraggingText) {
-      drawSingleSelectHighlight(ctx, selectedObject, scale, canvasOffset, measureTextWidthLocal, theme, () => {
-        setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
-        setSelectedObject(null);
-      });
-    }
-    
-    // 드래그 프리뷰 표시 (드래그 중일 때만)
-    if (isDraggingText && dragPreviewObjects.length > 0) {
-      drawDragPreviewObjects(ctx);
-    }
-    
-    // 셀렉션 사각형 표시
-    if (selectionRect && isSelecting) {
-      drawSelectionRectangle(ctx, selectionRect, theme);
-    }
-    
-    // Multi-mode system rendering
-    
-    // Render links
-    links.forEach(link => {
-      const fromObject = canvasObjects.find(obj => obj.id.toString() === link.from);
-      const toObject = canvasObjects.find(obj => obj.id.toString() === link.to);
-      
-      if (fromObject && toObject) {
-        const isSelected = selectedLinks.has(link.id);
-        const isHovered = hoveredLink?.id === link.id;
-        renderLink(ctx, link, fromObject, toObject, scale, canvasOffset, isSelected, isHovered, measureTextWidthLocal);
-      }
-    });
-    
-    // Render link preview (Link mode)
-    if (currentMode === CanvasMode.LINK && linkState.previewPath) {
-      renderLinkPreview(ctx, linkState.previewPath.from, linkState.previewPath.to, scale, canvasOffset);
-    }
-    
-    // Render selection highlights (Select mode) - Use selectedObjects array for consistency
-    if (currentMode === CanvasMode.SELECT && selectedObjects.length > 0) {
-      drawMultiSelectHighlight(ctx, selectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
-    }
-    
-    // Render selection area (Select mode)
-    if (currentMode === CanvasMode.SELECT && selectionState.dragArea) {
-      const rect = {
-        x: selectionState.dragArea.start.x,
-        y: selectionState.dragArea.start.y,
-        width: selectionState.dragArea.end.x - selectionState.dragArea.start.x,
-        height: selectionState.dragArea.end.y - selectionState.dragArea.start.y
-      };
-      renderSelectionRect(ctx, rect, scale, canvasOffset);
-    }
-    
-    // Render pin position indicator (Link and Select modes)
-    if (currentMode === CanvasMode.LINK || currentMode === CanvasMode.SELECT) {
-      const pinScreenX = pinPosition.worldX * scale + canvasOffset.x;
-      const pinScreenY = pinPosition.worldY * scale + canvasOffset.y;
-      
-      ctx.save();
-      
-      // Enhanced pin appearance when hovering over objects
-      const isHoveringObject = pinHoveredObject !== null;
-      const pinColor = currentMode === CanvasMode.LINK ? '#ff6b6b' : '#4a9eff';
-      const hoverColor = currentMode === CanvasMode.LINK ? '#ff4444' : '#2563eb';
-      
-      ctx.strokeStyle = isHoveringObject ? hoverColor : pinColor;
-      ctx.fillStyle = isHoveringObject ? hoverColor : pinColor;
-      ctx.lineWidth = isHoveringObject ? 2 : 1;
-      
-      // Draw enhanced crosshair
-      const crossSize = isHoveringObject ? 12 : 10;
-      ctx.beginPath();
-      ctx.moveTo(pinScreenX - crossSize, pinScreenY);
-      ctx.lineTo(pinScreenX + crossSize, pinScreenY);
-      ctx.moveTo(pinScreenX, pinScreenY - crossSize);
-      ctx.lineTo(pinScreenX, pinScreenY + crossSize);
-      ctx.stroke();
-      
-      // Draw center dot when hovering
-      if (isHoveringObject) {
-        ctx.beginPath();
-        ctx.arc(pinScreenX, pinScreenY, 3, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      
-      // Draw enhanced arrow
-      const arrowOffset = crossSize + 5;
-      const arrowSize = isHoveringObject ? 6 : 4;
-      ctx.beginPath();
-      ctx.moveTo(pinScreenX, pinScreenY + arrowOffset);
-      ctx.lineTo(pinScreenX - arrowSize, pinScreenY + arrowOffset + arrowSize);
-      ctx.lineTo(pinScreenX + arrowSize, pinScreenY + arrowOffset + arrowSize);
-      ctx.closePath();
-      ctx.fill();
-      
-      // Show object info tooltip when hovering - Disabled
-      /* if (isHoveringObject && pinHoveredObject) {
-        const tooltipX = pinScreenX + 20;
-        const tooltipY = pinScreenY - 20;
-        const maxWidth = 200;
-        
-        // Prepare tooltip text
-        const objContent = pinHoveredObject.type === 'text' 
-          ? (pinHoveredObject as any).content 
-          : `${pinHoveredObject.type} object`;
-        const displayText = objContent.length > 30 
-          ? objContent.substring(0, 30) + '...' 
-          : objContent;
-        
-        // Measure text for tooltip background
-        ctx.font = '12px "JetBrains Mono", monospace';
-        const textMetrics = ctx.measureText(displayText);
-        const tooltipWidth = Math.min(textMetrics.width + 16, maxWidth);
-        const tooltipHeight = 24;
-        
-        // Draw tooltip background
-        ctx.fillStyle = theme === 'dark' ? 'rgba(0, 0, 0, 0.9)' : 'rgba(255, 255, 255, 0.9)';
-        ctx.strokeStyle = isHoveringObject ? hoverColor : pinColor;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.roundRect(tooltipX, tooltipY - tooltipHeight, tooltipWidth, tooltipHeight, 4);
-        ctx.fill();
-        ctx.stroke();
-        
-        // Draw tooltip text
-        ctx.fillStyle = theme === 'dark' ? '#ffffff' : '#000000';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(displayText, tooltipX + 8, tooltipY - tooltipHeight / 2);
-        ctx.textAlign = 'start';
-        ctx.textBaseline = 'alphabetic';
-      } */
-      
-      ctx.restore();
-    }
-    
-    }, [canvasWidth, canvasHeight, theme, showGrid, drawGridLocal, drawCanvasObjectsLocal, hoveredObject, selectedObjects, selectionRect, isSelecting, scale, worldToScreenLocal, canvasOffset, measureTextWidthLocal, currentMode, links, linkState, selectionState, pinPosition, pinHoveredObject]);
+  // Removed - using render function from useCanvasRenderer hook
 
   const animationRef = useRef<number | null>(null);
   const renderTriggeredRef = useRef(false);
 
-  // Only render when needed instead of continuous animation loop
+  // Single render effect - only when render function changes
   useEffect(() => {
     if (!renderTriggeredRef.current) {
       renderTriggeredRef.current = true;
       const renderFrame = () => {
-        render();
+        render(canvasRef);
         renderTriggeredRef.current = false;
       };
       animationRef.current = requestAnimationFrame(renderFrame);
@@ -955,17 +782,15 @@ const InfiniteTypewriterCanvas = () => {
       A4_HEIGHT_MM
     );
     
-    setCanvasObjects(prev => [
-      ...prev,
-      {
-        id: Date.now(),
-        type: 'guide', guideType: 'a4',
-        x: a4Guide.x,
-        y: a4Guide.y,
-        width: a4Guide.width,
-        height: a4Guide.height
-      } as GuideObject
-    ]);
+    addGuideObject({
+      id: Date.now(),
+      type: 'guide',
+      guideType: 'a4',
+      x: a4Guide.x,
+      y: a4Guide.y,
+      width: a4Guide.width,
+      height: a4Guide.height
+    } as GuideObject);
   }, [maxCharsPerLine, typewriterX, typewriterY, getTextBoxWidth, baseFontSize, screenToWorldLocal]);
 
   const importFile = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1005,13 +830,13 @@ const InfiniteTypewriterCanvas = () => {
               setScale(data.appState.scale);
             }
                         if (typeof data.appState.showGrid !== 'undefined') {
-              setShowGrid(data.appState.showGrid);
+              if (data.appState.showGrid !== showGrid) toggleGrid();
             }
             if (typeof data.appState.showTextBox !== 'undefined') {
               setShowTextBox(data.appState.showTextBox);
             }
             if (data.appState.theme) {
-              setTheme(data.appState.theme);
+              if (data.appState.theme !== theme) toggleTheme();
             }
           }
         }
@@ -1031,8 +856,7 @@ const InfiniteTypewriterCanvas = () => {
       if (e.key === 'Tab') {
         e.preventDefault();
         const nextMode = e.shiftKey ? getPreviousMode(currentMode) : getNextMode(currentMode);
-        setPreviousMode(currentMode);
-        setCurrentMode(nextMode);
+        switchMode(nextMode);
         
         // Initialize pin position and hover detection for Link/Select modes
         if (nextMode === CanvasMode.LINK || nextMode === CanvasMode.SELECT) {
@@ -1073,7 +897,7 @@ const InfiniteTypewriterCanvas = () => {
             previewPath: null
           });
         } else if (currentMode === CanvasMode.SELECT) {
-          setSelectionState(clearSelection(selectionState));
+          setSelectionState({ selectedObjects: new Set(), dragArea: null });
         }
         
         // Clear all selections when switching modes
@@ -1092,8 +916,7 @@ const InfiniteTypewriterCanvas = () => {
       if (e.key === 'Escape') {
         if (currentMode !== CanvasMode.TYPOGRAPHY) {
           e.preventDefault();
-          setPreviousMode(currentMode);
-          setCurrentMode(CanvasMode.TYPOGRAPHY);
+          switchMode(CanvasMode.TYPOGRAPHY);
           
           // Clear pin hover detection when returning to Typography mode
           setPinHoveredObject(null);
@@ -1111,7 +934,7 @@ const InfiniteTypewriterCanvas = () => {
             isCreating: false,
             previewPath: null
           });
-          setSelectionState(clearSelection(selectionState));
+          setSelectionState({ selectedObjects: new Set(), dragArea: null });
           return;
         }
       }
@@ -1136,8 +959,8 @@ const InfiniteTypewriterCanvas = () => {
               const sourceCenterX = connectionPoint.x;
               const sourceCenterY = connectionPoint.y;
               
-              setLinkState(prev => ({
-                ...prev,
+              setLinkState({
+                ...linkState,
                 sourceObjectId: objectAtPin.id.toString(),
                 isCreating: true,
                 previewPath: {
@@ -1149,7 +972,7 @@ const InfiniteTypewriterCanvas = () => {
                   },
                   to: pinPosition
                 }
-              }));
+              });
             } else if (objectAtPin.id.toString() !== linkState.sourceObjectId) {
               // Select target object and create link
               const newLink = createLink(
@@ -1158,7 +981,7 @@ const InfiniteTypewriterCanvas = () => {
               );
               
               if (!areObjectsLinked(linkState.sourceObjectId, objectAtPin.id.toString(), links)) {
-                setLinks(prev => [...prev, newLink]);
+                addLink(newLink);
               }
               
               // Reset link state
@@ -1332,8 +1155,8 @@ const InfiniteTypewriterCanvas = () => {
                 const sourceCenterX = connectionPoint.x;
                 const sourceCenterY = connectionPoint.y;
                 
-                setLinkState(prev => ({
-                  ...prev,
+                setLinkState({
+                  ...linkState,
                   previewPath: {
                     from: {
                       x: sourceCenterX,
@@ -1343,7 +1166,7 @@ const InfiniteTypewriterCanvas = () => {
                     },
                     to: newPin
                   }
-                }));
+                });
               }
             }
           }
@@ -1381,116 +1204,14 @@ const InfiniteTypewriterCanvas = () => {
     }
   }, [currentMode]);
 
-  // 타이프라이터 LT 월드 좌표 유지하면서 상태 변경하는 공통 함수 (현재 상태 기준)
-  const maintainTypewriterLTWorldPosition = (
-    newFontSize: number,
-    newScale: number
-  ) => {
-    const measureTextWidthFn = createMeasureTextWidthFn();
-    
-    // 1. 호출 시점의 현재 타이프라이터 LT 월드 좌표 계산
-    const currentTextBoxWidth = measureTextWidthFn('A'.repeat(maxCharsPerLine), baseFontSize);
-    const currentLTScreen = {
-      x: typewriterX - currentTextBoxWidth / 2,
-      y: typewriterY - baseFontSize / 2
-    };
-    const currentLTWorld = {
-      x: (currentLTScreen.x - canvasOffset.x) / scale,
-      y: (currentLTScreen.y - canvasOffset.y) / scale
-    };
-    
-    // 2. 새로운 설정에서 타이프라이터 LT의 화면 좌표 계산
-    const newTextBoxWidth = measureTextWidthFn('A'.repeat(maxCharsPerLine), newFontSize);
-    const newLTScreen = {
-      x: typewriterX - newTextBoxWidth / 2,
-      y: typewriterY - newFontSize / 2
-    };
-    
-    // 3. 동일한 월드 좌표가 새로운 LT 화면 위치에 오도록 오프셋 계산
-    const targetScreenX = currentLTWorld.x * newScale;
-    const targetScreenY = currentLTWorld.y * newScale;
-    
-    const newOffset = {
-      x: newLTScreen.x - targetScreenX,
-      y: newLTScreen.y - targetScreenY
-    };
-    
-    // 4. 핀 위치가 있다면 월드 좌표 업데이트
-    if (pinPosition) {
-      const updatedPin = {
-        ...pinPosition,
-        worldX: (pinPosition.x - newOffset.x) / newScale,
-        worldY: (pinPosition.y - newOffset.y) / newScale
-      };
-      setPinPosition(updatedPin);
-    }
-    
-    // 5. 상태 업데이트
-    setBaseFontSize(newFontSize);
-    setScale(newScale);
-    setCanvasOffset(newOffset);
-  };
+  // Removed - using maintainTypewriterLTWorldPosition from useZoomAndFontControls hook
 
-  // Display Font Size 조절 함수 (픽셀 기반 - 화면에 표시되는 크기 조정)
-  const handleUISizeChange = (up: boolean) => {
-    const currentIndex = findFontSizeLevel(baseFontSize, UI_FONT_SIZE_LEVELS_PX);
-    
-    let newIndex = up
-      ? Math.min(UI_FONT_SIZE_LEVELS_PX.length - 1, currentIndex + 1)
-      : Math.max(0, currentIndex - 1);
-    
-    if (newIndex !== currentIndex) {
-      const newFontSize = UI_FONT_SIZE_LEVELS_PX[newIndex];
-      const fontSizeRatio = newFontSize / baseFontSize;
-      const newScale = scale * fontSizeRatio;
-      
-      maintainTypewriterLTWorldPosition(newFontSize, newScale);
-      // Display Font Size만 조정하고 Logical Font Size는 독립적으로 유지
-    }
-  };
+  // Removed - using handleUISizeChange from useZoomAndFontControls hook
 
-  // Logical Font Size 조절 함수 (포인트 기반 - 텍스트 객체 논리적 크기 조정)
-  const handleBaseFontSizeChange = (up: boolean) => {
-    const currentIndex = findFontSizeLevel(baseFontSizePt, BASE_FONT_SIZE_LEVELS_PT);
-    
-    let newIndex = up
-      ? Math.min(BASE_FONT_SIZE_LEVELS_PT.length - 1, currentIndex + 1)
-      : Math.max(0, currentIndex - 1);
-    
-    if (newIndex !== currentIndex) {
-      const newBaseFontSizePt = BASE_FONT_SIZE_LEVELS_PT[newIndex];
-      const newBaseFontSizePx = pointsToPx(newBaseFontSizePt);
-      
-      // 포인트 크기 변화 비율 계산 (역비율 적용)
-      const ptRatio = newBaseFontSizePt / baseFontSizePt;
-      const newScale = scale / ptRatio; // Logical Font Size 증가 시 캔버스 축소 (역비율)
-      
-      // Display Font Size는 유지하면서 스케일만 조정하여 LT 월드 좌표 유지
-      maintainTypewriterLTWorldPosition(baseFontSize, newScale);
-      // Logical Font Size만 업데이트
-      setBaseFontSizePt(newBaseFontSizePt);
-    }
-  };
+  // Removed local handleBaseFontSizeChange - using handleBaseFontSizeChangeFromHook from useZoomAndFontControls;;
 
-  // UI Zoom 리셋 (UI 폰트 사이즈를 초기값으로, 스케일을 1.0으로)
-  const resetUIZoom = useCallback(() => {
-    // LT World 좌표 유지하면서 UI 폰트 사이즈와 스케일만 초기화
-    maintainTypewriterLTWorldPosition(INITIAL_UI_FONT_SIZE_PX, 1.0);
-  }, [maintainTypewriterLTWorldPosition]);
-
-  // Logical Font 리셋 (Logical Font Size를 초기값으로)
-  const resetBaseFont = useCallback(() => {
-    if (baseFontSizePt !== INITIAL_BASE_FONT_SIZE_PT) {
-      // 포인트 크기 변화 비율 계산 (역비율 적용)
-      const ptRatio = INITIAL_BASE_FONT_SIZE_PT / baseFontSizePt;
-      const newScale = scale / ptRatio; // Logical Font Size 변경 시 캔버스 스케일 역비율 조정
-      
-      // Display Font Size는 유지하면서 스케일만 조정하여 LT 월드 좌표 유지
-      maintainTypewriterLTWorldPosition(baseFontSize, newScale);
-      // Logical Font Size를 초기값으로 업데이트
-      setBaseFontSizePt(INITIAL_BASE_FONT_SIZE_PT);
-    }
-  }, [baseFontSizePt, scale, baseFontSize, maintainTypewriterLTWorldPosition]);
+  // Removed local resetUIZoom - using resetUIZoomFromHook from useZoomAndFontControls
+  // Removed local resetBaseFont - using resetBaseFontFromHook from useZoomAndFontControls
 
   const resetCanvas = useCallback(() => {
     // 전체 캔버스 리셋 (모든 값 초기화)
@@ -1549,13 +1270,13 @@ const InfiniteTypewriterCanvas = () => {
           return;
         } else if (e.key === '0') {
           e.preventDefault();
-          resetUIZoom(); // UI Zoom 리셋
+          resetUIZoomFromHook(); // UI Zoom 리셋
           return;
         } else if (e.key === 'Home' || e.key === 'r' || e.key === 'R') {
           e.preventDefault();
           // Alt+0, Cmd+0 순서대로 실행: Logical Font Size 리셋 → Display Font Size 리셋
-          resetBaseFont(); // Alt+0 액션 (Logical Font Size 리셋)
-          resetUIZoom();   // Cmd+0 액션 (Display Font Size 리셋)
+          resetBaseFontFromHook(); // Alt+0 액션 (Logical Font Size 리셋)
+          resetUIZoomFromHook();   // Cmd+0 액션 (Display Font Size 리셋)
           return;
         } else if (e.key === 'c' || e.key === 'C') {
           e.preventDefault();
@@ -1586,19 +1307,19 @@ const InfiniteTypewriterCanvas = () => {
         // + 인식: =, +, Equal(Shift+Equal)
         if (e.key === '=' || e.key === '+' || e.code === 'Equal') {
           e.preventDefault();
-          handleBaseFontSizeChange(true);
+          handleBaseFontSizeChangeFromHook(true);
           return;
         }
         // - 인식: -, _, Minus(Shift+Minus)
         if (e.key === '-' || e.key === '_' || e.code === 'Minus') {
           e.preventDefault();
-          handleBaseFontSizeChange(false);
+          handleBaseFontSizeChangeFromHook(false);
           return;
         }
         // 0 인식: Logical Font Size 리셋
         if (e.key === '0') {
           e.preventDefault();
-          resetBaseFont(); // Base Font 리셋
+          resetBaseFontFromHook(); // Base Font 리셋
           return;
         }
       }
@@ -1609,7 +1330,7 @@ const InfiniteTypewriterCanvas = () => {
           e.preventDefault();
           const newZoomIndex = Math.min(CANVAS_ZOOM_LEVELS.length - 1, currentZoomIndex + 1);
           if (newZoomIndex !== currentZoomIndex) {
-            zoomToLevel(CANVAS_ZOOM_LEVELS[newZoomIndex]);
+            zoomToLevelFromHook(CANVAS_ZOOM_LEVELS[newZoomIndex]);
           }
           return;
         }
@@ -1618,7 +1339,7 @@ const InfiniteTypewriterCanvas = () => {
           e.preventDefault();
           const newZoomIndex = Math.max(0, currentZoomIndex - 1);
           if (newZoomIndex !== currentZoomIndex) {
-            zoomToLevel(CANVAS_ZOOM_LEVELS[newZoomIndex]);
+            zoomToLevelFromHook(CANVAS_ZOOM_LEVELS[newZoomIndex]);
           }
           return;
         }
@@ -1630,26 +1351,26 @@ const InfiniteTypewriterCanvas = () => {
         if (currentMode === CanvasMode.SELECT && selectionState.selectedObjects.size > 0) {
           // Delete objects selected in Select mode
           const selectedIds = Array.from(selectionState.selectedObjects);
-          setCanvasObjects(prev => prev.filter(obj => !selectedIds.includes(obj.id.toString())));
+          setCanvasObjects(canvasObjects.filter(obj => !selectedIds.includes(obj.id.toString())));
           
           // Clear selection state
-          setSelectionState(clearSelection(selectionState));
+          setSelectionState({ selectedObjects: new Set(), dragArea: null });
           setSelectedObjects([]);
           setSelectedObject(null);
         } else if (selectedObjects.length > 0) {
           // Delete multi-selected objects (Typography mode)
           const selectedIds = selectedObjects.map(obj => obj.id);
-          setCanvasObjects(prev => prev.filter(obj => !selectedIds.includes(obj.id)));
+          setCanvasObjects(canvasObjects.filter(obj => !selectedIds.includes(obj.id)));
           setSelectedObjects([]);
           setSelectedObject(null);
         } else if (selectedObject) {
           // Delete single selected object
-          setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
+          setCanvasObjects(canvasObjects.filter(obj => obj.id !== selectedObject.id));
           setSelectedObject(null);
         } else if (selectedLinks.size > 0) {
           // Delete selected links
           const selectedLinkIds = Array.from(selectedLinks);
-          setLinks(prev => prev.filter(link => !selectedLinkIds.includes(link.id)));
+          selectedLinkIds.forEach(id => deleteLink(id));
           setSelectedLinks(new Set());
         }
         return;
@@ -1657,54 +1378,52 @@ const InfiniteTypewriterCanvas = () => {
       if (e.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
         const moveDistance = baseFontSize * 1.6;
-        setCanvasOffset(prev => {
-          const newOffset = (() => {
-            switch (e.key) {
-              case 'ArrowUp':
-                return { x: prev.x, y: prev.y + moveDistance };
-              case 'ArrowDown':
-                return { x: prev.x, y: prev.y - moveDistance };
-              case 'ArrowLeft':
-                return { x: prev.x + moveDistance, y: prev.y };
-              case 'ArrowRight':
-                return { x: prev.x - moveDistance, y: prev.y };
-              default:
-                return prev;
-            }
-          })();
+        const newOffset = (() => {
+          switch (e.key) {
+            case 'ArrowUp':
+              return { x: canvasOffset.x, y: canvasOffset.y + moveDistance };
+            case 'ArrowDown':
+              return { x: canvasOffset.x, y: canvasOffset.y - moveDistance };
+            case 'ArrowLeft':
+              return { x: canvasOffset.x + moveDistance, y: canvasOffset.y };
+            case 'ArrowRight':
+              return { x: canvasOffset.x - moveDistance, y: canvasOffset.y };
+            default:
+              return canvasOffset;
+          }
+        })();
 
-          // 방향키 이동 후 세션 데이터 업데이트 (비동기)
-          setTimeout(() => {
-            const currentLTWorldPosition = getCurrentLTWorldPosition();
-            if (currentLTWorldPosition) {
-              saveSession({
-                canvasObjects,
-                canvasOffset: newOffset,
-                scale,
-                typewriterPosition: { x: typewriterX, y: typewriterY },
-                typewriterLTWorldPosition: currentLTWorldPosition,
-                currentTypingText,
-                baseFontSize,
-                baseFontSizePt,
-                maxCharsPerLine,
-                showGrid,
-                showTextBox,
-                showInfo,
-                showShortcuts,
-                theme,
-                selectedObjectId: selectedObject?.id ? Number(selectedObject.id) : undefined
-              });
-            }
-          }, 0);
+        setCanvasOffset(newOffset);
 
-          return newOffset;
-        });
+        // 방향키 이동 후 세션 데이터 업데이트 (비동기)
+        setTimeout(() => {
+          const currentLTWorldPosition = getCurrentLTWorldPosition();
+          if (currentLTWorldPosition) {
+            saveSession({
+              canvasObjects,
+              canvasOffset: newOffset,
+              scale,
+              typewriterPosition: { x: typewriterX, y: typewriterY },
+              typewriterLTWorldPosition: currentLTWorldPosition,
+              currentTypingText,
+              baseFontSize,
+              baseFontSizePt,
+              maxCharsPerLine,
+              showGrid,
+              showTextBox,
+              showInfo,
+              showShortcuts,
+              theme,
+              selectedObjectId: selectedObject?.id ? Number(selectedObject.id) : undefined
+            });
+          }
+        }, 0);
         return;
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [scale, selectedObject, selectedObjects, getCurrentLineHeight, zoomToLevel, setCanvasObjects, setSelectedObject, setSelectedObjects, setCanvasOffset, handleUISizeChange, handleBaseFontSizeChange, resetUIZoom, resetBaseFont, resetCanvas]);
+  }, [scale, selectedObject, selectedObjects, getCurrentLineHeight, zoomToLevelFromHook, setCanvasObjects, setSelectedObject, setSelectedObjects, setCanvasOffset, handleUISizeChange, handleBaseFontSizeChangeFromHook, resetUIZoomFromHook, resetBaseFontFromHook, resetCanvas]);
 
   // Mouse events
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1731,10 +1450,10 @@ const InfiniteTypewriterCanvas = () => {
     const clickedObject = canvasObjects.find(obj => isPointInObjectLocal(obj, mouseX, mouseY));
     
     // Check for link selection if no object was clicked
-    let clickedLink: LinkObjectType | null = null;
+    let clickedLink: LinkObject | null = null;
     if (!clickedObject) {
       const worldPos = { x: (mouseX - canvasOffset.x) / scale, y: (mouseY - canvasOffset.y) / scale };
-              clickedLink = findLinkAtPosition(worldPos, links, canvasObjects, 10 / scale, measureTextWidthLocal); // Adjust tolerance for scale
+              clickedLink = findLinkAtPosition(worldPos, links, canvasObjects, 0, measureTextWidthLocal); // No padding - exact bounding box
     }
     
     // Debug: Log when no object or link is clicked to see if selection should start
@@ -1819,7 +1538,7 @@ const InfiniteTypewriterCanvas = () => {
       } else {
         // Regular click: Select only this link
         setSelectedLinks(new Set([clickedLink.id]));
-        setSelectionState(prev => ({ ...prev, selectedObjects: new Set() }));
+        setSelectionState({ ...selectionState, selectedObjects: new Set() });
       }
       
       setIsDragging(false);
@@ -1835,13 +1554,13 @@ const InfiniteTypewriterCanvas = () => {
         const worldX = (mouseX - canvasOffset.x) / scale;
         const worldY = (mouseY - canvasOffset.y) / scale;
         
-        setSelectionState(prev => ({
-          ...prev,
+        setSelectionState({
+          ...selectionState,
           dragArea: {
             start: { x: worldX, y: worldY },
             end: { x: worldX, y: worldY }
           }
-        }));
+        });
       } else {
         // Use old selection system for Typography mode
         setIsSelecting(true);
@@ -1891,7 +1610,7 @@ const InfiniteTypewriterCanvas = () => {
     // Check for link hovering (only if not dragging)
     if (!isDragging && !isDraggingText) {
       const worldPos = { x: (mouseX - canvasOffset.x) / scale, y: (mouseY - canvasOffset.y) / scale };
-      const hoveredLinkAtPosition = findLinkAtPosition(worldPos, links, canvasObjects, 10 / scale, measureTextWidthLocal);
+      const hoveredLinkAtPosition = findLinkAtPosition(worldPos, links, canvasObjects, 0, measureTextWidthLocal);
       setHoveredLink(hoveredLinkAtPosition);
     }
     
@@ -1943,7 +1662,7 @@ const InfiniteTypewriterCanvas = () => {
           const selectedIds = selectedObjects.map(obj => obj.id);
           
           // Update canvas objects
-          setCanvasObjects(prev => prev.map(obj => 
+          setCanvasObjects(canvasObjects.map(obj => 
             selectedIds.includes(obj.id) && hasPosition(obj)
               ? { ...obj, x: obj.x + worldDeltaX, y: obj.y + worldDeltaY }
               : obj
@@ -1982,15 +1701,15 @@ const InfiniteTypewriterCanvas = () => {
           }
         } else if (selectedObject && hasPosition(selectedObject)) {
           // Single object drag
-          setCanvasObjects(prev => prev.map(obj => 
+          setCanvasObjects(canvasObjects.map(obj => 
             obj.id === selectedObject.id && hasPosition(obj)
               ? { ...obj, x: obj.x + worldDeltaX, y: obj.y + worldDeltaY }
               : obj
           ));
           
-          setSelectedObject(prev => prev && hasPosition(prev) ? 
-            { ...prev, x: prev.x + worldDeltaX, y: prev.y + worldDeltaY } 
-            : prev
+          setSelectedObject(selectedObject && hasPosition(selectedObject) ? 
+            { ...selectedObject, x: selectedObject.x + worldDeltaX, y: selectedObject.y + worldDeltaY } 
+            : selectedObject
           );
           
           // 단일 선택 프리뷰 계산
@@ -2026,10 +1745,10 @@ const InfiniteTypewriterCanvas = () => {
       
       // 실제로 이동할 거리가 있을 때만 업데이트
       if (Math.abs(snappedDeltaX) >= gridSize || Math.abs(snappedDeltaY) >= gridSize) {
-        setCanvasOffset(prev => ({
-          x: prev.x + snappedDeltaX,
-          y: prev.y + snappedDeltaY
-        }));
+        setCanvasOffset({
+          x: canvasOffset.x + snappedDeltaX,
+          y: canvasOffset.y + snappedDeltaY
+        });
         
         setDragStart({ 
           x: dragStart.x + snappedDeltaX, 
@@ -2060,13 +1779,13 @@ const InfiniteTypewriterCanvas = () => {
       const worldX = (mouseX - canvasOffset.x) / scale;
       const worldY = (mouseY - canvasOffset.y) / scale;
       
-      setSelectionState(prev => ({
-        ...prev,
+      setSelectionState({
+        ...selectionState,
         dragArea: {
-          start: prev.dragArea!.start,
+          start: selectionState.dragArea!.start,
           end: { x: worldX, y: worldY }
         }
-      }));
+      });
     }
   };
 
@@ -2087,13 +1806,13 @@ const InfiniteTypewriterCanvas = () => {
           
           if (snapDeltaX !== 0 || snapDeltaY !== 0) {
             const selectedIds = selectedObjects.map(obj => obj.id);
-            setCanvasObjects(prev => prev.map(obj => 
+            setCanvasObjects(canvasObjects.map(obj => 
               selectedIds.includes(obj.id) && hasPosition(obj)
                 ? { ...obj, x: obj.x + snapDeltaX, y: obj.y + snapDeltaY }
                 : obj
             ));
             
-            setSelectedObjects(prev => prev.map(obj => 
+            setSelectedObjects(selectedObjects.map(obj => 
               hasPosition(obj)
                 ? { ...obj, x: obj.x + snapDeltaX, y: obj.y + snapDeltaY }
                 : obj
@@ -2106,15 +1825,15 @@ const InfiniteTypewriterCanvas = () => {
         const snappedWorldY = snapToGrid(selectedObject.y, worldGridSize);
         
         if (snappedWorldX !== selectedObject.x || snappedWorldY !== selectedObject.y) {
-          setCanvasObjects(prev => prev.map(obj => 
+          setCanvasObjects(canvasObjects.map(obj => 
             obj.id === selectedObject.id && hasPosition(obj)
               ? { ...obj, x: snappedWorldX, y: snappedWorldY }
               : obj
           ));
           
-          setSelectedObject(prev => prev && hasPosition(prev) ? 
-            { ...prev, x: snappedWorldX, y: snappedWorldY } 
-            : prev
+          setSelectedObject(selectedObject && hasPosition(selectedObject) ? 
+            { ...selectedObject, x: snappedWorldX, y: snappedWorldY } 
+            : selectedObject
           );
         }
       }
@@ -2139,10 +1858,10 @@ const InfiniteTypewriterCanvas = () => {
     // End select area drag (Select mode)
     if (currentMode === CanvasMode.SELECT && selectionState.dragArea) {
       // Clear the drag area but keep any selected objects
-      setSelectionState(prev => ({
-        ...prev,
+      setSelectionState({
+        ...selectionState,
         dragArea: null
-      }));
+      });
     }
     
     // 드래그가 끝난 후 텍스트 입력 필드에 포커스 복원 (텍스트 박스가 보일 때만)
@@ -2237,8 +1956,7 @@ const InfiniteTypewriterCanvas = () => {
     baseFontSize: number;
   }
 
-  const [undoStack, setUndoStack] = useState<CanvasSnapshot[]>([]);
-  const [redoStack, setRedoStack] = useState<CanvasSnapshot[]>([]);
+  // undoStack and redoStack are now managed by Zustand store
 
   // [UNDO/REDO] 현재 상태를 스냅샷으로 반환하는 함수
   const getSnapshot = useCallback((): CanvasSnapshot => ({
@@ -2265,36 +1983,37 @@ const InfiniteTypewriterCanvas = () => {
     setCanvasOffset(snap.canvasOffset);
     setScale(snap.scale);
     setCurrentTypingText(snap.currentTypingText);
-    setBaseFontSize(snap.baseFontSize);
-  }, [setCanvasObjects, setCanvasOffset, setScale, setCurrentTypingText, setBaseFontSize, pinPosition]);
+  }, [setCanvasObjects, setCanvasOffset, setScale, setCurrentTypingText, pinPosition, setPinPosition]);
 
   // [UNDO/REDO] 상태 변경 시 undoStack에 push
   const pushUndo = useCallback(() => {
-    setUndoStack(prev => [...prev, getSnapshot()]);
-    setRedoStack([]); // 새로운 작업이 발생하면 redo 스택 초기화
-  }, [getSnapshot]);
+    pushToUndoStack(getSnapshot());
+    clearRedoStack(); // 새로운 작업이 발생하면 redo 스택 초기화
+  }, [getSnapshot, pushToUndoStack, clearRedoStack]);
 
   // [UNDO/REDO] undo 함수
   const handleUndo = useCallback(() => {
-    setUndoStack(prev => {
-      if (prev.length === 0) return prev;
-      const last = prev[prev.length - 1];
-      setRedoStack(r => [...r, getSnapshot()]);
-      applySnapshot(last);
-      return prev.slice(0, -1);
-    });
-  }, [applySnapshot, getSnapshot]);
+    if (undoStack.length === 0) return;
+    const last = undoStack[undoStack.length - 1];
+    pushToRedoStack(getSnapshot());
+    applySnapshot(last);
+    // Remove last item from undo stack
+    const newUndoStack = undoStack.slice(0, -1);
+    clearUndoStack();
+    newUndoStack.forEach(snapshot => pushToUndoStack(snapshot));
+  }, [applySnapshot, getSnapshot, undoStack, pushToRedoStack, clearUndoStack, pushToUndoStack]);
 
   // [UNDO/REDO] redo 함수
   const handleRedo = useCallback(() => {
-    setRedoStack(prev => {
-      if (prev.length === 0) return prev;
-      const last = prev[prev.length - 1];
-      setUndoStack(u => [...u, getSnapshot()]);
-      applySnapshot(last);
-      return prev.slice(0, -1);
-    });
-  }, [applySnapshot, getSnapshot]);
+    if (redoStack.length === 0) return;
+    const last = redoStack[redoStack.length - 1];
+    pushToUndoStack(getSnapshot());
+    applySnapshot(last);
+    // Remove last item from redo stack
+    const newRedoStack = redoStack.slice(0, -1);
+    clearRedoStack();
+    newRedoStack.forEach(snapshot => pushToRedoStack(snapshot));
+  }, [applySnapshot, getSnapshot, redoStack, pushToUndoStack, clearRedoStack, pushToRedoStack]);
 
   // AI 처리 함수
   const processAICommand = useCallback(async (command: AICommand) => {
@@ -2337,14 +2056,14 @@ const InfiniteTypewriterCanvas = () => {
           color: '#3b82f6'
         }));
         
-        setCanvasObjects(prev => [...prev, ...newObjects]);
+        setCanvasObjects([...canvasObjects, ...newObjects]);
         
         // 타이프라이터를 마지막 텍스트 아래로 이동
         const totalHeight = wrappedLines.length * worldLineHeight * scale;
-        setCanvasOffset(prev => ({
-          x: prev.x,
-          y: prev.y - totalHeight
-        }));
+        setCanvasOffset({
+          x: canvasOffset.x,
+          y: canvasOffset.y - totalHeight
+        });
         
       } else {
         setAIState(prev => ({ ...prev, error: response.error || 'AI 처리 중 오류가 발생했습니다.' }));
@@ -2381,8 +2100,7 @@ const InfiniteTypewriterCanvas = () => {
     if (e.key === 'Escape') {
       if (currentMode !== CanvasMode.TYPOGRAPHY) {
         e.preventDefault();
-        setPreviousMode(currentMode);
-        setCurrentMode(CanvasMode.TYPOGRAPHY);
+        switchMode(CanvasMode.TYPOGRAPHY);
         
         // Reset all mode-specific states
         setLinkState({
@@ -2391,7 +2109,10 @@ const InfiniteTypewriterCanvas = () => {
           isCreating: false,
           previewPath: null
         });
-        setSelectionState(clearSelection(selectionState));
+        setSelectionState({
+          selectedObjects: new Set(),
+          dragArea: null
+        });
         return;
       }
     }
@@ -2433,8 +2154,8 @@ const InfiniteTypewriterCanvas = () => {
             
             // 질문을 먼저 텍스트 오브젝트로 추가
             const worldPos = getCurrentWorldPosition();
-            setCanvasObjects(prev => [
-              ...prev,
+            setCanvasObjects([
+              ...canvasObjects,
               {
                 type: 'text',
                 content: currentTypingText,
@@ -2451,10 +2172,10 @@ const InfiniteTypewriterCanvas = () => {
             // 캔버스 오프셋을 멀티라인 크기만큼 이동
             const lines = currentTypingText.split('\n');
             const moveDistance = (baseFontSize * 1.6) * lines.length;
-            setCanvasOffset(prev => ({
-              x: prev.x,
-              y: prev.y - moveDistance
-            }));
+            setCanvasOffset({
+              x: canvasOffset.x,
+              y: canvasOffset.y - moveDistance
+            });
             
             // AI 처리 시작
             processAICommand(command);
@@ -2462,8 +2183,8 @@ const InfiniteTypewriterCanvas = () => {
             // 일반 텍스트 처리
             pushUndo(); // 상태 변경 전 스냅샷 저장
             const worldPos = getCurrentWorldPosition();
-            setCanvasObjects(prev => [
-              ...prev,
+            setCanvasObjects([
+              ...canvasObjects,
               {
                 type: 'text',
                 content: currentTypingText,
@@ -2480,17 +2201,17 @@ const InfiniteTypewriterCanvas = () => {
             // 멀티라인 텍스트의 줄 수만큼 이동
             const lines = currentTypingText.split('\n');
             const moveDistance = (baseFontSize * 1.6) * lines.length;
-            setCanvasOffset(prev => ({
-              x: prev.x,
-              y: prev.y - moveDistance
-            }));
+            setCanvasOffset({
+              x: canvasOffset.x,
+              y: canvasOffset.y - moveDistance
+            });
           }
         } else {
           // 빈 텍스트일 때도 줄바꿈
-          setCanvasOffset(prev => ({
-            x: prev.x,
-            y: prev.y - (baseFontSize * 1.6)
-          }));
+          setCanvasOffset({
+            x: canvasOffset.x,
+            y: canvasOffset.y - (baseFontSize * 1.6)
+          });
         }
       }
       e.preventDefault();
@@ -2508,7 +2229,7 @@ const InfiniteTypewriterCanvas = () => {
   const handleDeleteSelected = () => {
     if (selectedObject) {
       pushUndo();
-      setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
+      setCanvasObjects(canvasObjects.filter(obj => obj.id !== selectedObject.id));
       setSelectedObject(null);
     }
   };
@@ -2582,7 +2303,7 @@ const InfiniteTypewriterCanvas = () => {
     <div className="border-l h-6 mx-2" />
     {/* 보기/설정 관련 */}
     <button
-      onClick={() => setShowTextBox(prev => !prev)}
+      onClick={() => setShowTextBox(!showTextBox)}
       className={`p-2 rounded-lg transition-colors ${
         showTextBox 
           ? 'text-blue-500 bg-blue-500/10' 
@@ -2595,7 +2316,7 @@ const InfiniteTypewriterCanvas = () => {
       <TextCursorInput className="w-4 h-4" />
     </button>
     <button
-      onClick={() => setShowInfo(prev => !prev)}
+      onClick={toggleInfo}
       className={`p-2 rounded-lg transition-colors ${
         showInfo 
           ? 'text-blue-500 bg-blue-500/10' 
@@ -2608,7 +2329,7 @@ const InfiniteTypewriterCanvas = () => {
       <Info className="w-4 h-4" />
     </button>
     <button
-      onClick={() => setShowShortcuts(prev => !prev)}
+      onClick={toggleShortcuts}
       className={`p-2 rounded-lg transition-colors ${
         showShortcuts 
           ? 'text-blue-500 bg-blue-500/10' 
@@ -2621,7 +2342,7 @@ const InfiniteTypewriterCanvas = () => {
       <Layers className="w-4 h-4" />
     </button>
     <button
-      onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+      onClick={toggleTheme}
       className={`p-2 rounded-lg transition-colors ${
         theme === 'dark'
           ? 'text-gray-400 hover:text-white hover:bg-gray-800'
@@ -2645,7 +2366,7 @@ const InfiniteTypewriterCanvas = () => {
     <div className="border-l h-6 mx-2" />
     {/* 편집/도구 관련 */}
     <button
-      onClick={() => setShowGrid(prev => !prev)}
+      onClick={toggleGrid}
       className={`p-2 rounded-lg transition-colors ${
         showGrid 
           ? 'text-blue-500 bg-blue-500/10' 
@@ -2678,8 +2399,8 @@ const InfiniteTypewriterCanvas = () => {
           A4_WIDTH_MM,
           A4_HEIGHT_MM
         );
-        setCanvasObjects(prev => [
-          ...prev,
+        setCanvasObjects([
+          ...canvasObjects,
           {
             id: Date.now(),
             type: 'guide', guideType: 'a4',
@@ -2736,7 +2457,7 @@ const InfiniteTypewriterCanvas = () => {
 
   useEffect(() => {
     // HiDPI(레티나) 대응: 캔버스 해상도 업스케일
-    if (canvasRef.current) {
+    if (canvasRef.current && canvasWidth > 0 && canvasHeight > 0) {
       setupCanvasHiDPI(canvasRef.current, canvasWidth, canvasHeight);
     }
   }, [canvasWidth, canvasHeight]);
@@ -2746,16 +2467,6 @@ const InfiniteTypewriterCanvas = () => {
   return (
     <div className="w-full h-screen relative bg-transparent">
       <Header
-        theme={theme}
-        showGrid={showGrid}
-        showInfo={showInfo}
-        showShortcuts={showShortcuts}
-        currentMode={currentMode}
-        onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
-        onShowGridToggle={() => setShowGrid(prev => !prev)}
-        onShowInfoToggle={() => setShowInfo(prev => !prev)}
-        onShowShortcutsToggle={() => setShowShortcuts(prev => !prev)}
-        onModeChange={setCurrentMode}
         onApiKeyClick={() => setShowApiKeyInput(true)}
         onImportFile={importFile}
         onExportPNG={exportAsPNG}
@@ -2800,7 +2511,7 @@ const InfiniteTypewriterCanvas = () => {
         pinPosition={pinPosition}
         linkState={linkState}
         selectionState={selectionState}
-        onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+        onThemeToggle={toggleTheme}
         handleCompositionStart={handleCompositionStart}
         handleCompositionEnd={handleCompositionEnd}
         handleMaxCharsChange={handleMaxCharsChange}
@@ -2816,7 +2527,7 @@ const InfiniteTypewriterCanvas = () => {
         screenToWorld={(screenX, screenY) => screenToWorld(screenX, screenY, scale, canvasOffset)}
         onDeleteSelected={() => {
           if (selectedObject) {
-            setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
+            setCanvasObjects(canvasObjects.filter(obj => obj.id !== selectedObject.id));
             setSelectedObject(null);
           }
         }}
@@ -2827,7 +2538,7 @@ const InfiniteTypewriterCanvas = () => {
           const currentIndex = findZoomLevel(scale, zoomLevels);
           const newIndex = Math.min(zoomLevels.length - 1, currentIndex + 1);
           if (newIndex !== currentIndex) {
-            zoomToLevel(zoomLevels[newIndex]);
+            zoomToLevelFromHook(zoomLevels[newIndex]);
           }
         }}
         onZoomOut={() => {
@@ -2837,13 +2548,13 @@ const InfiniteTypewriterCanvas = () => {
           const currentIndex = findZoomLevel(scale, zoomLevels);
           const newIndex = Math.max(0, currentIndex - 1);
           if (newIndex !== currentIndex) {
-            zoomToLevel(zoomLevels[newIndex]);
+            zoomToLevelFromHook(zoomLevels[newIndex]);
           }
         }}
-        onShowShortcutsToggle={() => setShowShortcuts(!showShortcuts)}
+        onShowShortcutsToggle={toggleShortcuts}
         showGrid={showGrid}
-        onShowGridToggle={() => setShowGrid(!showGrid)}
-        onShowInfoToggle={() => setShowInfo(!showInfo)}
+        onShowGridToggle={toggleGrid}
+        onShowInfoToggle={toggleInfo}
       />
 
       {/* API Key Input Modal */}

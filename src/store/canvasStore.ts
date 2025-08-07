@@ -25,6 +25,11 @@ interface CanvasStore {
   scale: number;
   pxPerMm: number;
   
+  // === Typewriter Position ===
+  typewriterX: number;
+  typewriterY: number;
+  getTextBoxWidth: (() => number) | null;
+  
   // === Mode System ===
   currentMode: CanvasMode;
   previousMode: CanvasMode | null;
@@ -44,6 +49,8 @@ interface CanvasStore {
   baseFontSize: number;
   fontLoaded: boolean;
   pinPosition: PinPosition;
+  maxCharsPerLine: number;
+  baseFontSizePt: number;
   
   // === Interaction State ===
   isDragging: boolean;
@@ -66,6 +73,16 @@ interface CanvasStore {
   // === Export State ===
   isExportMenuOpen: boolean;
   
+  // === Hover & Focus State ===
+  hoveredObject: CanvasObject | null;
+  hoveredLink: LinkObject | null;
+  pinHoveredObject: CanvasObject | null;
+  selectedLinks: Set<string>;
+  
+  // === Undo/Redo State ===
+  undoStack: any[];
+  redoStack: any[];
+  
   // === Actions ===
   // Canvas Object Actions
   addTextObject: (obj: TextObject) => void;
@@ -84,7 +101,12 @@ interface CanvasStore {
   // Viewport Actions
   setCanvasOffset: (offset: { x: number; y: number }) => void;
   setScale: (scale: number) => void;
+  setPxPerMm: (pxPerMm: number) => void;
   updateViewport: (offset: { x: number; y: number }, scale: number) => void;
+  
+  // Typewriter Actions
+  setTypewriterPosition: (x: number, y: number) => void;
+  setGetTextBoxWidth: (fn: (() => number) | null) => void;
   
   // Mode Actions
   setCurrentMode: (mode: CanvasMode) => void;
@@ -102,7 +124,11 @@ interface CanvasStore {
   setCurrentTypingText: (text: string) => void;
   setIsComposing: (composing: boolean) => void;
   setIsTyping: (typing: boolean) => void;
+  setFontLoaded: (loaded: boolean) => void;
   setPinPosition: (position: PinPosition) => void;
+  setMaxCharsPerLine: (chars: number) => void;
+  setBaseFontSize: (size: number) => void;
+  setBaseFontSizePt: (size: number) => void;
   
   // Interaction Actions
   setIsDragging: (dragging: boolean) => void;
@@ -126,6 +152,18 @@ interface CanvasStore {
   // Export Actions
   setIsExportMenuOpen: (open: boolean) => void;
   
+  // Hover & Focus Actions
+  setHoveredObject: (object: CanvasObject | null) => void;
+  setHoveredLink: (link: LinkObject | null) => void;
+  setPinHoveredObject: (object: CanvasObject | null) => void;
+  setSelectedLinks: (links: Set<string>) => void;
+  
+  // Undo/Redo Actions
+  pushToUndoStack: (snapshot: any) => void;
+  pushToRedoStack: (snapshot: any) => void;
+  clearUndoStack: () => void;
+  clearRedoStack: () => void;
+  
   // Utility Actions
   resetCanvas: () => void;
   loadFromJSON: (data: any) => void;
@@ -144,6 +182,10 @@ const useCanvasStore = create<CanvasStore>()(
       scale: 1,
       pxPerMm: 3.7795275591,
       
+      typewriterX: 0,
+      typewriterY: 0,
+      getTextBoxWidth: null,
+      
       currentMode: CanvasMode.TYPOGRAPHY,
       previousMode: null,
       
@@ -160,6 +202,8 @@ const useCanvasStore = create<CanvasStore>()(
       baseFontSize: 16,
       fontLoaded: false,
       pinPosition: { x: 0, y: 0, worldX: 0, worldY: 0 },
+      maxCharsPerLine: 20,
+      baseFontSizePt: 12,
       
       isDragging: false,
       isDraggingText: false,
@@ -184,6 +228,16 @@ const useCanvasStore = create<CanvasStore>()(
       canvasHeight: 0,
       
       isExportMenuOpen: false,
+      
+      // Hover & Focus State
+      hoveredObject: null,
+      hoveredLink: null,
+      pinHoveredObject: null,
+      selectedLinks: new Set<string>(),
+      
+      // Undo/Redo State
+      undoStack: [],
+      redoStack: [],
       
       // === Actions Implementation ===
       
@@ -244,7 +298,12 @@ const useCanvasStore = create<CanvasStore>()(
       // Viewport Actions
       setCanvasOffset: (offset) => set({ canvasOffset: offset }),
       setScale: (scale) => set({ scale }),
+      setPxPerMm: (pxPerMm) => set({ pxPerMm }),
       updateViewport: (offset, scale) => set({ canvasOffset: offset, scale }),
+      
+      // Typewriter Actions
+      setTypewriterPosition: (x, y) => set({ typewriterX: x, typewriterY: y }),
+      setGetTextBoxWidth: (fn) => set({ getTextBoxWidth: fn }),
       
       // Mode Actions
       setCurrentMode: (mode) => set({ currentMode: mode }),
@@ -268,7 +327,11 @@ const useCanvasStore = create<CanvasStore>()(
       setCurrentTypingText: (text) => set({ currentTypingText: text }),
       setIsComposing: (composing) => set({ isComposing: composing }),
       setIsTyping: (typing) => set({ isTyping: typing }),
+      setFontLoaded: (loaded) => set({ fontLoaded: loaded }),
       setPinPosition: (position) => set({ pinPosition: position }),
+      setMaxCharsPerLine: (chars) => set({ maxCharsPerLine: chars }),
+      setBaseFontSize: (size) => set({ baseFontSize: size }),
+      setBaseFontSizePt: (size) => set({ baseFontSizePt: size }),
       
       // Interaction Actions
       setIsDragging: (dragging) => set({ isDragging: dragging }),
@@ -302,6 +365,22 @@ const useCanvasStore = create<CanvasStore>()(
       
       // Export Actions
       setIsExportMenuOpen: (open) => set({ isExportMenuOpen: open }),
+      
+      // Hover & Focus Actions
+      setHoveredObject: (object) => set({ hoveredObject: object }),
+      setHoveredLink: (link) => set({ hoveredLink: link }),
+      setPinHoveredObject: (object) => set({ pinHoveredObject: object }),
+      setSelectedLinks: (links) => set({ selectedLinks: links }),
+      
+      // Undo/Redo Actions
+      pushToUndoStack: (snapshot) => set((state) => ({
+        undoStack: [...state.undoStack, snapshot]
+      })),
+      pushToRedoStack: (snapshot) => set((state) => ({
+        redoStack: [...state.redoStack, snapshot]
+      })),
+      clearUndoStack: () => set({ undoStack: [] }),
+      clearRedoStack: () => set({ redoStack: [] }),
       
       // Utility Actions
       resetCanvas: () => set({

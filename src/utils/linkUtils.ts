@@ -410,23 +410,27 @@ export function isPointOnLink(
   link: LinkObjectType,
   fromObject: CanvasObjectType,
   toObject: CanvasObjectType,
-  tolerance: number = 10,
+  tolerance: number = 0,
   measureTextWidth?: (text: string, fontSize: number) => number
 ): boolean {
   if (fromObject.type !== 'text' || toObject.type !== 'text') {
     return false;
   }
 
-  const linkData = calculateLinkEndpoints(fromObject, toObject, measureTextWidth);
+  // Use bounding box centers for collision detection instead of edge connection points
+  const fromBounds = getTextObjectBounds(fromObject, measureTextWidth);
+  const toBounds = getTextObjectBounds(toObject, measureTextWidth);
   
-  // Calculate distance from point to line segment
   const distance = distancePointToLine(
     point.x, point.y,
-    linkData.startX, linkData.startY,
-    linkData.endX, linkData.endY
+    fromBounds.centerX, fromBounds.centerY,
+    toBounds.centerX, toBounds.centerY
   );
-
-  return distance <= tolerance;
+  
+  // Use a minimum tolerance of 3 units for usability
+  const effectiveTolerance = Math.max(tolerance, 3);
+  
+  return distance <= effectiveTolerance;
 }
 
 /**

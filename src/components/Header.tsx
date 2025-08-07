@@ -4,19 +4,10 @@ import { ExportMenu } from './ExportMenu'
 import { Button } from './ui/Button'
 import { SettingsDropdown } from './SettingsDropdown'
 import { ModeSelector } from './ModeSelector'
-import { CanvasModeType } from '../types'
+import { CanvasMode } from '../types'
+import useCanvasStore from '../store/canvasStore'
 
 interface HeaderProps {
-  theme: 'light' | 'dark'
-  showGrid: boolean
-  showInfo: boolean
-  showShortcuts: boolean
-  currentMode: CanvasModeType
-  onThemeToggle: () => void
-  onShowGridToggle: () => void
-  onShowInfoToggle: () => void
-  onShowShortcutsToggle: () => void
-  onModeChange: (mode: CanvasModeType) => void
   onImportFile: (event: React.ChangeEvent<HTMLInputElement>) => void
   onExportPNG: () => void
   onExportSVG: () => void
@@ -27,16 +18,6 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  theme,
-  showGrid,
-  showInfo,
-  showShortcuts,
-  currentMode,
-  onThemeToggle,
-  onShowGridToggle,
-  onShowInfoToggle,
-  onShowShortcutsToggle,
-  onModeChange,
   onImportFile,
   onExportPNG,
   onExportSVG,
@@ -45,6 +26,15 @@ export const Header: React.FC<HeaderProps> = ({
   onApiKeyClick,
   infoPanel
 }) => {
+  // Get state from Zustand store
+  const {
+    theme,
+    showGrid,
+    toggleGrid,
+    toggleTheme,
+    currentMode,
+    switchMode
+  } = useCanvasStore();
   return (
     <React.Fragment>
       {/* Top Header Container */}
@@ -89,7 +79,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Mode Selector */}
         <ModeSelector
           currentMode={currentMode}
-          onModeChange={onModeChange}
+          onModeChange={switchMode}
           theme={theme}
         />
 
@@ -99,7 +89,7 @@ export const Header: React.FC<HeaderProps> = ({
         <Button
           variant="control"
           theme={theme}
-          onClick={onShowGridToggle}
+          onClick={toggleGrid}
           className={`p-1.5 rounded-lg ${
             showGrid ? 'text-blue-500 bg-blue-500/10' : ''
           }`}
@@ -112,7 +102,7 @@ export const Header: React.FC<HeaderProps> = ({
         <Button
           variant="control"
           theme={theme}
-          onClick={onThemeToggle}
+          onClick={toggleTheme}
           className="p-1.5 rounded-lg"
           title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
         >
