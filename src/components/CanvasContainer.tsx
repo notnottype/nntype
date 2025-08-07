@@ -34,6 +34,7 @@ interface CanvasContainerProps {
   scale: number
   maxCharsPerLine: number
   selectedObject: any
+  selectedObjects: any[]
   undoStack: any[]
   redoStack: any[]
   aiState: AIState
@@ -106,6 +107,7 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
   scale,
   maxCharsPerLine,
   selectedObject,
+  selectedObjects,
   undoStack,
   redoStack,
   aiState,
@@ -215,6 +217,7 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
         scale={scale}
         canvasObjects={canvasObjects}
         selectedObject={selectedObject}
+        selectedObjects={selectedObjects}
         hoveredObject={hoveredObject}
         mousePosition={mousePosition}
         isMouseInTextBox={isMouseInTextBox}

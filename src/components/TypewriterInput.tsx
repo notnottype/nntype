@@ -177,7 +177,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
               background: THEME_COLORS[theme].inputBg,
               border: `1px solid ${modeProps.borderColor}`,
               outline: 'none',
-              color: currentMode === 'link' ? '#ff6b6b' : '#4a9eff',
+              color: currentMode === 'link' ? 'rgba(255, 107, 107, 0.4)' : 'rgba(74, 158, 255, 0.4)',
               backdropFilter: 'blur(1px)',
               borderRadius: '4px',
               padding: '0px 8px',
@@ -186,7 +186,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-start',
-              opacity: 0.8,
+              opacity: 0.6,
               fontWeight: 'normal'
             }}
           >

@@ -10,8 +10,50 @@
 /**
  * 표준 픽셀-포인트 변환 비율
  * 웹 표준: 96px = 72pt 따라서 1px = 0.75pt
+ * 하지만 실제 디스플레이 DPI를 고려하여 더 정확한 계산 사용
  */
 export const PX_TO_PT_RATIO = 0.75;
+
+/**
+ * 실제 디스플레이 DPI를 고려한 pt-px 변환
+ * @param points 포인트 값
+ * @param dpi 디스플레이 DPI (기본값: 96)
+ * @returns 픽셀 값
+ */
+export const pointsToPxWithDPI = (points: number, dpi: number = 96): number => {
+  return (points * dpi) / 72; // 72 points per inch
+};
+
+/**
+ * 실제 디스플레이 DPI를 고려한 px-pt 변환
+ * @param pixels 픽셀 값
+ * @param dpi 디스플레이 DPI (기본값: 96)
+ * @returns 포인트 값
+ */
+export const pxToPointsWithDPI = (pixels: number, dpi: number = 96): number => {
+  return (pixels * 72) / dpi; // 72 points per inch
+};
+
+/**
+ * 현재 디스플레이의 실제 DPI 계산
+ * @returns 실제 DPI 값
+ */
+export const getDisplayDPI = (): number => {
+  // 1인치를 표현하는 div 요소를 생성하여 실제 픽셀 수를 측정
+  const testElement = document.createElement('div');
+  testElement.style.width = '1in';
+  testElement.style.height = '1in';
+  testElement.style.position = 'absolute';
+  testElement.style.left = '-100px';
+  testElement.style.top = '-100px';
+  testElement.style.visibility = 'hidden';
+  
+  document.body.appendChild(testElement);
+  const dpi = testElement.offsetWidth;
+  document.body.removeChild(testElement);
+  
+  return dpi || 96; // 측정 실패 시 기본값 96 DPI 반환
+};
 
 /**
  * 픽셀을 포인트로 변환

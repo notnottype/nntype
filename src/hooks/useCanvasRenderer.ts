@@ -1,19 +1,17 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { 
   drawGrid,
   drawCanvasObjects,
   drawHoverHighlight,
   drawSelectionRectangle,
-  drawMultiSelectHighlight,
-  worldToScreen,
-  measureTextWidth
+  worldToScreen
 } from '../utils';
 import { renderLink, renderLinkPreview } from '../utils/linkUtils';
 import { renderSelectionRect } from '../utils/selectionUtils';
-import { CanvasMode, Theme, THEME_COLORS } from '../types';
+import { CanvasMode } from '../types';
 import useCanvasStore from '../store/canvasStore';
 
-export const useCanvasRenderer = (selectedObject?: any) => {
+export const useCanvasRenderer = (selectedObject?: any, dragPreviewObjects?: any[]) => {
   const {
     canvasWidth,
     canvasHeight,
@@ -33,7 +31,8 @@ export const useCanvasRenderer = (selectedObject?: any) => {
     pinHoveredObject,
     hoveredLink,
     selectedLinks,
-    canvasObjects
+    canvasObjects,
+    isDraggingText
   } = useCanvasStore();
 
   const drawGridLocal = useCallback((ctx: CanvasRenderingContext2D) => {
@@ -47,8 +46,26 @@ export const useCanvasRenderer = (selectedObject?: any) => {
     return worldToScreen(worldX, worldY, scale, canvasOffset);
   }, [scale, canvasOffset]);
 
+  // Create a shared canvas context for text measurement
+  const measurementCanvas = useRef<HTMLCanvasElement | null>(null);
+  const measurementCtx = useRef<CanvasRenderingContext2D | null>(null);
+  
+  if (!measurementCanvas.current) {
+    measurementCanvas.current = document.createElement('canvas');
+    measurementCtx.current = measurementCanvas.current.getContext('2d');
+  }
+  
   const measureTextWidthLocal = useCallback((text: string, fontSize: number) => {
-    return text.length * fontSize * 0.6; // Approximate width calculation
+    const ctx = measurementCtx.current;
+    if (!ctx) {
+      // Fallback to approximate calculation
+      return text.length * fontSize * 0.6;
+    }
+    
+    // Set the same font used for rendering
+    ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
+    const metrics = ctx.measureText(text);
+    return metrics.width;
   }, []);
 
   const drawCanvasObjectsLocal = useCallback((ctx: CanvasRenderingContext2D) => {
@@ -68,31 +85,24 @@ export const useCanvasRenderer = (selectedObject?: any) => {
   }, [canvasObjects, scale, canvasWidth, canvasHeight, worldToScreenLocal, measureTextWidthLocal, theme, selectedObjects]);
 
   const drawDragPreviewObjects = useCallback((ctx: CanvasRenderingContext2D) => {
-    if (selectedObjects.length === 0) return;
+    if (!dragPreviewObjects || dragPreviewObjects.length === 0) return;
     
-    ctx.save();
-    ctx.globalAlpha = 0.5;
-    
-    selectedObjects.forEach(obj => {
-      if (obj.type === 'text') {
-        const textObj = obj as any;
-        const screenPos = worldToScreenLocal(textObj.x, textObj.y);
-        const fontSize = textObj.fontSize * scale;
-        
-        ctx.fillStyle = theme === 'dark' ? '#ffffff' : '#000000';
-        ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        
-        const lines = textObj.content.split('\n');
-        lines.forEach((line: string, index: number) => {
-          ctx.fillText(line, screenPos.x, screenPos.y + (index * fontSize * 1.6));
-        });
+    // Draw drag preview with hover highlight style
+    const colors = {
+      dark: { 
+        hover: 'rgba(59, 130, 246, 0.25)',
+        hoverBorder: 'rgba(147, 197, 253, 0.8)'
+      },
+      light: { 
+        hover: 'rgba(59, 130, 246, 0.2)',
+        hoverBorder: 'rgba(96, 165, 250, 0.7)'
       }
-    });
+    };
     
-    ctx.restore();
-  }, [selectedObjects, worldToScreenLocal, scale, theme]);
+    dragPreviewObjects.forEach(obj => {
+      drawHoverHighlight(ctx, obj, scale, worldToScreenLocal, measureTextWidthLocal, theme, colors);
+    });
+  }, [dragPreviewObjects, scale, worldToScreenLocal, measureTextWidthLocal, theme]);
 
   const drawPinIndicator = useCallback((ctx: CanvasRenderingContext2D) => {
     if (currentMode !== CanvasMode.LINK && currentMode !== CanvasMode.SELECT) return;
@@ -158,10 +168,31 @@ export const useCanvasRenderer = (selectedObject?: any) => {
     // Draw grid
     drawGridLocal(ctx);
     
-    // Draw canvas objects
-    drawCanvasObjectsLocal(ctx);
+    // Draw selection highlights FIRST (as background) - using same style as hover
+    // Don't draw selection highlights when dragging (drag preview will handle it)
+    const allSelectedObjects = selectedObjects.length > 0 
+      ? selectedObjects 
+      : (selectedObject ? [selectedObject] : []);
     
-    // Draw hover highlight
+    if (allSelectedObjects.length > 0 && !isDraggingText) {
+      const selectionColors = {
+        dark: { 
+          hover: 'rgba(59, 130, 246, 0.2)',
+          hoverBorder: 'rgba(147, 197, 253, 0.7)'
+        },
+        light: { 
+          hover: 'rgba(59, 130, 246, 0.15)',
+          hoverBorder: 'rgba(96, 165, 250, 0.6)'
+        }
+      };
+      
+      // Draw each selected object individually like hover
+      allSelectedObjects.forEach(obj => {
+        drawHoverHighlight(ctx, obj, scale, worldToScreenLocal, measureTextWidthLocal, theme, selectionColors);
+      });
+    }
+    
+    // Draw hover highlight (on top of selection but below objects)
     if (hoveredObject) {
       const colors = {
         dark: { 
@@ -175,6 +206,9 @@ export const useCanvasRenderer = (selectedObject?: any) => {
       };
       drawHoverHighlight(ctx, hoveredObject, scale, worldToScreenLocal, measureTextWidthLocal, theme, colors);
     }
+    
+    // Draw canvas objects LAST so text appears on top
+    drawCanvasObjectsLocal(ctx);
     
     // Draw drag preview
     drawDragPreviewObjects(ctx);
@@ -201,59 +235,7 @@ export const useCanvasRenderer = (selectedObject?: any) => {
       renderLinkPreview(ctx, linkState.previewPath.from, linkState.previewPath.to, scale, canvasOffset);
     }
     
-    // Draw selection highlights
-    if (selectedObjects.length > 0) {
-      drawMultiSelectHighlight(ctx, selectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
-    } else if (selectedObject) {
-      // Draw single selection highlight
-      const colors = {
-        dark: { 
-          selection: 'rgba(59, 130, 246, 0.15)',
-          selectionBorder: 'rgba(147, 197, 253, 0.8)'
-        },
-        light: { 
-          selection: 'rgba(59, 130, 246, 0.1)',
-          selectionBorder: 'rgba(96, 165, 250, 0.6)'
-        }
-      };
-      
-      if (selectedObject.type === 'text') {
-        const textObj = selectedObject;
-        const screenPos = worldToScreenLocal(textObj.x, textObj.y);
-        const fontSize = textObj.fontSize * scale;
-        
-        // Handle multi-line text
-        const lines = textObj.content.split('\n');
-        const lineHeight = fontSize * 1.6;
-        let maxWidth = 0;
-        
-        // Calculate the maximum width among all lines
-        lines.forEach((line: string) => {
-          const lineWidth = measureTextWidthLocal(line, fontSize);
-          maxWidth = Math.max(maxWidth, lineWidth);
-        });
-        
-        const totalHeight = lines.length > 1 
-          ? (lines.length - 1) * lineHeight + fontSize 
-          : fontSize;
-        
-        const rectX = screenPos.x;
-        const rectY = screenPos.y - fontSize;
-        const rectWidth = maxWidth;
-        const rectHeight = totalHeight;
-        
-        // Draw background fill
-        ctx.fillStyle = colors[theme].selection;
-        ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
-        
-        // Draw border
-        ctx.strokeStyle = colors[theme].selectionBorder;
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
-        ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
-        ctx.setLineDash([]);
-      }
-    }
+    // Selection highlights moved to before objects are drawn
     
     // Draw selection area
     if (currentMode === CanvasMode.SELECT && selectionState.dragArea) {
@@ -291,7 +273,10 @@ export const useCanvasRenderer = (selectedObject?: any) => {
     selectedObject,
     selectionState,
     drawPinIndicator,
-    worldToScreenLocal
+    worldToScreenLocal,
+    dragPreviewObjects,
+    isDraggingText,
+    pinPosition
   ]);
 
   return {

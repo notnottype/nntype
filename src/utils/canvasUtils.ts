@@ -99,40 +99,7 @@ export const drawCanvasObjects = (
       const fontSize = textObj.fontSize * scale;
       ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
       
-      const isSelected = (selectedObject && selectedObject.id === textObj.id) || 
-                        selectedObjects.some(obj => obj.id === textObj.id);
-      if (isSelected) {
-        // Handle multi-line text for selection highlight
-        const lines = textObj.content.split('\n');
-        const lineHeight = fontSize * 1.6;
-        let maxWidth = 0;
-        
-        // Calculate the maximum width among all lines
-        lines.forEach(line => {
-          const lineWidth = measureTextWidth(line, fontSize);
-          maxWidth = Math.max(maxWidth, lineWidth);
-        });
-        
-        // 마지막 줄은 fontSize만, 나머지 줄들은 lineHeight 적용
-        const totalHeight = lines.length > 1 
-          ? (lines.length - 1) * lineHeight + fontSize 
-          : fontSize;
-        
-        const rectX = screenPos.x;
-        const rectY = screenPos.y - fontSize;
-        const rectWidth = maxWidth;
-        const rectHeight = totalHeight;
-        
-        // Draw background fill first
-        ctx.fillStyle = colors[theme].selection;
-        ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
-        
-        // Draw border on top
-        ctx.strokeStyle = colors[theme].selectionBorder;
-        ctx.lineWidth = 1;
-        ctx.setLineDash([]);
-        ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
-      }
+      // Selection highlighting is now handled separately in useCanvasRenderer
       
       ctx.fillStyle = textObj.color || colors[theme].text;
       
@@ -346,23 +313,18 @@ export const drawMultiSelectHighlight = (
 ) => {
   if (objects.length === 0) return;
   
-  const highlightColor = theme === 'dark' ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.2)';
-  const borderColor = theme === 'dark' ? 'rgba(147, 197, 253, 0.9)' : 'rgba(96, 165, 250, 0.8)';
-  const individualBorderColor = theme === 'dark' ? 'rgba(96, 165, 250, 0.6)' : 'rgba(59, 130, 246, 0.5)';
+  // Simple highlight colors - slightly more visible than hover
+  const highlightColor = theme === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.15)';
+  const borderColor = theme === 'dark' ? 'rgba(147, 197, 253, 0.5)' : 'rgba(96, 165, 250, 0.4)';
   
-  // Calculate bounding box for all selected objects
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  
+  // Draw individual highlights for each selected object (like hover)
   objects.forEach(obj => {
     if (obj.type === 'text') {
       const textObj = obj as TextObject;
       const screenPos = worldToScreen(textObj.x, textObj.y, scale, canvasOffset);
       const fontSize = textObj.fontSize * scale;
       
-      // Handle multi-line text for multi-select highlight
+      // Handle multi-line text
       const lines = textObj.content.split('\n');
       const lineHeight = fontSize * 1.6;
       let maxWidth = 0;
@@ -373,56 +335,39 @@ export const drawMultiSelectHighlight = (
         maxWidth = Math.max(maxWidth, lineWidth);
       });
       
-      // 마지막 줄은 fontSize만, 나머지 줄들은 lineHeight 적용
       const totalHeight = lines.length > 1 
         ? (lines.length - 1) * lineHeight + fontSize 
         : fontSize;
       
-      const left = screenPos.x;
-      const top = screenPos.y - fontSize;
-      const right = screenPos.x + maxWidth;
-      const bottom = screenPos.y + totalHeight - fontSize;
+      const rectX = screenPos.x;
+      const rectY = screenPos.y - fontSize;
+      const rectWidth = maxWidth;
+      const rectHeight = totalHeight;
       
-      minX = Math.min(minX, left);
-      minY = Math.min(minY, top);
-      maxX = Math.max(maxX, right);
-      maxY = Math.max(maxY, bottom);
+      // Draw background fill
+      ctx.fillStyle = highlightColor;
+      ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
+      
+      // Draw simple border
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
     } else if (obj.type === 'guide') {
       const guideObj = obj as GuideObject;
       const screenPos = worldToScreen(guideObj.x, guideObj.y, scale, canvasOffset);
       const guideWidth = guideObj.width * scale;
       const guideHeight = guideObj.height * scale;
       
-      const left = screenPos.x;
-      const top = screenPos.y;
-      const right = screenPos.x + guideWidth;
-      const bottom = screenPos.y + guideHeight;
+      // Draw background fill
+      ctx.fillStyle = highlightColor;
+      ctx.fillRect(screenPos.x, screenPos.y, guideWidth, guideHeight);
       
-      minX = Math.min(minX, left);
-      minY = Math.min(minY, top);
-      maxX = Math.max(maxX, right);
-      maxY = Math.max(maxY, bottom);
+      // Draw simple border
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(screenPos.x, screenPos.y, guideWidth, guideHeight);
     }
   });
-  
-  if (minX !== Infinity && minY !== Infinity && maxX !== -Infinity && maxY !== -Infinity) {
-    // 패딩 제거 - 정확한 텍스트 경계에 맞춘 하이라이트
-    const boundingBoxX = minX;
-    const boundingBoxY = minY;
-    const boundingBoxWidth = maxX - minX;
-    const boundingBoxHeight = maxY - minY;
-    
-    // Fill bounding box with highlight color
-    ctx.fillStyle = highlightColor;
-    ctx.fillRect(boundingBoxX, boundingBoxY, boundingBoxWidth, boundingBoxHeight);
-    
-    // Draw bounding box border
-    ctx.strokeStyle = borderColor;
-    ctx.lineWidth = 0.5;
-    ctx.setLineDash([5, 5]);
-    ctx.strokeRect(boundingBoxX, boundingBoxY, boundingBoxWidth, boundingBoxHeight);
-    ctx.setLineDash([]);
-  }
 };
 
 export const drawSingleSelectHighlight = (

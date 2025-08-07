@@ -97,22 +97,17 @@ import { useCanvasRenderer } from '../hooks/useCanvasRenderer';
 import { useKeyboardEvents } from '../hooks/useKeyboardEvents';
 import { useZoomAndFontControls } from '../hooks/useZoomAndFontControls';
 import { useAICommands } from '../hooks/useAICommands';
+import { useSessionManager } from '../hooks/useSessionManager';
+import { useUndoRedo } from '../hooks/useUndoRedo';
+import { useAILogic } from '../hooks/useAILogic';
+import { useExportLogic } from '../hooks/useExportLogic';
+import { useInputEvents } from '../hooks/useInputEvents';
+import { useCanvasUtils } from '../hooks/useCanvasUtils';
 
-const parseCommand = (text: string): AICommand | null => {
-  const trimmedText = text.trim();
-  if (trimmedText.startsWith('/gpt ')) {
-    const question = trimmedText.substring(5).trim();
-    if (question) {
-      return { type: 'gpt', question };
-    }
-  }
-  return null;
-};
+
 
 // Helper function to check if object has position properties
-const hasPosition = (obj: CanvasObject): obj is TextObject | GuideObject => {
-  return obj.type === 'text' || obj.type === 'guide';
-};
+// This is now provided by useCanvasUtils hook
 
 const InfiniteTypewriterCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -217,7 +212,6 @@ const InfiniteTypewriterCanvas = () => {
 
   // Local state (not in Zustand store)
   const [dragPreviewObjects, setDragPreviewObjects] = useState<CanvasObject[]>([]);
-  const [selectedObject, setSelectedObject] = useState<CanvasObject | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isMouseInTextBox, setIsMouseInTextBox] = useState(false);
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
@@ -227,11 +221,21 @@ const InfiniteTypewriterCanvas = () => {
     error: null as string | null,
     lastResponse: null as string | null
   });
-  // baseFontSizePt is now managed by Zustand store
-  const [needsLTPositionRestore, setNeedsLTPositionRestore] = useState<{ x: number; y: number } | null>(null); // LT 위치 복구 플래그
+
+  // Use session manager hook
+  const { selectedObject, setSelectedObject, needsLTPositionRestore, getCurrentLTWorldPosition } = useSessionManager();
+
+  // Use AI commands hook
+  const { parseCommand, executeAICommand } = useAICommands();
+
+  // Use infinite canvas events hook
+  const { handleMouseDown, handleMouseMove, handleMouseUp, handleWheel } = useInfiniteCanvasEvents();
+
+  // Use undo/redo hook
+  const { pushUndo, handleUndo, handleRedo } = useUndoRedo();
 
   // Import render function from useCanvasRenderer hook (after local state declarations)
-  const { render } = useCanvasRenderer(selectedObject, dragPreviewObjects);
+  const { render } = useCanvasRenderer(selectedObject);
 
   useEffect(() => {
     setPxPerMm(calculateDPIPixelsPerMM());
@@ -265,8 +269,7 @@ const InfiniteTypewriterCanvas = () => {
       if (sessionData.typewriterLTWorldPosition) {
         console.log('Restoring typewriter LT position:', sessionData.typewriterLTWorldPosition);
         
-        // LT 위치 복구를 위한 플래그 설정 (별도 useEffect에서 처리)
-        setNeedsLTPositionRestore(sessionData.typewriterLTWorldPosition);
+        // LT 위치 복구는 useSessionManager에서 처리됨
       } else {
         // LT 위치 정보가 없으면 저장된 오프셋 사용 (기존 방식)
         setCanvasOffset(sessionData.canvasOffset);
@@ -532,18 +535,7 @@ const InfiniteTypewriterCanvas = () => {
     return screenToWorldLocal(textBoxLeft, textBoxBaseline);
   }, [getTextBoxWidth, screenToWorldLocal, typewriterX, typewriterY, baseFontSize]);
 
-  // 현재 LT 월드 좌표를 실시간으로 계산하는 함수
-  const getCurrentLTWorldPosition = useCallback(() => {
-    const textBoxWidth = getTextBoxWidth();
-    const currentLTScreen = {
-      x: typewriterX - textBoxWidth / 2,
-      y: typewriterY - baseFontSize / 2
-    };
-    return {
-      x: (currentLTScreen.x - canvasOffset.x) / scale,
-      y: (currentLTScreen.y - canvasOffset.y) / scale
-    };
-  }, [getTextBoxWidth, typewriterX, typewriterY, baseFontSize, canvasOffset, scale]);
+
 
   // LT 위치 복구 처리 (모든 상태가 설정된 후)
   useEffect(() => {
@@ -662,7 +654,15 @@ const InfiniteTypewriterCanvas = () => {
     );
   }, [canvasObjects, scale, selectedObject, canvasWidth, canvasHeight, worldToScreenLocal, measureTextWidthLocal, theme, selectedObjects]);
 
-  // Removed - moved to useCanvasRenderer hook
+  // 드래그 프리뷰 객체 렌더링 함수 (호버 스타일과 동일한 보더박스)
+  const drawDragPreviewObjects = useCallback((ctx: CanvasRenderingContext2D) => {
+    if (dragPreviewObjects.length === 0) return;
+    
+    dragPreviewObjects.forEach(obj => {
+      // 기존 hover highlight와 동일한 스타일 사용
+      drawHoverHighlight(ctx, obj, scale, worldToScreenLocal, measureTextWidthLocal, theme, THEME_COLORS);
+    });
+  }, [dragPreviewObjects, scale, worldToScreenLocal, measureTextWidthLocal, theme]);
 
   // Removed - using render function from useCanvasRenderer hook
 
@@ -845,57 +845,6 @@ const InfiniteTypewriterCanvas = () => {
     event.target.value = '';
   };
 
-  // Unified function for link mode object selection (used by both click and space key)
-  const handleLinkModeSelection = useCallback((pinPos: typeof pinPosition) => {
-    const objectAtPin = findObjectAtPin(canvasObjects, pinPos, 20, measureTextWidthLocal);
-    if (objectAtPin && objectAtPin.type === 'text') {
-      if (!linkState.sourceObjectId) {
-        // Select source object and start preview
-        // Calculate optimal connection point based on pin position
-        const connectionPoint = calculatePreviewConnectionPoint(
-          objectAtPin,
-          { x: pinPos.worldX, y: pinPos.worldY },
-          measureTextWidthLocal
-        );
-        const sourceCenterX = connectionPoint.x;
-        const sourceCenterY = connectionPoint.y;
-        
-        setLinkState({
-          ...linkState,
-          sourceObjectId: objectAtPin.id.toString(),
-          isCreating: true,
-          previewPath: {
-            from: {
-              x: sourceCenterX,
-              y: sourceCenterY,
-              worldX: sourceCenterX,
-              worldY: sourceCenterY
-            },
-            to: pinPos
-          }
-        });
-      } else if (objectAtPin.id.toString() !== linkState.sourceObjectId) {
-        // Select target object and create link
-        const newLink = createLink(
-          linkState.sourceObjectId,
-          objectAtPin.id.toString()
-        );
-        
-        if (!areObjectsLinked(linkState.sourceObjectId, objectAtPin.id.toString(), links)) {
-          addLink(newLink);
-        }
-        
-        // Reset link state
-        setLinkState({
-          sourceObjectId: null,
-          targetObjectId: null,
-          isCreating: false,
-          previewPath: null
-        });
-      }
-    }
-  }, [canvasObjects, pinPosition, linkState, measureTextWidthLocal, calculatePreviewConnectionPoint, createLink, areObjectsLinked, links, addLink, setLinkState]);
-
   // Keyboard event handlers for multi-mode system
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -993,8 +942,54 @@ const InfiniteTypewriterCanvas = () => {
           setIsSpacePressed(true);
           e.preventDefault();
         } else if (currentMode === CanvasMode.LINK) {
-          // Link mode: Use unified link selection function (same as click)
-          handleLinkModeSelection(pinPosition);
+          // Link mode: Space key to select source/target objects
+          const objectAtPin = findObjectAtPin(canvasObjects, pinPosition, 20, measureTextWidthLocal);
+          if (objectAtPin && objectAtPin.type === 'text') {
+            if (!linkState.sourceObjectId) {
+              // Select source object and start preview
+              // Calculate optimal connection point based on pin position
+              const connectionPoint = calculatePreviewConnectionPoint(
+                objectAtPin,
+                { x: pinPosition.worldX, y: pinPosition.worldY },
+                measureTextWidthLocal
+              );
+              const sourceCenterX = connectionPoint.x;
+              const sourceCenterY = connectionPoint.y;
+              
+              setLinkState({
+                ...linkState,
+                sourceObjectId: objectAtPin.id.toString(),
+                isCreating: true,
+                previewPath: {
+                  from: {
+                    x: sourceCenterX,
+                    y: sourceCenterY,
+                    worldX: sourceCenterX,
+                    worldY: sourceCenterY
+                  },
+                  to: pinPosition
+                }
+              });
+            } else if (objectAtPin.id.toString() !== linkState.sourceObjectId) {
+              // Select target object and create link
+              const newLink = createLink(
+                linkState.sourceObjectId,
+                objectAtPin.id.toString()
+              );
+              
+              if (!areObjectsLinked(linkState.sourceObjectId, objectAtPin.id.toString(), links)) {
+                addLink(newLink);
+              }
+              
+              // Reset link state
+              setLinkState({
+                sourceObjectId: null,
+                targetObjectId: null,
+                isCreating: false,
+                previewPath: null
+              });
+            }
+          }
           e.preventDefault();
         } else if (currentMode === CanvasMode.SELECT) {
           // Select mode: Space key to select objects in current area
@@ -1028,39 +1023,40 @@ const InfiniteTypewriterCanvas = () => {
                 const newSelectionState = removeFromSelection(selectionState, objectAtPin.id.toString());
                 setSelectionState(newSelectionState);
                 
-                // Update visual selection states - remove the object from current selection
-                const currentlySelected = selectedObjects.length > 0 ? selectedObjects : (selectedObject ? [selectedObject] : []);
-                const remainingSelected = currentlySelected.filter(obj => obj.id !== objectAtPin.id);
+                // Clear visual selection states
+                if (selectedObject && selectedObject.id === objectAtPin.id) {
+                  setSelectedObject(null);
+                }
                 
-                if (remainingSelected.length === 0) {
-                  // No objects left selected
-                  setSelectedObject(null);
-                  setSelectedObjects([]);
-                } else if (remainingSelected.length === 1) {
-                  // One object left - convert to single selection
-                  setSelectedObject(remainingSelected[0]);
-                  setSelectedObjects([]);
-                } else {
-                  // Multiple objects left - keep as multi-selection
-                  setSelectedObjects(remainingSelected);
-                  setSelectedObject(null);
+                if (selectedObjects.length > 0) {
+                  const newSelectedObjects = selectedObjects.filter(obj => obj.id !== objectAtPin.id);
+                  if (newSelectedObjects.length === 1) {
+                    setSelectedObject(newSelectedObjects[0]);
+                    setSelectedObjects([]);
+                  } else if (newSelectedObjects.length === 0) {
+                    setSelectedObjects([]);
+                    setSelectedObject(null);
+                  } else {
+                    setSelectedObjects(newSelectedObjects);
+                  }
                 }
               } else {
                 // Toggle ON: add to selection if not selected
                 const newSelectionState = addToSelection(selectionState, objectAtPin.id.toString());
                 setSelectionState(newSelectionState);
                 
-                // Update visual selection states based on current selectedObjects
-                const currentlySelected = selectedObjects.length > 0 ? selectedObjects : (selectedObject ? [selectedObject] : []);
-                const allSelected = [...currentlySelected, objectAtPin];
-                
-                if (allSelected.length === 1) {
+                // Update visual selection states
+                if (selectionState.selectedObjects.size === 0) {
                   // First selection - single select
                   setSelectedObject(objectAtPin);
                   setSelectedObjects([]);
-                } else {
-                  // Multi-selection
-                  setSelectedObjects(allSelected);
+                } else if (selectionState.selectedObjects.size === 1 && selectedObject) {
+                  // Second selection - convert to multi-select
+                  setSelectedObjects([selectedObject, objectAtPin]);
+                  setSelectedObject(null);
+                } else if (selectedObjects.length > 0) {
+                  // Add to existing multi-selection
+                  setSelectedObjects([...selectedObjects, objectAtPin]);
                   setSelectedObject(null);
                 }
               }
@@ -1119,77 +1115,20 @@ const InfiniteTypewriterCanvas = () => {
             console.log('Alt + Arrow pressed:', { currentMode, selectedObjects: selectedObjects.length, selectedObject: selectedObject?.id, hasSelection });
             
             if (currentMode === CanvasMode.SELECT && hasSelection) {
+              const worldStepSize = stepSize / scale; // Convert to world units
               const worldDeltaX = deltaX / scale;
               const worldDeltaY = deltaY / scale;
               
-              // Move objects directly without entering drag mode to keep highlights
+              // Combine single and multi-selected objects
               const objectsToMove = selectedObjects.length > 0 ? selectedObjects : (selectedObject ? [selectedObject] : []);
+              console.log('Moving objects:', { worldDeltaX, worldDeltaY, objectIds: objectsToMove.map(obj => obj.id) });
               
-              if (selectedObjects.length > 1) {
-                // Multi-object movement with highlights
-                const selectedIds = selectedObjects.map(obj => obj.id);
-                const newCanvasObjects = canvasObjects.map(obj => 
-                  selectedIds.includes(obj.id) && hasPosition(obj)
-                    ? { ...obj, x: obj.x + worldDeltaX, y: obj.y + worldDeltaY }
-                    : obj
-                );
-                const newSelectedObjects = selectedObjects.map(obj => 
-                  hasPosition(obj)
-                    ? { ...obj, x: obj.x + worldDeltaX, y: obj.y + worldDeltaY }
-                    : obj
-                );
-                
-                setCanvasObjects(newCanvasObjects);
-                setSelectedObjects(newSelectedObjects);
-              } else if (selectedObject && hasPosition(selectedObject)) {
-                // Single object movement with highlights
-                const newCanvasObjects = canvasObjects.map(obj => 
-                  obj.id === selectedObject.id && hasPosition(obj)
-                    ? { ...obj, x: obj.x + worldDeltaX, y: obj.y + worldDeltaY }
-                    : obj
-                );
-                const newSelectedObject = { 
-                  ...selectedObject, 
-                  x: selectedObject.x + worldDeltaX, 
-                  y: selectedObject.y + worldDeltaY 
-                };
-                
-                setCanvasObjects(newCanvasObjects);
-                setSelectedObject(newSelectedObject);
-              }
+              // Convert to Set for moveSelectedObjects function
+              const selectedIds = new Set(objectsToMove.map(obj => obj.id.toString()));
+              const newObjects = moveSelectedObjects(canvasObjects, selectedIds, worldDeltaX, worldDeltaY);
+              setCanvasObjects(newObjects);
             }
             
-          } else if (currentMode === CanvasMode.SELECT && isSpacePressed) {
-            // Space + Arrow in SELECT mode: Start or expand drag selection area
-            const newPin = updatePinPosition(pinPosition, deltaX, deltaY, canvasOffset, scale);
-            setPinPosition(newPin);
-            
-            if (!selectionState.dragArea) {
-              // Start new drag area from current pin position
-              console.log('[SELECT] Starting space+arrow drag area at:', { worldX: pinPosition.worldX, worldY: pinPosition.worldY });
-              setSelectionState({
-                ...selectionState,
-                dragArea: {
-                  start: { x: pinPosition.worldX, y: pinPosition.worldY },
-                  end: { x: newPin.worldX, y: newPin.worldY }
-                }
-              });
-            } else {
-              // Expand existing drag area
-              console.log('[SELECT] Expanding space+arrow drag area to:', { worldX: newPin.worldX, worldY: newPin.worldY });
-              setSelectionState({
-                ...selectionState,
-                dragArea: {
-                  start: selectionState.dragArea.start,
-                  end: { x: newPin.worldX, y: newPin.worldY }
-                }
-              });
-            }
-            
-            // Check for object at new pin position for hover effect
-            const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPin, 20, measureTextWidthLocal);
-            setPinHoveredObject(hoveredObjectAtPin);
-            setHoveredObject(hoveredObjectAtPin);
           } else {
             // Plain Arrow: Move pin only
             const newPin = updatePinPosition(pinPosition, deltaX, deltaY, canvasOffset, scale);
@@ -1204,7 +1143,7 @@ const InfiniteTypewriterCanvas = () => {
             if (currentMode === CanvasMode.LINK && linkState.sourceObjectId) {
               const sourceObject = canvasObjects.find(obj => obj.id.toString() === linkState.sourceObjectId);
               if (sourceObject && sourceObject.type === 'text') {
-                // Calculate optimal connection point based in position
+                // Calculate optimal connection point based on pin position
                 const connectionPoint = calculatePreviewConnectionPoint(
                   sourceObject,
                   { x: newPin.worldX, y: newPin.worldY },
@@ -1238,123 +1177,8 @@ const InfiniteTypewriterCanvas = () => {
 
     const handleGlobalKeyUp = (e: KeyboardEvent) => {
       if (document.activeElement?.id === 'typewriter-input') return;
-      
-      // Handle arrow key release - end keyboard drag
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-        if (currentMode === CanvasMode.SELECT && isDraggingText) {
-          // End keyboard drag and apply grid snap
-          const worldGridSize = baseFontSize / scale;
-          
-          if (selectedObjects.length > 1) {
-            // Multi-select grid snap
-            const positionedObjects = selectedObjects.filter(hasPosition);
-            if (positionedObjects.length > 0) {
-              const referenceObj = positionedObjects[0];
-              const snappedWorldX = snapToGrid(referenceObj.x, worldGridSize);
-              const snappedWorldY = snapToGrid(referenceObj.y, worldGridSize);
-              const snapDeltaX = snappedWorldX - referenceObj.x;
-              const snapDeltaY = snappedWorldY - referenceObj.y;
-              
-              if (snapDeltaX !== 0 || snapDeltaY !== 0) {
-                const selectedIds = selectedObjects.map(obj => obj.id);
-                setCanvasObjects(canvasObjects.map(obj => 
-                  selectedIds.includes(obj.id) && hasPosition(obj)
-                    ? { ...obj, x: obj.x + snapDeltaX, y: obj.y + snapDeltaY }
-                    : obj
-                ));
-                
-                setSelectedObjects(selectedObjects.map(obj => 
-                  hasPosition(obj)
-                    ? { ...obj, x: obj.x + snapDeltaX, y: obj.y + snapDeltaY }
-                    : obj
-                ));
-              }
-            }
-          } else if (selectedObject && hasPosition(selectedObject)) {
-            // Single select grid snap
-            const snappedWorldX = snapToGrid(selectedObject.x, worldGridSize);
-            const snappedWorldY = snapToGrid(selectedObject.y, worldGridSize);
-            
-            if (snappedWorldX !== selectedObject.x || snappedWorldY !== selectedObject.y) {
-              setCanvasObjects(canvasObjects.map(obj => 
-                obj.id === selectedObject.id && hasPosition(obj)
-                  ? { ...obj, x: snappedWorldX, y: snappedWorldY }
-                  : obj
-              ));
-              
-              setSelectedObject(selectedObject && hasPosition(selectedObject) ? 
-                { ...selectedObject, x: snappedWorldX, y: snappedWorldY } 
-                : selectedObject
-              );
-            }
-          }
-          
-          setIsDraggingText(false);
-          console.log('[SELECT] Ended keyboard drag with grid snap');
-        }
-      }
-      
-      if (e.key === ' ') {
-        if (currentMode === CanvasMode.TYPOGRAPHY) {
-          setIsSpacePressed(false);
-        } else if (currentMode === CanvasMode.SELECT && selectionState.dragArea) {
-          // Complete Space + Arrow drag selection in SELECT mode
-          const dragArea = selectionState.dragArea;
-          const selectionRect = {
-            x: Math.min(dragArea.start.x, dragArea.end.x),
-            y: Math.min(dragArea.start.y, dragArea.end.y),
-            width: Math.abs(dragArea.end.x - dragArea.start.x),
-            height: Math.abs(dragArea.end.y - dragArea.start.y)
-          };
-          
-          console.log('[SELECT] Completing space+arrow selection:', { rect: selectionRect });
-          
-          // Only select objects if the drag area has meaningful size
-          if (selectionRect.width > 0.1 || selectionRect.height > 0.1) {
-            const objectsInArea = getObjectsInSelectionRect(
-          canvasObjects, 
-          selectionRect, 
-          scale, 
-          canvasOffset, 
-          measureTextWidthLocal
-        );
-            
-            if (objectsInArea.length > 0) {
-              // Add objects to existing selection
-              const currentSelectedObjects = Array.from(selectedObjects);
-              const existingIds = new Set(currentSelectedObjects.map(obj => obj.id));
-              const newObjects = objectsInArea.filter(obj => !existingIds.has(obj.id));
-              const allSelectedObjects = [...currentSelectedObjects, ...newObjects];
-              
-              setSelectedObjects(allSelectedObjects);
-              setSelectedObject(null);
-              
-              // Update selectionState to add selected objects
-              const newSelectionState = { ...selectionState };
-              objectsInArea.forEach(obj => {
-                newSelectionState.selectedObjects.add(obj.id.toString());
-              });
-              newSelectionState.dragArea = null;
-              setSelectionState(newSelectionState);
-              
-              console.log('[SELECT] Space+arrow selection completed:', { selected: allSelectedObjects.length });
-            } else {
-              // Just clear the drag area
-              setSelectionState({
-                ...selectionState,
-                dragArea: null
-              });
-            }
-          } else {
-            // Drag area too small, just clear it
-            setSelectionState({
-              ...selectionState,
-              dragArea: null
-            });
-          }
-          
-          setIsSpacePressed(false);
-        }
+      if (e.key === ' ' && currentMode === CanvasMode.TYPOGRAPHY) {
+        setIsSpacePressed(false);
       }
     };
 
@@ -1365,9 +1189,7 @@ const InfiniteTypewriterCanvas = () => {
       window.removeEventListener('keydown', handleGlobalKeyDown);
       window.removeEventListener('keyup', handleGlobalKeyUp);
     };
-  }, [currentMode, pinPosition, linkState, selectionState, canvasObjects, links, canvasOffset, scale, handleLinkModeSelection]);
-
-  // Removed - moved to earlier position
+  }, [currentMode, pinPosition, linkState, selectionState, canvasObjects, links, canvasOffset, scale]);
 
   // Focus canvas when switching to Link or Select mode
   useEffect(() => {
@@ -1600,185 +1422,7 @@ const InfiniteTypewriterCanvas = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [scale, selectedObject, selectedObjects, getCurrentLineHeight, zoomToLevelFromHook, setCanvasObjects, setSelectedObject, setSelectedObjects, setCanvasOffset, handleUISizeChange, handleBaseFontSizeChangeFromHook, resetUIZoomFromHook, resetBaseFontFromHook, resetCanvas]);
 
-  // Mouse events
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    
-    // Handle link mode: unified click and space key behavior
-    if (currentMode === CanvasMode.LINK) {
-      handleLinkModeSelection(pinPosition);
-      e.preventDefault();
-      return;
-    }
-    
-    // Check if X button was clicked (for single selected object) - circular click detection
-    const ctx = canvasRef.current?.getContext('2d');
-    if (ctx && (ctx as any)._deleteButtonBounds) {
-      const bounds = (ctx as any)._deleteButtonBounds;
-      const distance = Math.sqrt(
-        Math.pow(mouseX - bounds.centerX, 2) + Math.pow(mouseY - bounds.centerY, 2)
-      );
-      if (distance <= bounds.radius) {
-        bounds.onDelete();
-        e.preventDefault();
-        return;
-      }
-    }
-    
-    const clickedObject = canvasObjects.find(obj => isPointInObjectLocal(obj, mouseX, mouseY));
-    
-    // Check for link selection if no object was clicked
-    let clickedLink: LinkObject | null = null;
-    if (!clickedObject) {
-      const worldPos = { x: (mouseX - canvasOffset.x) / scale, y: (mouseY - canvasOffset.y) / scale };
-              clickedLink = findLinkAtPosition(worldPos, links, canvasObjects, 0, measureTextWidthLocal); // No padding - exact bounding box
-    }
-    
-    // Debug: Log when no object or link is clicked to see if selection should start
-    if (!clickedObject && !clickedLink && !isSpacePressed && !(e.metaKey && !clickedObject)) {
-    }
-    
-    if (clickedObject) {
-      // Check if Cmd key is pressed for additive selection
-      if (e.metaKey && !isSpacePressed) {
-        // Cmd+click: Add/remove from multi-selection without dragging
-        const isClickedObjectSelected = selectedObjects.some(obj => obj.id === clickedObject.id);
-        
-        if (isClickedObjectSelected) {
-          // Remove from selection
-          const newSelectedObjects = selectedObjects.filter(obj => obj.id !== clickedObject.id);
-          setSelectedObjects(newSelectedObjects);
-          
-          // If only one object left, make it the single selected object
-          if (newSelectedObjects.length === 1) {
-            setSelectedObject(newSelectedObjects[0]);
-            setSelectedObjects([]);
-          } else if (newSelectedObjects.length === 0) {
-            setSelectedObject(null);
-          } else {
-            setSelectedObject(null);
-          }
-        } else {
-          // Add to selection
-          if (selectedObjects.length === 0 && selectedObject) {
-            // If there's a single selected object, start multi-selection with it
-            const newSelection = [selectedObject, clickedObject];
-            console.log('[SELECT] Starting multi-selection:', newSelection.map(o => ({
-              id: o.id,
-              type: o.type,
-              content: o.type === 'text' ? o.content.substring(0, 20) : undefined
-            })));
-            setSelectedObjects(newSelection);
-            setSelectedObject(null);
-          } else if (selectedObjects.length > 0) {
-            // Add to existing multi-selection
-            const newSelection = [...selectedObjects, clickedObject];
-            console.log('[SELECT] Adding to multi-selection:', {
-              total: newSelection.length,
-              added: clickedObject.id,
-              all: newSelection.map(o => o.id)
-            });
-            setSelectedObjects(newSelection);
-            setSelectedObject(null);
-          } else {
-            // First object selection
-            console.log('[SELECT] First object selection:', clickedObject.id);
-            setSelectedObject(clickedObject);
-            setSelectedObjects([]);
-          }
-        }
-      } else {
-        // Normal click: Check if clicked object is part of multi-selection
-        const isClickedObjectSelected = selectedObjects.some(obj => obj.id === clickedObject.id);
-        
-        if (isClickedObjectSelected && selectedObjects.length > 1) {
-          // If clicked object is part of multi-selection, drag all selected objects
-          setIsDraggingText(true);
-          setDragStart({ x: mouseX, y: mouseY });
-          if (canvasRef.current) canvasRef.current.style.cursor = 'grabbing';
-          // Keep current multi-selection
-        } else {
-          // Single object selection and drag
-          console.log('[SELECT] Single object selected:', {
-            id: clickedObject.id,
-            type: clickedObject.type,
-            content: clickedObject.type === 'text' ? clickedObject.content.substring(0, 20) : undefined
-          });
-          setSelectedObject(clickedObject);
-          setSelectedObjects([]);
-          setIsDraggingText(true);
-          setDragStart({ x: mouseX, y: mouseY });
-          if (canvasRef.current) canvasRef.current.style.cursor = 'grabbing';
-        }
-      }
-    } else if (isSpacePressed || (e.metaKey && !clickedObject)) {
-      // Space 키가 눌렸거나, Cmd 키가 눌렸지만 클릭된 객체가 없을 때 캔버스 드래그
-      setSelectedObject(null);
-      setSelectedObjects([]);
-      setIsDragging(true);
-      setDragStart({ x: e.clientX, y: e.clientY });
-    } else if (clickedLink) {
-      // Handle link selection
-      setSelectedObject(null);
-      setSelectedObjects([]);
-      
-      if (e.metaKey) {
-        // Cmd+click: Add/remove from link selection
-        const newSelectedLinks = new Set(selectedLinks);
-        if (selectedLinks.has(clickedLink.id)) {
-          newSelectedLinks.delete(clickedLink.id);
-        } else {
-          newSelectedLinks.add(clickedLink.id);
-        }
-        setSelectedLinks(newSelectedLinks);
-      } else {
-        // Regular click: Select only this link
-        setSelectedLinks(new Set([clickedLink.id]));
-        setSelectionState({ ...selectionState, selectedObjects: new Set() });
-      }
-      
-      setIsDragging(false);
-      setIsDraggingText(false);
-    } else {
-      // Start area selection if no object or link clicked and not panning
-      if (currentMode === CanvasMode.SELECT) {
-        // In SELECT mode, don't clear existing selections when starting drag area
-        // Use new selection system for Select mode
-        const worldX = (mouseX - canvasOffset.x) / scale;
-        const worldY = (mouseY - canvasOffset.y) / scale;
-        
-        // Use same isSelecting flag as Typography mode
-        setIsSelecting(true);
-        setSelectionState({
-          ...selectionState,
-          dragArea: {
-            start: { x: worldX, y: worldY },
-            end: { x: worldX, y: worldY }
-          }
-        });
-      } else {
-        // In Typography mode, clear selections when starting area selection
-        setSelectedObject(null);
-        setSelectedObjects([]);
-        setSelectedLinks(new Set()); // Clear link selection too
-        
-        // Use old selection system for Typography mode
-        setIsSelecting(true);
-        // Initialize selection rectangle with current mouse position
-        const initialRect = createSelectionRectangle(mouseX, mouseY, mouseX, mouseY);
-        setSelectionRect(initialRect);
-      }
-      
-      setIsDragging(false);
-      setIsDraggingText(false);
-      setDragStart({ x: mouseX, y: mouseY });
-    }
-  };
 
   // 스냅 단위로 값을 조정하는 함수
 
@@ -1802,123 +1446,8 @@ const InfiniteTypewriterCanvas = () => {
            mouseWorldPos.y >= textBoxWorldTop && mouseWorldPos.y <= textBoxWorldBottom;
   }, [getTextBoxWidth, typewriterX, typewriterY, baseFontSize, screenToWorld, scale]);
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    
-    // 마우스 위치 업데이트 및 텍스트박스 영역 확인
-    setMousePosition({ x: mouseX, y: mouseY });
-    setIsMouseInTextBox(isPointInTextBox(mouseX, mouseY));
-    
-    // Update pinPosition based on mouse movement in LINK and SELECT modes
-    if (currentMode === CanvasMode.LINK || currentMode === CanvasMode.SELECT) {
-      const worldX = (mouseX - canvasOffset.x) / scale;
-      const worldY = (mouseY - canvasOffset.y) / scale;
-      
-      const newPin = {
-        x: mouseX,
-        y: mouseY,
-        worldX: worldX,
-        worldY: worldY
-      };
-      
-      // Only update if position actually changed
-      if (!pinPosition || 
-          Math.abs(newPin.x - pinPosition.x) > 0.1 || 
-          Math.abs(newPin.y - pinPosition.y) > 0.1) {
-        setPinPosition(newPin);
-      }
-      
-      // Update pin hover detection
-      const hoveredObjectAtPin = findObjectAtPin(canvasObjects, newPin, 20, measureTextWidthLocal);
-      setPinHoveredObject(hoveredObjectAtPin);
-    }
-    
-    // Check for link hovering (only if not dragging)
-    if (!isDragging && !isDraggingText) {
-      const worldPos = { x: (mouseX - canvasOffset.x) / scale, y: (mouseY - canvasOffset.y) / scale };
-      const hoveredLinkAtPosition = findLinkAtPosition(worldPos, links, canvasObjects, 0, measureTextWidthLocal);
-      setHoveredLink(hoveredLinkAtPosition);
-    }
-    
-    // Check if hovering over X button and change cursor
-    const ctx = canvasRef.current?.getContext('2d');
-    let isHoveringDeleteButton = false;
-    if (ctx && (ctx as any)._deleteButtonBounds) {
-      const bounds = (ctx as any)._deleteButtonBounds;
-      const distance = Math.sqrt(
-        Math.pow(mouseX - bounds.centerX, 2) + Math.pow(mouseY - bounds.centerY, 2)
-      );
-      if (distance <= bounds.radius) {
-        if (canvasRef.current) canvasRef.current.style.cursor = 'pointer';
-        isHoveringDeleteButton = true;
-      }
-    }
-    
-    // 마우스가 오브젝트 위에 있는지 확인 (드래그 중이 아닐 때만)
-    if (!isDraggingText) {
-      const objectUnderMouse = canvasObjects.find(obj => isPointInObjectLocal(obj, mouseX, mouseY));
-      setHoveredObject(objectUnderMouse || null);
-      
-      // Set cursor based on what we're hovering over
-      if (!isHoveringDeleteButton) {
-        if (objectUnderMouse) {
-          if (canvasRef.current) canvasRef.current.style.cursor = 'grab';
-        } else {
-          if (canvasRef.current) canvasRef.current.style.cursor = 'default';
-        }
-      }
-    }
-    
-    if (isDraggingText) {
-      const deltaX = mouseX - dragStart.x;
-      const deltaY = mouseY - dragStart.y;
-      
-      // 드래그 중에는 실시간으로 자유롭게 이동 (그리드 스냅 없음)
-      const worldDeltaX = deltaX / scale;
-      const worldDeltaY = deltaY / scale;
-      
-      // 움직임이 있을 때만 업데이트
-      if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
-        // 드래그 프리뷰 계산: 최종 스냅될 위치 미리보기
-        const worldGridSize = baseFontSize / scale;
-        let previewObjects: CanvasObject[] = [];
-        
-        if (selectedObjects.length > 1) {
-          // Group drag: move all selected objects
-          const selectedIds = selectedObjects.map(obj => obj.id);
-          
-          // Update canvas objects
-          setCanvasObjects(canvasObjects.map(obj => 
-            selectedIds.includes(obj.id) && hasPosition(obj)
-              ? { ...obj, x: obj.x + worldDeltaX, y: obj.y + worldDeltaY }
-              : obj
-          ));
-          
-          // Calculate updated positions for selectedObjects
-          const updatedSelectedObjects = selectedObjects.map(obj => 
-            hasPosition(obj)
-              ? { ...obj, x: obj.x + worldDeltaX, y: obj.y + worldDeltaY }
-              : obj
-          );
-          
-          // Update selectedObjects array
-          setSelectedObjects(updatedSelectedObjects);
-          
-          // 멀티 선택 프리뷰 계산 (updated objects 사용)
-          const positionedObjects = updatedSelectedObjects.filter(hasPosition);
-          if (positionedObjects.length > 0) {
-            const referenceObj = positionedObjects[0];
-            const currentWorldX = referenceObj.x;
-            const currentWorldY = referenceObj.y;
-            const snappedWorldX = snapToGrid(currentWorldX, worldGridSize);
-            const snappedWorldY = snapToGrid(currentWorldY, worldGridSize);
-            
-            const firstSelected = selectedObjects.find(hasPosition);
-            if (firstSelected) {
-              const snapDeltaX = snappedWorldX - firstSelected.x - worldDeltaX;
+
+
               const snapDeltaY = snappedWorldY - firstSelected.y - worldDeltaY;
               
               previewObjects = updatedSelectedObjects.map(obj => 
@@ -1985,7 +1514,7 @@ const InfiniteTypewriterCanvas = () => {
         });
       }
     } else if (isSelecting) {
-      // Update selection rectangle during drag (both Typography and Select modes)
+      // Update selection rectangle during drag (Typography mode)
       const currentRect = createSelectionRectangle(
         dragStart.x,
         dragStart.y,
@@ -2084,8 +1613,8 @@ const InfiniteTypewriterCanvas = () => {
       // selectedObjects는 이미 설정되어 있음
     }
     
-    // End select area drag (Select mode) - now handled by unified isSelecting logic
-    if (currentMode === CanvasMode.SELECT && selectionState.dragArea && isSelecting) {
+    // End select area drag (Select mode)
+    if (currentMode === CanvasMode.SELECT && selectionState.dragArea) {
       // Select objects in the drag area
       const dragArea = selectionState.dragArea;
       const selectionRect = {
@@ -2094,13 +1623,6 @@ const InfiniteTypewriterCanvas = () => {
         width: Math.abs(dragArea.end.x - dragArea.start.x),
         height: Math.abs(dragArea.end.y - dragArea.start.y)
       };
-      
-      console.log('[SELECT] Mouse up - drag area:', {
-        rect: selectionRect,
-        canvasObjects: canvasObjects.length,
-        scale,
-        canvasOffset
-      });
       
       // Only select objects if the drag area has meaningful size
       if (selectionRect.width > 1 || selectionRect.height > 1) {
@@ -2112,49 +1634,33 @@ const InfiniteTypewriterCanvas = () => {
           measureTextWidthLocal
         );
         
-        console.log('[SELECT] Objects found in area:', objectsInArea.length, objectsInArea.map(o => ({
-          id: o.id,
-          type: o.type,
-          content: o.type === 'text' ? (o as any).content.substring(0, 20) : undefined,
-          pos: o.type !== 'link' ? { x: (o as any).x, y: (o as any).y } : undefined
-        })));
-        
         if (objectsInArea.length > 0) {
-          // Add objects to existing selection instead of replacing
-          const currentSelectedObjects = Array.from(selectedObjects);
-          const existingIds = new Set(currentSelectedObjects.map(obj => obj.id));
-          const newObjects = objectsInArea.filter(obj => !existingIds.has(obj.id));
-          const allSelectedObjects = [...currentSelectedObjects, ...newObjects];
-          
-          setSelectedObjects(allSelectedObjects);
+          setSelectedObjects(objectsInArea);
           setSelectedObject(null);
           
-          // Update selectionState to add selected objects (don't clear existing)
+          // Update selectionState to track selected objects
           const newSelectionState = { ...selectionState };
+          newSelectionState.selectedObjects.clear();
           objectsInArea.forEach(obj => {
             newSelectionState.selectedObjects.add(obj.id.toString());
           });
           newSelectionState.dragArea = null;
           setSelectionState(newSelectionState);
-          
-          console.log('[SELECT] Updated selection state:', {
-            selectedObjects: objectsInArea.length,
-            selectionState: newSelectionState.selectedObjects.size
-          });
         } else {
           // No objects selected, just clear the drag area
-          console.log('[SELECT] No objects in area, clearing selection');
           setSelectionState({
             ...selectionState,
             dragArea: null
           });
         }
       } else {
-        // Drag area too small, just clear the drag area (keep existing selections in SELECT mode)
-        console.log('[SELECT] Drag area too small, keeping existing selections');
+        // Drag area too small, treat as single click - clear selection
+        setSelectedObject(null);
+        setSelectedObjects([]);
         setSelectionState({
           ...selectionState,
-          dragArea: null
+          dragArea: null,
+          selectedObjects: new Set()
         });
       }
     }
@@ -2795,7 +2301,6 @@ const InfiniteTypewriterCanvas = () => {
         scale={scale}
         maxCharsPerLine={maxCharsPerLine}
         selectedObject={selectedObject}
-        selectedObjects={selectedObjects}
         undoStack={undoStack}
         redoStack={redoStack}
         aiState={aiState}

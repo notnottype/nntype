@@ -7,6 +7,7 @@ interface CanvasInfoOverlayProps {
   scale: number;
   canvasObjects: CanvasObjectType[];
   selectedObject: CanvasObjectType | null;
+  selectedObjects?: CanvasObjectType[];
   typewriterX: number;
   typewriterY: number;
   baseFontSize: number;
@@ -86,11 +87,12 @@ interface CanvasInfoOverlayProps {
 // };
 
 
-export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selectedObject, hoveredObject, mousePosition, isMouseInTextBox, typewriterX, typewriterY, baseFontSize, initialFontSize, getTextBoxWidth, screenToWorld, theme }: {
+export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selectedObject, selectedObjects, hoveredObject, mousePosition, isMouseInTextBox, typewriterX, typewriterY, baseFontSize, initialFontSize, getTextBoxWidth, screenToWorld, theme }: {
   canvasOffset: { x: number; y: number; };
   scale: number;
   canvasObjects: CanvasObjectType[];
   selectedObject: CanvasObjectType | null;
+  selectedObjects?: CanvasObjectType[];
   hoveredObject: CanvasObjectType | null;
   mousePosition: { x: number; y: number };
   isMouseInTextBox: boolean;
@@ -219,6 +221,12 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
               </span>
             </div>
             <div className="flex justify-between items-center">
+              <span className="text-[11px] font-medium text-gray-500">Selected</span>
+              <span className={`px-1.5 py-0.5 rounded-md text-[11px] font-mono font-medium ${theme === 'dark' ? 'bg-green-900/50 text-green-200' : 'bg-green-100 text-green-800'}`}>
+                {selectedObjects?.length || (selectedObject ? 1 : 0)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
               <span className="text-[11px] font-medium text-gray-500">User Text</span>
               <span className={`px-1.5 py-0.5 rounded-md text-[11px] font-mono font-medium ${theme === 'dark' ? 'bg-green-900/50 text-green-200' : 'bg-green-100 text-green-800'}`}>
                 {canvasObjects.filter(obj => obj.type === 'text' && !obj.isAIResponse).length}
@@ -299,26 +307,39 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
           </>
         )}
         
-        {selectedObject && (
+        {/* Show selected objects in a dedicated section */}
+        {(selectedObjects?.length > 0 || selectedObject) && (
           <>
             <div className={`border-t ${theme === 'dark' ? 'border-gray-800' : 'border-gray-200'}`}></div>
             <div>
-              <div className={`font-bold text-[11px] uppercase tracking-wide mb-1.5 ${theme === 'dark' ? 'text-green-300' : 'text-green-700'}`}>Selected Object</div>
-            <div className="space-y-1.5">
-              <div className="flex justify-between items-center">
-                <span className="text-[11px] font-medium text-gray-500">Type</span>
-                <span className={`px-1.5 py-0.5 rounded-md text-[11px] font-medium ${theme === 'dark' ? 'bg-green-900/50 text-green-200' : 'bg-green-100 text-green-800'}`}>
-                  {selectedObject.isAIResponse ? 'AI Response' : selectedObject.type === 'text' ? 'Text' : 'A4 Guide'}
-                </span>
+              <div className={`font-bold text-[11px] uppercase tracking-wide mb-1.5 ${theme === 'dark' ? 'text-green-300' : 'text-green-700'}`}>
+                Selection ({selectedObjects?.length || (selectedObject ? 1 : 0)})
               </div>
-              {selectedObject.type === 'text' && (
-                <div className="flex justify-between items-center">
-                  <span className="text-[11px] font-medium text-gray-500">Content</span>
-                  <span className={`px-1.5 py-0.5 rounded-md text-[11px] font-mono max-w-32 truncate ${theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-50 text-green-700'}`}>
-                    "{selectedObject.content.substring(0, 12)}{selectedObject.content.length > 12 ? '...' : ''}"
-                  </span>
-                </div>
-              )}
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {(selectedObjects?.length > 0 ? selectedObjects : (selectedObject ? [selectedObject] : [])).map((obj: any, idx: number) => (
+                  <div key={obj.id || idx} className={`px-1.5 py-0.5 rounded text-[10px] ${theme === 'dark' ? 'bg-green-900/20 text-green-300' : 'bg-green-50 text-green-700'}`}>
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium">
+                        {idx + 1}. {obj.type === 'text' ? 'Text' : obj.type === 'guide' ? 'A4 Guide' : obj.type}
+                      </span>
+                      {obj.type === 'text' && (
+                        <span className="text-[9px] opacity-70">
+                          {obj.isAIResponse ? 'AI' : 'User'}
+                        </span>
+                      )}
+                    </div>
+                    {obj.type === 'text' && (
+                      <div className="text-[9px] mt-0.5 opacity-80 truncate">
+                        "{obj.content.substring(0, 30)}{obj.content.length > 30 ? '...' : ''}"
+                      </div>
+                    )}
+                    {obj.type !== 'link' && (
+                      <div className="text-[9px] mt-0.5 opacity-60">
+                        Pos: ({Math.round(obj.x)}, {Math.round(obj.y)})
+                      </div>
+                    )}
+                  </div>
+                ))}
             </div>
             </div>
           </>

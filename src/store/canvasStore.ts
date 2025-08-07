@@ -202,7 +202,7 @@ const useCanvasStore = create<CanvasStore>()(
       baseFontSize: 16,
       fontLoaded: false,
       pinPosition: { x: 0, y: 0, worldX: 0, worldY: 0 },
-      maxCharsPerLine: 20,
+      maxCharsPerLine: 60,
       baseFontSizePt: 12,
       
       isDragging: false,
