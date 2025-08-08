@@ -1379,6 +1379,16 @@ const InfiniteTypewriterCanvas = () => {
     }
   }, [currentMode]);
 
+  // Auto-show shortcuts in Link and Select modes
+  useEffect(() => {
+    if (currentMode === CanvasMode.LINK || currentMode === CanvasMode.SELECT) {
+      // Show shortcuts when entering Link or Select mode
+      if (!showShortcuts) {
+        toggleShortcuts();
+      }
+    }
+  }, [currentMode, showShortcuts, toggleShortcuts]);
+
   // Link mode arrow preview update when pinPosition changes
   useEffect(() => {
     if (currentMode === CanvasMode.LINK && linkState.sourceObjectId && pinPosition) {
