@@ -1606,51 +1606,7 @@ const InfiniteTypewriterCanvas = () => {
         }
         return;
       }
-      if (e.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-        e.preventDefault();
-        const moveDistance = baseFontSize * 1.6;
-        const newOffset = (() => {
-          switch (e.key) {
-            case 'ArrowUp':
-              return { x: canvasOffset.x, y: canvasOffset.y + moveDistance };
-            case 'ArrowDown':
-              return { x: canvasOffset.x, y: canvasOffset.y - moveDistance };
-            case 'ArrowLeft':
-              return { x: canvasOffset.x + moveDistance, y: canvasOffset.y };
-            case 'ArrowRight':
-              return { x: canvasOffset.x - moveDistance, y: canvasOffset.y };
-            default:
-              return canvasOffset;
-          }
-        })();
-
-        setCanvasOffset(newOffset);
-
-        // 방향키 이동 후 세션 데이터 업데이트 (비동기)
-        setTimeout(() => {
-          const currentLTWorldPosition = getCurrentLTWorldPosition();
-          if (currentLTWorldPosition) {
-            saveSession({
-              canvasObjects,
-              canvasOffset: newOffset,
-              scale,
-              typewriterPosition: { x: typewriterX, y: typewriterY },
-              typewriterLTWorldPosition: currentLTWorldPosition,
-              currentTypingText,
-              baseFontSize,
-              baseFontSizePt,
-              maxCharsPerLine,
-              showGrid,
-              showTextBox,
-              showInfo,
-              showShortcuts,
-              theme,
-              selectedObjectId: selectedObject?.id ? Number(selectedObject.id) : undefined
-            });
-          }
-        }, 0);
-        return;
-      }
+      // Shift + Arrow key handling is now managed by useKeyboardEvents hook
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
