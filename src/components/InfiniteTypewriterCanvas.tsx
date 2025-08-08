@@ -100,10 +100,17 @@ import { useAICommands } from '../hooks/useAICommands';
 
 const parseCommand = (text: string): AICommand | null => {
   const trimmedText = text.trim();
-  if (trimmedText.startsWith('/gpt ')) {
-    const question = trimmedText.substring(5).trim();
-    if (question) {
-      return { type: 'gpt', question };
+  if (trimmedText.startsWith('/gpt')) {
+    // /gpt만 입력한 경우 처리하지 않음
+    if (trimmedText === '/gpt') {
+      return null;
+    }
+    // /gpt 뒤에 공백이 있는지 확인
+    if (trimmedText.startsWith('/gpt ')) {
+      const question = trimmedText.substring(5).trim();
+      if (question) {
+        return { type: 'gpt', question };
+      }
     }
   }
   return null;
@@ -2347,13 +2354,13 @@ const InfiniteTypewriterCanvas = () => {
         
         pushUndo(); // 상태 변경 전 스냅샷 저장
         
-        // 각 줄을 별도의 텍스트 오브젝트로 생성 (현재 타이프라이터 위치에서 시작)
+        // 각 줄을 별도의 텍스트 오브젝트로 생성 (질문 한 줄 아래에서 시작)
         const worldLineHeight = (baseFontSize / scale) * 1.6;
         const newObjects = wrappedLines.map((line, index) => ({
           type: 'text' as const,
           content: line,
           x: worldPos.x,
-          y: worldPos.y + ((index + 1) * worldLineHeight),
+          y: worldPos.y + ((index + 1) * worldLineHeight), // Start one line below the question
           scale: 1,
           fontSize: baseFontSize / scale,
           id: Date.now() + index,
@@ -2361,10 +2368,11 @@ const InfiniteTypewriterCanvas = () => {
           color: '#3b82f6'
         }));
         
-        setCanvasObjects([...canvasObjects, ...newObjects]);
+        // Add each AI response line as a separate text object
+        newObjects.forEach(obj => addTextObject(obj as TextObject));
         
-        // 타이프라이터를 마지막 텍스트 아래로 이동
-        const totalHeight = wrappedLines.length * worldLineHeight * scale;
+        // 타이프라이터를 마지막 텍스트 아래로 이동 (질문 1줄 + AI 응답 줄 수)
+        const totalHeight = (wrappedLines.length + 1) * worldLineHeight * scale;
         setCanvasOffset({
           x: canvasOffset.x,
           y: canvasOffset.y - totalHeight
@@ -2453,30 +2461,36 @@ const InfiniteTypewriterCanvas = () => {
           // AI 명령어 감지
           const command = parseCommand(currentTypingText);
           
+          // /gpt로 시작하지만 유효하지 않은 명령어인 경우 (예: "/gpt", "/gpt ")
+          if (currentTypingText.trim().startsWith('/gpt') && !command) {
+            // 아무것도 하지 않고 입력만 클리어
+            setCurrentTypingText('');
+            return;
+          }
+          
           if (command && command.type === 'gpt') {
             // AI 명령어 처리
             pushUndo(); // 상태 변경 전 스냅샷 저장
             
             // 질문을 먼저 텍스트 오브젝트로 추가
             const worldPos = getCurrentWorldPosition();
-            setCanvasObjects([
-              ...canvasObjects,
-              {
-                type: 'text',
-                content: currentTypingText,
-                x: worldPos.x,
-                y: worldPos.y,
-                scale: 1,
-                fontSize: baseFontSize / scale,
-                id: Date.now()
-              }
-            ]);
+            const newQuestion: TextObject = {
+              type: 'text',
+              content: currentTypingText,
+              x: worldPos.x,
+              y: worldPos.y,
+              scale: 1,
+              fontSize: baseFontSize / scale,
+              id: Date.now()
+            };
+            addTextObject(newQuestion);
+            
+            // 캔버스 오프셋을 멀티라인 크기만큼 이동 (텍스트 초기화 전에 계산)
+            const lines = currentTypingText.split('\n');
+            const moveDistance = (baseFontSize * 1.6) * lines.length;
             
             setCurrentTypingText('');
             
-            // 캔버스 오프셋을 멀티라인 크기만큼 이동
-            const lines = currentTypingText.split('\n');
-            const moveDistance = (baseFontSize * 1.6) * lines.length;
             setCanvasOffset({
               x: canvasOffset.x,
               y: canvasOffset.y - moveDistance
@@ -2488,24 +2502,23 @@ const InfiniteTypewriterCanvas = () => {
             // 일반 텍스트 처리
             pushUndo(); // 상태 변경 전 스냅샷 저장
             const worldPos = getCurrentWorldPosition();
-            setCanvasObjects([
-              ...canvasObjects,
-              {
-                type: 'text',
-                content: currentTypingText,
-                x: worldPos.x,
-                y: worldPos.y,
-                scale: 1,
-                fontSize: baseFontSize / scale, // 월드 px로 변환해서 저장!
-                id: Date.now()
-              }
-            ]);
-            setCurrentTypingText('');
-            
+            const newText: TextObject = {
+              type: 'text',
+              content: currentTypingText,
+              x: worldPos.x,
+              y: worldPos.y,
+              scale: 1,
+              fontSize: baseFontSize / scale, // 월드 px로 변환해서 저장!
+              id: Date.now()
+            };
+            addTextObject(newText);
             // 오브젝트 생성 여부와 상관없이 줄바꿈(캔버스 오프셋 이동)은 항상 실행
-            // 멀티라인 텍스트의 줄 수만큼 이동
+            // 멀티라인 텍스트의 줄 수만큼 이동 (텍스트 초기화 전에 계산)
             const lines = currentTypingText.split('\n');
             const moveDistance = (baseFontSize * 1.6) * lines.length;
+            
+            setCurrentTypingText('');
+            
             setCanvasOffset({
               x: canvasOffset.x,
               y: canvasOffset.y - moveDistance
