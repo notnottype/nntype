@@ -3,12 +3,12 @@
  * Handles saving and restoring application state to localStorage
  */
 
-import { CanvasObjectType, Theme } from '../types';
+import { CanvasObject, Theme } from '../types';
 
 export interface SessionData {
   version: string;
   timestamp: number;
-  canvasObjects: CanvasObjectType[];
+  canvasObjects: CanvasObject[];
   canvasOffset: { x: number; y: number };
   scale: number;
   typewriterPosition: { x: number; y: number };

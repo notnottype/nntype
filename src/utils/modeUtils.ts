@@ -2,14 +2,14 @@
  * Mode management utilities for multi-mode canvas interaction system
  */
 
-import { CanvasModeType, PinPosition, LinkState, SelectionState, CanvasObjectType, LinkObjectType } from '../types';
+import { CanvasMode, PinPosition, LinkState, SelectionState, CanvasObject, LinkObject } from '../types';
 
-export const CANVAS_MODES: CanvasModeType[] = ['typography', 'select', 'link'];
+export const CANVAS_MODES: CanvasMode[] = [CanvasMode.TYPOGRAPHY, CanvasMode.SELECT, CanvasMode.LINK];
 
 /**
  * Get the next mode in the cycle
  */
-export function getNextMode(currentMode: CanvasModeType): CanvasModeType {
+export function getNextMode(currentMode: CanvasMode): CanvasMode {
   const currentIndex = CANVAS_MODES.indexOf(currentMode);
   const nextIndex = (currentIndex + 1) % CANVAS_MODES.length;
   return CANVAS_MODES[nextIndex];
@@ -18,7 +18,7 @@ export function getNextMode(currentMode: CanvasModeType): CanvasModeType {
 /**
  * Get the previous mode in the cycle (for Shift+Tab)
  */
-export function getPreviousMode(currentMode: CanvasModeType): CanvasModeType {
+export function getPreviousMode(currentMode: CanvasMode): CanvasMode {
   const currentIndex = CANVAS_MODES.indexOf(currentMode);
   const prevIndex = (currentIndex - 1 + CANVAS_MODES.length) % CANVAS_MODES.length;
   return CANVAS_MODES[prevIndex];
@@ -27,7 +27,7 @@ export function getPreviousMode(currentMode: CanvasModeType): CanvasModeType {
 /**
  * Get mode display properties for UI feedback
  */
-export function getModeDisplayProperties(mode: CanvasModeType, theme: 'light' | 'dark' = 'light') {
+export function getModeDisplayProperties(mode: CanvasMode, theme: 'light' | 'dark' = 'light') {
   // Define border colors for each mode
   const getBorderColor = (theme: 'light' | 'dark') => {
     switch (mode) {
@@ -157,11 +157,11 @@ export function updatePinPosition(
  * Find object at pin position
  */
 export function findObjectAtPin(
-  objects: CanvasObjectType[],
+  objects: CanvasObject[],
   pinPosition: PinPosition,
   tolerance: number = 20,
   measureTextFn?: (text: string, fontSize: number) => number
-): CanvasObjectType | null {
+): CanvasObject | null {
   const { worldX, worldY } = pinPosition;
   
   // Check text objects first (they have priority)
@@ -213,7 +213,7 @@ export function createLink(
   toObjectId: string,
   style: 'arrow' | 'line' | 'dashed' = 'arrow',
   color: string = '#666666'
-): LinkObjectType {
+): LinkObject {
   return {
     id: `link-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     type: 'link',
@@ -230,7 +230,7 @@ export function createLink(
 export function areObjectsLinked(
   fromId: string,
   toId: string,
-  links: LinkObjectType[]
+  links: LinkObject[]
 ): boolean {
   return links.some(link => 
     (link.from === fromId && link.to === toId) ||
@@ -243,8 +243,8 @@ export function areObjectsLinked(
  */
 export function getObjectLinks(
   objectId: string,
-  links: LinkObjectType[]
-): LinkObjectType[] {
+  links: LinkObject[]
+): LinkObject[] {
   return links.filter(link => 
     link.from === objectId || link.to === objectId
   );
@@ -254,9 +254,9 @@ export function getObjectLinks(
  * Remove links associated with deleted objects
  */
 export function cleanupOrphanedLinks(
-  links: LinkObjectType[],
+  links: LinkObject[],
   validObjectIds: Set<string>
-): LinkObjectType[] {
+): LinkObject[] {
   return links.filter(link => 
     validObjectIds.has(link.from) && validObjectIds.has(link.to)
   );
@@ -266,12 +266,12 @@ export function cleanupOrphanedLinks(
  * Check if objects are within selection area
  */
 export function getObjectsInArea(
-  objects: CanvasObjectType[],
+  objects: CanvasObject[],
   startX: number,
   startY: number,
   endX: number,
   endY: number
-): CanvasObjectType[] {
+): CanvasObject[] {
   const minX = Math.min(startX, endX);
   const maxX = Math.max(startX, endX);
   const minY = Math.min(startY, endY);
@@ -303,11 +303,11 @@ export function getObjectsInArea(
  * Move multiple objects by delta
  */
 export function moveObjects(
-  objects: CanvasObjectType[],
+  objects: CanvasObject[],
   selectedIds: Set<string>,
   deltaX: number,
   deltaY: number
-): CanvasObjectType[] {
+): CanvasObject[] {
   return objects.map(obj => {
     if (selectedIds.has(obj.id.toString())) {
       return {

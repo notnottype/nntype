@@ -2,7 +2,7 @@
  * Selection utilities for multi-object selection and manipulation
  */
 
-import { CanvasObject, SelectionState, TextObject } from '../types';
+import { CanvasObject, SelectionState, TextObject, GuideObject } from '../types';
 import { measureTextWidth } from './index';
 
 /**
@@ -173,8 +173,11 @@ export function renderSelectionHighlights(
 
   objects.forEach(obj => {
     if (selectedIds.has(obj.id.toString())) {
-      const screenX = obj.x * scale + canvasOffset.x;
-      const screenY = obj.y * scale + canvasOffset.y;
+      if (obj.type === 'link') return; // Skip link objects as they don't have x,y coordinates
+      
+      const positionedObj = obj as TextObject | GuideObject;
+      const screenX = positionedObj.x * scale + canvasOffset.x;
+      const screenY = positionedObj.y * scale + canvasOffset.y;
 
       if (obj.type === 'text') {
         const textObj = obj as TextObject;
@@ -303,10 +306,13 @@ export function getSelectionBounds(
   let maxY = -Infinity;
 
   selectedObjects.forEach(obj => {
-    let objMinX = obj.x;
-    let objMinY = obj.y;
-    let objMaxX = obj.x;
-    let objMaxY = obj.y;
+    if (obj.type === 'link') return; // Skip link objects as they don't have x,y coordinates
+    
+    const positionedObj = obj as TextObject | GuideObject;
+    let objMinX = positionedObj.x;
+    let objMinY = positionedObj.y;
+    let objMaxX = positionedObj.x;
+    let objMaxY = positionedObj.y;
 
     if (obj.type === 'text') {
       const textObj = obj as TextObject;
@@ -318,7 +324,7 @@ export function getSelectionBounds(
       );
       
       // Adjust Y position for text baseline
-      objMinY = obj.y - textObj.fontSize;
+      objMinY = positionedObj.y - textObj.fontSize;
       objMaxX += textWidth;
       objMaxY = objMinY + textHeight;
     } else if (obj.type === 'guide') {
@@ -346,10 +352,13 @@ export function moveSelectedObjects(
 ): CanvasObject[] {
   return objects.map(obj => {
     if (selectedIds.has(obj.id.toString())) {
+      if (obj.type === 'link') return obj; // Skip link objects
+      
+      const positionedObj = obj as TextObject | GuideObject;
       return {
         ...obj,
-        x: obj.x + deltaX,
-        y: obj.y + deltaY
+        x: positionedObj.x + deltaX,
+        y: positionedObj.y + deltaY
       };
     }
     return obj;
