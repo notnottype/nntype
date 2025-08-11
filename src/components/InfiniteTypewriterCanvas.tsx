@@ -98,6 +98,21 @@ import { useKeyboardEvents } from '../hooks/useKeyboardEvents';
 import { useZoomAndFontControls } from '../hooks/useZoomAndFontControls';
 import { useAICommands } from '../hooks/useAICommands';
 
+// Import optimized hooks
+import { 
+  useTextMeasurement, 
+  useAutoSave, 
+  useTypewriterPosition,
+  useEventHandler,
+  useCanvasResize
+} from '../hooks/useOptimizedHooks';
+import { 
+  useOptimizedMouseHandlers,
+  useOptimizedKeyboardHandlers,
+  useOptimizedSelectionHandlers
+} from '../hooks/useOptimizedEventHandlers';
+import { usePerformanceMonitor } from '../hooks/usePerformanceMonitor';
+
 const parseCommand = (text: string): AICommand | null => {
   const trimmedText = text.trim();
   if (trimmedText.startsWith('/gpt')) {
@@ -301,74 +316,91 @@ const InfiniteTypewriterCanvas = () => {
   }, []);
 
 
-  // 타이프라이터 위치는 절대 스냅하지 않음 - 화면 중앙 고정
-  const typewriterX = useMemo(() => canvasWidth / 2, [canvasWidth]);
-  const typewriterY = useMemo(() => canvasHeight / 2, [canvasHeight]);
+  // 최적화된 타이프라이터 위치 훅 사용
+  const { typewriterX, typewriterY } = useTypewriterPosition(canvasWidth, canvasHeight);
+  
+  // 최적화된 텍스트 측정 훅 사용 (saveCurrentSession보다 먼저 선언)
+  const { measureTextWidth: measureTextWidthLocal, getTextBoxWidth } = useTextMeasurement(
+    canvasRef,
+    fontLoaded,
+    baseFontSize,
+    maxCharsPerLine
+  );
+  
+  // 성능 모니터링 (개발 환경에서만)
+  const isDevelopment = import.meta.env.MODE === 'development';
+  const { metrics, warnings, getPerformanceReport } = usePerformanceMonitor(
+    isDevelopment,
+    canvasObjects.length
+  );
+  
+  // 개발 환경에서 성능 리포트 출력
+  useEffect(() => {
+    if (isDevelopment) {
+      const interval = setInterval(() => {
+        const report = getPerformanceReport();
+        if (report.warnings.length > 0 || report.suggestions.length > 0) {
+          console.log('Performance Report:', report);
+        }
+      }, 10000); // 10초마다 체크
+      return () => clearInterval(interval);
+    }
+  }, [isDevelopment, getPerformanceReport]);
 
   // Update typewriter position in store when canvas size changes
   useEffect(() => {
     setTypewriterPosition(typewriterX, typewriterY);
   }, [typewriterX, typewriterY, setTypewriterPosition]);
 
-  // Auto-save session when state changes (optimized)
-  const saveTimeoutRef = useRef<number | null>(null);
-  
-  useEffect(() => {
-    // Don't save during initial load
-    if (!fontLoaded) return;
-    
-    // Clear previous timeout to debounce
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-    
-    const saveCurrentSession = () => {
-      // 실시간 LT 월드 좌표 직접 계산 (getTextBoxWidth 의존성 해결)
-      const textBoxWidth = measureTextWidth('A'.repeat(maxCharsPerLine), baseFontSize, canvasRef.current, fontLoaded);
-      const currentLTScreen = {
-        x: typewriterX - textBoxWidth / 2,
-        y: typewriterY - baseFontSize / 2
-      };
-      const currentLTWorld = {
-        x: (currentLTScreen.x - canvasOffset.x) / scale,
-        y: (currentLTScreen.y - canvasOffset.y) / scale
-      };
-      
-      saveSession({
-        canvasObjects,
-        canvasOffset,
-        scale,
-        typewriterPosition: { x: typewriterX, y: typewriterY },
-        typewriterLTWorldPosition: currentLTWorld,
-        currentTypingText,
-        baseFontSize,
-        baseFontSizePt,
-        maxCharsPerLine,
-        showGrid,
-        showTextBox,
-        showInfo,
-        showShortcuts,
-        theme,
-        selectedObjectId: selectedObject?.id ? Number(selectedObject.id) : undefined
-      });
-      saveTimeoutRef.current = null;
+  // 최적화된 auto-save 훅 사용
+  const saveCurrentSession = useCallback(() => {
+    const textBoxWidth = getTextBoxWidth();
+    const currentLTScreen = {
+      x: typewriterX - textBoxWidth / 2,
+      y: typewriterY - baseFontSize / 2
     };
-
-    // Debounce saving to avoid too frequent saves (객체 수에 따라 저장 빈도 조절)
-    const saveDelay = canvasObjects.length > 100 ? 5000 : canvasObjects.length > 50 ? 3000 : 1000;
-    saveTimeoutRef.current = setTimeout(saveCurrentSession, saveDelay);
-    
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-        saveTimeoutRef.current = null;
-      }
+    const currentLTWorld = {
+      x: (currentLTScreen.x - canvasOffset.x) / scale,
+      y: (currentLTScreen.y - canvasOffset.y) / scale
     };
+    
+    saveSession({
+      canvasObjects,
+      canvasOffset,
+      scale,
+      typewriterPosition: { x: typewriterX, y: typewriterY },
+      typewriterLTWorldPosition: currentLTWorld,
+      currentTypingText,
+      baseFontSize,
+      baseFontSizePt,
+      maxCharsPerLine,
+      showGrid,
+      showTextBox,
+      showInfo,
+      showShortcuts,
+      theme,
+      selectedObjectId: selectedObject?.id ? Number(selectedObject.id) : undefined
+    });
   }, [
-    canvasObjects, // 실제 콘텐츠 변경 시에만 LT 위치 업데이트
-    currentTypingText, // 타이핑 중인 텍스트 변경
-    fontLoaded
+    canvasObjects, canvasOffset, scale, typewriterX, typewriterY,
+    currentTypingText, baseFontSize, baseFontSizePt, maxCharsPerLine,
+    showGrid, showTextBox, showInfo, showShortcuts, theme, selectedObject,
+    getTextBoxWidth
   ]);
+
+  // 객체 수에 따라 저장 빈도 동적 조절
+  const saveDelay = useMemo(() => {
+    if (canvasObjects.length > 100) return 5000;
+    if (canvasObjects.length > 50) return 3000;
+    return 1000;
+  }, [canvasObjects.length]);
+
+  useAutoSave(
+    saveCurrentSession,
+    [canvasObjects, currentTypingText],
+    saveDelay,
+    fontLoaded
+  );
 
   // Save session before page unload
   useEffect(() => {
@@ -472,19 +504,6 @@ const InfiniteTypewriterCanvas = () => {
     fontLoaded
   ]);
   
-  // 메모리 누수 방지: measureTextWidth 함수를 캐시
-  const measureTextWidthLocal = useCallback((text: string, fontSize: number = baseFontSize) => {
-    if (canvasRef.current && fontLoaded) {
-      return measureTextWidth(text, fontSize, canvasRef.current, fontLoaded);
-    }
-    // Fallback calculation when canvas or font is not ready
-    return text.length * fontSize * 0.6;
-  }, [baseFontSize, fontLoaded]);
-
-  const getTextBoxWidth = useCallback(() => {
-    return measureTextWidthLocal('A'.repeat(maxCharsPerLine), baseFontSize);
-  }, [measureTextWidthLocal, maxCharsPerLine, baseFontSize]);
-
   // Register getTextBoxWidth function in store
   useEffect(() => {
     setGetTextBoxWidth(getTextBoxWidth);
