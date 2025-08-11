@@ -55,7 +55,7 @@ interface CanvasContainerProps {
   canvasOffset: { x: number; y: number }
   canvasObjects: CanvasObject[]
   mousePosition: { x: number; y: number }
-  INITIAL_FONT_SIZE: number  // TODO: 향후 INITIAL_UI_FONT_SIZE_PX로 변경 예정
+  INITIAL_FONT_SIZE: number  // UI font size in pixels
   screenToWorld: (screenX: number, screenY: number) => { x: number; y: number }
   
   // Status props

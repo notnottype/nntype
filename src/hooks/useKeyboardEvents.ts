@@ -5,7 +5,7 @@ import {
   INITIAL_UI_FONT_SIZE_PX,
   INITIAL_BASE_FONT_SIZE_PT
 } from '../constants';
-import { findZoomLevel } from '../utils';
+import { findZoomLevel, isPointInObject } from '../utils';
 import useCanvasStore from '../store/canvasStore';
 
 export const useKeyboardEvents = (
@@ -25,16 +25,16 @@ export const useKeyboardEvents = (
     setSelectionState,
     selectedObjects,
     setSelectedObjects,
-    selectedObject,
-    setSelectedObject,
     canvasObjects,
     setCanvasObjects,
     selectedLinks,
     setSelectedLinks,
     deleteLink,
     baseFontSize,
-    baseFontSizePt,
-    setBaseFontSizePt
+    pinPosition,
+    selectObject,
+    deselectObject,
+    clearSelection
   } = useCanvasStore();
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -48,6 +48,8 @@ export const useKeyboardEvents = (
       // Handle escape key logic here
       return;
     }
+    
+    // Space key handling is done in InfiniteTypewriterCanvas.tsx for SELECT mode
     
     const currentZoomIndex = findZoomLevel(scale, CANVAS_ZOOM_LEVELS);
     
@@ -85,8 +87,8 @@ export const useKeyboardEvents = (
               console.error('Failed to copy to clipboard:', err);
             });
           }
-        } else if (selectedObject && selectedObject.type === 'text') {
-          const textObj = selectedObject as any;
+        } else if (selectedObjects.length === 1 && selectedObjects[0].type === 'text') {
+          const textObj = selectedObjects[0] as any;
           navigator.clipboard.writeText(textObj.content).catch(err => {
             console.error('Failed to copy to clipboard:', err);
           });
@@ -143,15 +145,10 @@ export const useKeyboardEvents = (
         setCanvasObjects(canvasObjects.filter(obj => !selectedIds.includes(obj.id.toString())));
         setSelectionState({ selectedObjects: new Set(), dragArea: null });
         setSelectedObjects([]);
-        setSelectedObject(null);
       } else if (selectedObjects.length > 0) {
         const selectedIds = selectedObjects.map(obj => obj.id);
         setCanvasObjects(canvasObjects.filter(obj => !selectedIds.includes(obj.id)));
         setSelectedObjects([]);
-        setSelectedObject(null);
-      } else if (selectedObject) {
-        setCanvasObjects(canvasObjects.filter(obj => obj.id !== selectedObject.id));
-        setSelectedObject(null);
       } else if (selectedLinks.size > 0) {
         const selectedLinkIds = Array.from(selectedLinks);
         selectedLinkIds.forEach(id => deleteLink(id));
@@ -189,10 +186,10 @@ export const useKeyboardEvents = (
     currentMode,
     selectionState,
     selectedObjects,
-    selectedObject,
     canvasObjects,
     selectedLinks,
     baseFontSize,
+    pinPosition,
     handleUISizeChange,
     resetUIZoom,
     handleBaseFontSizeChange,
@@ -201,10 +198,12 @@ export const useKeyboardEvents = (
     setCanvasOffset,
     setSelectionState,
     setSelectedObjects,
-    setSelectedObject,
     setCanvasObjects,
     setSelectedLinks,
-    deleteLink
+    deleteLink,
+    selectObject,
+    deselectObject,
+    clearSelection
   ]);
 
   useEffect(() => {

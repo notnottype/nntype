@@ -130,8 +130,8 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
         isCollapsed ? 'top-3 right-4 w-10 h-10 rounded-lg' : 'top-0 right-0 w-72 h-screen'
       } ${
         theme === 'dark'
-          ? 'bg-black/20 text-gray-100 border border-gray-700/30'
-          : 'bg-white/40 text-gray-800 border border-gray-200/30'
+          ? 'bg-gray-900/90 text-gray-100 border border-gray-700/50'
+          : 'bg-white/90 text-gray-800 border border-gray-200/50'
       } backdrop-blur-sm shadow-xs`}
       style={{
         height: isCollapsed ? '40px' : '100vh',
@@ -316,7 +316,9 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
                 Selection ({selectedObjects ? selectedObjects.length : (selectedObject ? 1 : 0)})
               </div>
               <div className="space-y-1 max-h-32 overflow-y-auto">
-                {(selectedObjects && selectedObjects.length > 0 ? selectedObjects : (selectedObject ? [selectedObject] : [])).map((obj: any, idx: number) => (
+                {(selectedObjects && selectedObjects.length > 0 ? selectedObjects : (selectedObject ? [selectedObject] : []))
+                  .filter(obj => obj && obj.type) // undefined 또는 type이 없는 객체 필터링
+                  .map((obj: any, idx: number) => (
                   <div key={obj.id || idx} className={`px-1.5 py-0.5 rounded text-[10px] ${theme === 'dark' ? 'bg-green-900/20 text-green-300' : 'bg-green-50 text-green-700'}`}>
                     <div className="flex justify-between items-center">
                       <span className="font-medium">
@@ -328,12 +330,12 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
                         </span>
                       )}
                     </div>
-                    {obj.type === 'text' && (
+                    {obj.type === 'text' && obj.content && (
                       <div className="text-[9px] mt-0.5 opacity-80 truncate">
                         "{obj.content.substring(0, 30)}{obj.content.length > 30 ? '...' : ''}"
                       </div>
                     )}
-                    {obj.type !== 'link' && (
+                    {obj.type !== 'link' && obj.x !== undefined && obj.y !== undefined && (
                       <div className="text-[9px] mt-0.5 opacity-60">
                         Pos: ({Math.round(obj.x)}, {Math.round(obj.y)})
                       </div>

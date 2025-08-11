@@ -14,6 +14,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Type, Move, Download, Import, Grid, FileText, Image, Code, RotateCcw, Trash2, Eye, EyeOff, Sun, Moon, Layers, Info, NotepadTextDashed, TextCursorInput } from 'lucide-react';
 import { Header } from './Header';
 import { CanvasContainer } from './CanvasContainer';
+import useCanvasStore from '../store/canvasStore';
 import { createPNGExporter, createJSONExporter, createSVGExporter } from '../utils/exportHandlers';
 import { 
   measureTextWidth, 
@@ -108,6 +109,16 @@ const hasPosition = (obj: CanvasObject): obj is TextObject | GuideObject => {
 
 const InfiniteTypewriterCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  
+  // Get store state and actions
+  const { 
+    currentMode: storeCurrentMode, 
+    switchMode: storeSwitchMode,
+    theme: storeTheme,
+    toggleTheme: storeToggleTheme,
+    showGrid: storeShowGrid,
+    toggleGrid: storeToggleGrid
+  } = useCanvasStore();
   const [canvasObjects, setCanvasObjects] = useState<CanvasObject[]>(() => {
     const sessionData = loadSession();
     return sessionData?.canvasObjects || [];
@@ -205,8 +216,13 @@ const InfiniteTypewriterCanvas = () => {
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [showGrid, setShowGrid] = useState(() => {
     const sessionData = loadSession();
-    return sessionData?.showGrid ?? true;
+    return storeShowGrid ?? sessionData?.showGrid ?? true;
   });
+  
+  // Sync with store grid changes
+  useEffect(() => {
+    setShowGrid(storeShowGrid);
+  }, [storeShowGrid]);
 
   // Dynamically measure CSS pixels per millimeter (accounts for DPI / zoom)
   const [pxPerMm, setPxPerMm] = useState(96 / 25.4); // fallback default
@@ -226,8 +242,28 @@ const InfiniteTypewriterCanvas = () => {
   });
   const [theme, setTheme] = useState<Theme>(() => {
     const sessionData = loadSession();
-    return sessionData?.theme || 'light';
+    const initialTheme = storeTheme || sessionData?.theme || 'light';
+    // Ensure dark class is set correctly on initial load
+    if (initialTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    return initialTheme;
   });
+  
+  // Sync with store theme changes
+  useEffect(() => {
+    if (storeTheme && storeTheme !== theme) {
+      setTheme(storeTheme);
+      // Apply dark class to HTML element for Tailwind CSS
+      if (storeTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+  }, [storeTheme]);
 
   const [aiState, setAIState] = useState({
     isProcessing: false,
@@ -254,8 +290,15 @@ const InfiniteTypewriterCanvas = () => {
   });
 
   // Multi-mode system state
-  const [currentMode, setCurrentMode] = useState<CanvasMode>(CanvasMode.TYPOGRAPHY);
+  const [currentMode, setCurrentMode] = useState<CanvasMode>(storeCurrentMode || CanvasMode.TYPOGRAPHY);
   const [previousMode, setPreviousMode] = useState<CanvasMode | null>(null);
+  
+  // Sync with store mode changes
+  useEffect(() => {
+    if (storeCurrentMode && storeCurrentMode !== currentMode) {
+      setCurrentMode(storeCurrentMode);
+    }
+  }, [storeCurrentMode]);
   const [pinPosition, setPinPosition] = useState<PinPosition>({
     x: window.innerWidth / 2,
     y: (window.innerHeight - 64) / 2,
@@ -720,11 +763,12 @@ const InfiniteTypewriterCanvas = () => {
     if (currentMode === CanvasMode.TYPOGRAPHY && selectedObjects.length > 0) {
       // 드래그 중일 때는 실제 캔버스 객체 위치에서 선택된 것들을 찾아서 하이라이트
       if (isDraggingText && selectedObjects.length > 1) {
-        const selectedIds = selectedObjects.map(obj => obj.id);
+        const selectedIds = selectedObjects.filter(obj => obj && obj.id !== undefined).map(obj => obj.id);
         const currentSelectedObjects = canvasObjects.filter(obj => selectedIds.includes(obj.id));
         drawMultiSelectHighlight(ctx, currentSelectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
       } else {
-        drawMultiSelectHighlight(ctx, selectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
+        const validSelectedObjects = selectedObjects.filter(obj => obj && obj.type);
+        drawMultiSelectHighlight(ctx, validSelectedObjects, scale, canvasOffset, measureTextWidthLocal, theme);
       }
     }
     
@@ -855,14 +899,16 @@ const InfiniteTypewriterCanvas = () => {
       // Initialize delete button bounds array for multiple buttons
       (ctx as any)._deleteButtonBounds = [];
       
-      selectedObjects.forEach((obj) => {
-        drawSingleSelectHighlight(ctx, obj, scale, canvasOffset, measureTextWidthLocal, theme, () => {
-          // 개별 오브젝트 삭제
-          setCanvasObjects(prev => prev.filter(item => item.id !== obj.id));
-          // 선택된 오브젝트 목록에서도 제거
-          setSelectedObjects(prev => prev.filter(item => item.id !== obj.id));
+      selectedObjects
+        .filter(obj => obj && obj.type) // undefined 또는 type이 없는 객체 필터링
+        .forEach((obj) => {
+          drawSingleSelectHighlight(ctx, obj, scale, canvasOffset, measureTextWidthLocal, theme, () => {
+            // 개별 오브젝트 삭제
+            setCanvasObjects(prev => prev.filter(item => item.id !== obj.id));
+            // 선택된 오브젝트 목록에서도 제거
+            setSelectedObjects(prev => prev.filter(item => item.id !== obj.id));
+          });
         });
-      });
     }
     
     }, [canvasWidth, canvasHeight, theme, showGrid, drawGridLocal, drawCanvasObjectsLocal, hoveredObject, selectedObjects, selectionRect, isSelecting, scale, worldToScreenLocal, canvasOffset, measureTextWidthLocal, currentMode, links, linkState, selectionState, pinPosition, pinHoveredObject]);
@@ -1057,6 +1103,8 @@ const InfiniteTypewriterCanvas = () => {
         const nextMode = e.shiftKey ? getPreviousMode(currentMode) : getNextMode(currentMode);
         setPreviousMode(currentMode);
         setCurrentMode(nextMode);
+        // Update store to sync with header
+        storeSwitchMode(nextMode);
         
         // Initialize pin position and hover detection for Link/Select modes
         if (nextMode === 'link' || nextMode === 'select') {
@@ -1231,45 +1279,53 @@ const InfiniteTypewriterCanvas = () => {
           } else {
             // Select object at pin position
             const objectAtPin = findObjectAtPin(canvasObjects, pinPosition, 20, measureTextWidthLocal);
-            if (objectAtPin) {
-              // Check if object is already selected in selectionState
-              const isInSelectionState = selectionState.selectedObjects.has(objectAtPin.id.toString());
+            if (objectAtPin && objectAtPin.type && objectAtPin.id !== undefined) {
+              console.log('Found object at pin:', objectAtPin.id, objectAtPin.type);
+              console.log('Current selected objects:', selectedObjects.filter(obj => obj).map(obj => obj.id));
               
-              if (isInSelectionState) {
-                // Toggle OFF: remove from selection if already selected
-                const newSelectionState = removeFromSelection(selectionState, objectAtPin.id.toString());
-                setSelectionState(newSelectionState);
+              // Check if object is already selected
+              const isAlreadySelected = selectedObjects.some(obj => obj && obj.id === objectAtPin.id);
+              console.log('Is already selected:', isAlreadySelected);
+              
+              if (isAlreadySelected) {
+                // Remove from selection
+                console.log('Removing from selection via space key');
+                const newSelectedObjects = selectedObjects.filter(obj => obj && obj.id !== objectAtPin.id);
+                setSelectedObjects(newSelectedObjects);
                 
-                // Clear visual selection states
-                if (isObjectSelected(objectAtPin)) {
-                  clearSelection();
-                }
-                
-                if (selectedObjects.length > 0) {
-                  const newSelectedObjects = selectedObjects.filter(obj => obj.id !== objectAtPin.id);
-                  setSelectedObjects(newSelectedObjects);
-                }
-              } else {
-                // Toggle ON: add to selection if not selected
-                const prevSelectionSize = selectionState.selectedObjects.size;
-                addToSelection(objectAtPin);
-                
-                console.log('🎯 SELECT mode: Adding object to selection', { 
-                  objectId: objectAtPin.id, 
-                  prevSize: prevSelectionSize,
-                  newSize: selectedObjects.length + 1
+                // Update selectionState - 직접 업데이트
+                setSelectionState(prev => {
+                  const newSet = new Set(prev.selectedObjects);
+                  newSet.delete(objectAtPin.id.toString());
+                  return {
+                    ...prev,
+                    selectedObjects: newSet
+                  };
                 });
                 
-                // Update selection based on PREVIOUS size
-                if (prevSelectionSize === 0) {
-                  // First selection
-                  console.log('🟢 Setting as selected object');
-                  selectSingleObject(objectAtPin);
-                } else {
-                  // Add to existing selection
-                  console.log('🔵 Adding to existing selection');
-                  addToSelection(objectAtPin);
-                }
+                console.log('🎯 SELECT mode: Removed object from selection via space key', { 
+                  objectId: objectAtPin.id, 
+                  remaining: newSelectedObjects.length
+                });
+              } else {
+                // Add to selection (멀티 선택) - 선택 상태만 업데이트
+                console.log('Adding to selection via space key');
+                const validSelectedObjects = selectedObjects.filter(obj => obj && obj.type);
+                const newSelectedObjects = [...validSelectedObjects, objectAtPin];
+                setSelectedObjects(newSelectedObjects);
+                
+                // Update selectionState - 직접 업데이트
+                setSelectionState(prev => ({
+                  ...prev,
+                  selectedObjects: new Set([...prev.selectedObjects, objectAtPin.id.toString()])
+                }));
+                
+                console.log('🎯 SELECT mode: Added object to selection via space key', { 
+                  objectId: objectAtPin.id, 
+                  prevSize: validSelectedObjects.length,
+                  newSize: newSelectedObjects.length,
+                  selectedObjects: newSelectedObjects.map(obj => ({ id: obj.id, type: obj.type }))
+                });
               }
             }
           }
@@ -1280,7 +1336,7 @@ const InfiniteTypewriterCanvas = () => {
       // Handle arrow keys for different modes
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         if (currentMode === CanvasMode.LINK || currentMode === CanvasMode.SELECT) {
-          const stepSize = 20; // pixels
+          const stepSize = 40; // pixels - 더 큰 이동 거리로 변경
           let deltaX = 0;
           let deltaY = 0;
           
@@ -1323,37 +1379,49 @@ const InfiniteTypewriterCanvas = () => {
           } else if (e.altKey) {
             // Alt + Arrow: Move selected objects in world coordinates
             const hasSelection = selectedObjects.length > 0;
-            console.log('Alt + Arrow pressed:', { currentMode, selectedObjects: selectedObjects.length, hasSelection });
+            console.log('🔍 Alt + Arrow pressed:', { 
+              currentMode, 
+              selectedObjects: selectedObjects.length, 
+              hasSelection,
+              pinHoveredObject: pinHoveredObject?.id,
+              hoveredObject: hoveredObject?.id,
+              validSelectedObjects: selectedObjects.filter(obj => obj && obj.type).length
+            });
             
             if (currentMode === CanvasMode.SELECT && hasSelection) {
               const worldStepSize = stepSize / scale; // Convert to world units
               const worldDeltaX = deltaX / scale;
               const worldDeltaY = deltaY / scale;
               
-              // Use selected objects for movement
-              const objectsToMove = selectedObjects;
+              // Use selected objects for movement - filter out undefined objects
+              const objectsToMove = selectedObjects.filter(obj => obj && obj.id !== undefined && obj.type);
               console.log('Moving objects:', { worldDeltaX, worldDeltaY, objectIds: objectsToMove.map(obj => obj.id) });
               
-              // Convert to Set for moveSelectedObjects function
-              const selectedIds = new Set(objectsToMove.map(obj => obj.id.toString()));
-              const newObjects = moveSelectedObjects(canvasObjects, selectedIds, worldDeltaX, worldDeltaY);
-              setCanvasObjects(newObjects);
-              
-              // Update selectedObjects to maintain highlight at new positions
-              const updatedSelectedObjects = objectsToMove.map(obj => {
-                const newObj = newObjects.find(newO => newO.id === obj.id);
-                return newObj || obj;
-              }).filter(obj => obj.type !== 'link' && 'x' in obj && 'y' in obj && obj.x !== undefined && obj.y !== undefined); // Only keep positioned objects (exclude links)
-              setSelectedObjects(updatedSelectedObjects);
-              
-              console.log('Objects moved and selection updated:', {
-                movedCount: updatedSelectedObjects.length,
-                newPositions: updatedSelectedObjects.map(obj => ({ 
-                  id: obj.id, 
-                  x: (obj as any).x, 
-                  y: (obj as any).y 
-                }))
-              });
+              if (objectsToMove.length > 0) {
+                console.log('🚀 Executing movement for', objectsToMove.length, 'objects');
+                // Convert to Set for moveSelectedObjects function
+                const selectedIds = new Set(objectsToMove.map(obj => obj.id.toString()));
+                const newObjects = moveSelectedObjects(canvasObjects, selectedIds, worldDeltaX, worldDeltaY);
+                setCanvasObjects(newObjects);
+                console.log('✅ Movement completed');
+                
+                // Update selectedObjects to maintain highlight at new positions
+                const updatedSelectedObjects = objectsToMove.map(obj => {
+                  const newObj = newObjects.find(newO => newO.id === obj.id);
+                  return newObj || obj;
+                }).filter(obj => obj && obj.type !== 'link' && 'x' in obj && 'y' in obj && obj.x !== undefined && obj.y !== undefined); // Only keep positioned objects (exclude links)
+                setSelectedObjects(updatedSelectedObjects);
+                
+                console.log('📍 Objects moved and selection updated:', {
+                  movedCount: updatedSelectedObjects.length,
+                  deltaApplied: { worldDeltaX, worldDeltaY },
+                  newPositions: updatedSelectedObjects.map((obj: any) => ({ 
+                    id: obj.id, 
+                    x: Math.round(obj.x), 
+                    y: Math.round(obj.y)
+                  }))
+                });
+              }
             }
             
           } else {
@@ -2818,7 +2886,18 @@ const InfiniteTypewriterCanvas = () => {
       <Layers className="w-4 h-4" />
     </button>
     <button
-      onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+      onClick={() => {
+        setTheme(prev => {
+          const newTheme = prev === 'dark' ? 'light' : 'dark';
+          // Apply dark class to HTML element for Tailwind CSS
+          if (newTheme === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+          return newTheme;
+        });
+      }}
       className={`p-2 rounded-lg transition-colors ${
         theme === 'dark'
           ? 'text-gray-400 hover:text-white hover:bg-gray-800'
@@ -2988,7 +3067,18 @@ const InfiniteTypewriterCanvas = () => {
         pinPosition={pinPosition}
         linkState={linkState}
         selectionState={selectionState}
-        onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+        onThemeToggle={() => {
+          setTheme(prev => {
+            const newTheme = prev === 'dark' ? 'light' : 'dark';
+            // Apply dark class to HTML element for Tailwind CSS
+            if (newTheme === 'dark') {
+              document.documentElement.classList.add('dark');
+            } else {
+              document.documentElement.classList.remove('dark');
+            }
+            return newTheme;
+          });
+        }}
         handleCompositionStart={handleCompositionStart}
         handleCompositionEnd={handleCompositionEnd}
         handleMaxCharsChange={handleMaxCharsChange}

@@ -213,7 +213,7 @@ export const ObjectContainer: React.FC<ObjectContainerProps> = ({
             className="absolute pointer-events-auto
                        w-5 h-5 
                        flex items-center justify-center
-                       hover:bg-gray-500/10
+                       hover:bg-black/10 dark:hover:bg-white/10
                        transition-all duration-150
                        rounded-full"
             style={{
