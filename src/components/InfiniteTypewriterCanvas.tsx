@@ -90,6 +90,11 @@ import { wrapTextToLines } from '../utils';
 import { ExportMenu } from './ExportMenu';
 import { ApiKeyInput } from './ApiKeyInput';
 import { saveSession, loadSession, clearSession } from '../utils/sessionStorage';
+import { useChannels } from '../hooks/useChannels';
+import { ChannelPanel } from './ChannelPanel';
+import { FloatingMessagePanel } from './FloatingMessagePanel';
+import { ChannelTags, LiveChannelPreview } from './ChannelTags';
+import { parseChannelTags, hasChannelTags } from '../utils/channelUtils';
 
 const parseCommand = (text: string): AICommand | null => {
   const trimmedText = text.trim();
@@ -140,6 +145,25 @@ const InfiniteTypewriterCanvas = () => {
   const [fontLoaded, setFontLoaded] = useState(false);
   const [selectedObjects, setSelectedObjects] = useState<CanvasObject[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
+  
+  // 채널 시스템 훅
+  const {
+    channels,
+    activeChannelId,
+    activeChannelMessages,
+    allMessages,
+    isPanelOpen,
+    togglePanel,
+    setActiveChannel,
+    updateTextObjectMessage,
+    getTextObjectChannels
+  } = useChannels();
+  
+  // 메시지 호버로 하이라이트된 텍스트 객체 ID
+  const [hoveredMessageTextId, setHoveredMessageTextId] = useState<number | null>(null);
+  
+  // Get messages for display - show all messages when "all" is selected
+  const displayMessages = activeChannelId === 'all' ? allMessages : activeChannelMessages;
   
   // Helper functions for selection management
   const getFirstSelectedObject = (): CanvasObject | null => {
@@ -214,6 +238,7 @@ const InfiniteTypewriterCanvas = () => {
     return { x: 0, y: 0 };
   });
   const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(280);
   const [showGrid, setShowGrid] = useState(() => {
     const sessionData = loadSession();
     return storeShowGrid ?? sessionData?.showGrid ?? true;
@@ -758,6 +783,8 @@ const InfiniteTypewriterCanvas = () => {
     if (hoveredObject) {
       drawHoverHighlight(ctx, hoveredObject, scale, worldToScreenLocal, measureTextWidthLocal, theme, THEME_COLORS);
     }
+    
+    // 메시지 호버 하이라이트 제거 (불필요한 그리기 방지)
     
     // 멀티 셀렉트된 오브젝트 하이라이트 표시 (Typography mode only)
     if (currentMode === CanvasMode.TYPOGRAPHY && selectedObjects.length > 0) {
@@ -2697,18 +2724,41 @@ const InfiniteTypewriterCanvas = () => {
             
             // 질문을 먼저 텍스트 오브젝트로 추가
             const worldPos = getCurrentWorldPosition();
-            setCanvasObjects(prev => [
-              ...prev,
-              {
-                type: 'text',
-                content: currentTypingText,
-                x: worldPos.x,
-                y: worldPos.y,
-                scale: 1,
-                fontSize: baseFontSize / scale,
-                id: Date.now()
+            const textId = Date.now();
+            
+            // AI 질문도 채널 시스템 적용
+            const channelTagsResult = parseChannelTags(currentTypingText);
+            const cleanContent = channelTagsResult.cleanContent;
+            let channelIds = channelTagsResult.addChannels;
+            
+            // 기본적으로 default에 추가 (보이지 않는 내부 태그)
+            if (channelIds.length === 0) {
+              channelIds = ['default'];
+            } else if (!channelIds.includes('default')) {
+              channelIds = ['default', ...channelIds];
+            }
+            
+            const newTextObject: TextObject = {
+              type: 'text',
+              content: cleanContent,
+              x: worldPos.x,
+              y: worldPos.y,
+              scale: 1,
+              fontSize: baseFontSize / scale,
+              id: textId,
+              _metadata: {
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                channelIds: channelIds
               }
-            ]);
+            };
+            
+            setCanvasObjects(prev => [...prev, newTextObject]);
+            
+            // 채널 시스템에 메시지 추가
+            if (cleanContent.trim()) {
+              updateTextObjectMessage(textId, cleanContent, channelIds);
+            }
             
             setCurrentTypingText('');
             
@@ -2723,21 +2773,46 @@ const InfiniteTypewriterCanvas = () => {
             // AI 처리 시작
             processAICommand(command);
           } else {
-            // 일반 텍스트 처리
+            // 일반 텍스트 처리 (채널 시스템 통합)
             pushUndo(); // 상태 변경 전 스냅샷 저장
             const worldPos = getCurrentWorldPosition();
-            setCanvasObjects(prev => [
-              ...prev,
-              {
-                type: 'text',
-                content: currentTypingText,
-                x: worldPos.x,
-                y: worldPos.y,
-                scale: 1,
-                fontSize: baseFontSize / scale, // 월드 px로 변환해서 저장!
-                id: Date.now()
+            const textId = Date.now();
+            
+            // 채널 태그 파싱
+            const channelTagsResult = parseChannelTags(currentTypingText);
+            const cleanContent = channelTagsResult.cleanContent;
+            let channelIds = channelTagsResult.addChannels;
+            
+            // 기본적으로 모든 메시지는 default에 추가 (보이지 않는 내부 태그)
+            if (channelIds.length === 0) {
+              channelIds = ['default'];
+            } else if (!channelIds.includes('default')) {
+              channelIds = ['default', ...channelIds];
+            }
+            
+            // 텍스트 객체 생성 (메타데이터 포함)
+            const newTextObject: TextObject = {
+              type: 'text',
+              content: cleanContent,
+              x: worldPos.x,
+              y: worldPos.y,
+              scale: 1,
+              fontSize: baseFontSize / scale,
+              id: textId,
+              _metadata: {
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                channelIds: channelIds
               }
-            ]);
+            };
+            
+            setCanvasObjects(prev => [...prev, newTextObject]);
+            
+            // 채널 시스템에 메시지 추가 (내용이 있는 경우 항상)
+            if (cleanContent.trim()) {
+              updateTextObjectMessage(textId, cleanContent, channelIds);
+            }
+            
             setCurrentTypingText('');
             
             // 오브젝트 생성 여부와 상관없이 줄바꿈(캔버스 오프셋 이동)은 항상 실행
@@ -3020,7 +3095,12 @@ const InfiniteTypewriterCanvas = () => {
   const isComposingRef = useRef(false);
 
   return (
-    <div className="w-full h-screen relative bg-transparent">
+    <div 
+      className="w-full h-screen relative bg-transparent transition-all duration-300 ease-in-out"
+      style={{
+        marginLeft: isPanelOpen ? `${panelWidth}px` : '0'
+      }}
+    >
       <Header
         onImportFile={importFile}
         onExportPNG={exportAsPNG}
@@ -3028,6 +3108,7 @@ const InfiniteTypewriterCanvas = () => {
         onExportJSON={exportAsJSON}
         onClearAll={clearAll}
         onApiKeyClick={() => setShowApiKeyInput(true)}
+        onChannelPanelToggle={togglePanel}
       />
 
       <CanvasContainer
@@ -3132,6 +3213,41 @@ const InfiniteTypewriterCanvas = () => {
           onClose={() => setShowApiKeyInput(false)}
         />
       )}
+
+      {/* 채널 패널 */}
+      <ChannelPanel
+        isOpen={isPanelOpen}
+        channels={channels}
+        activeChannelId={activeChannelId}
+        activeChannelMessages={displayMessages}
+        unreadCounts={new Map()} // TODO: 읽지 않은 메시지 카운트 구현
+        onChannelSelect={setActiveChannel}
+        onClose={togglePanel}
+        onMessageHover={(message) => {
+          // 메시지 hover 하이라이트 비활성화
+          // setHoveredMessageTextId(message.textObjectId);
+        }}
+        onMessageLeave={() => {
+          // setHoveredMessageTextId(null);
+        }}
+        onMessageClick={(message) => {
+          // 메시지 클릭 시 해당 텍스트 객체만 선택 (단일 선택)
+          const textObject = canvasObjects.find(obj => 
+            obj.type === 'text' && obj.id === message.textObjectId
+          ) as TextObject;
+          
+          if (textObject) {
+            // 해당 텍스트 객체만 선택 (기존 선택 대체)
+            setSelectedObjects([textObject]);
+          }
+        }}
+        theme={theme}
+        onWidthChange={setPanelWidth}
+        onLogoClick={() => {
+          // TODO: Show debug panel similar to the right side info panel
+          console.log('Logo clicked - show debug panel');
+        }}
+      />
     </div>
   );
 };
