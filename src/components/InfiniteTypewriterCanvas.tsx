@@ -11,7 +11,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Type, Move, Download, Import, Grid, FileText, Image, Code, RotateCcw, Trash2, Eye, EyeOff, Sun, Moon, Layers, Info, NotepadTextDashed, TextCursorInput } from 'lucide-react';
+import { Type, Move, Download, Import, Grid, FileText, Image, Code, RotateCcw, Trash2, Eye, EyeOff, Sun, Moon, Layers, Info, NotepadTextDashed, TextCursorInput, Settings } from 'lucide-react';
 import { Header } from './Header';
 import { CanvasContainer } from './CanvasContainer';
 import useCanvasStore from '../store/canvasStore';
@@ -91,10 +91,16 @@ import { ExportMenu } from './ExportMenu';
 import { ApiKeyInput } from './ApiKeyInput';
 import { saveSession, loadSession, clearSession } from '../utils/sessionStorage';
 import { useChannels } from '../hooks/useChannels';
+import { useSession } from '../hooks/useSession';
+import { SessionData } from '../types';
 import { ChannelPanel } from './ChannelPanel';
 import { FloatingMessagePanel } from './FloatingMessagePanel';
 import { ChannelTags, LiveChannelPreview } from './ChannelTags';
 import { parseChannelTags, hasChannelTags } from '../utils/channelUtils';
+import { SessionPanel } from './SessionPanel';
+import { ShareLinkButton } from './ShareLinkButton';
+import { SessionRecoveryNotification } from './SessionRecoveryNotification';
+import { DebugPanel } from './DebugPanel';
 
 const parseCommand = (text: string): AICommand | null => {
   const trimmedText = text.trim();
@@ -156,8 +162,12 @@ const InfiniteTypewriterCanvas = () => {
     togglePanel,
     setActiveChannel,
     updateTextObjectMessage,
-    getTextObjectChannels
+    getTextObjectChannels,
+    channelMessages,
+    loadSessionData,
+    clearAllChannelsAndMessages
   } = useChannels();
+
   
   // 메시지 호버로 하이라이트된 텍스트 객체 ID
   const [hoveredMessageTextId, setHoveredMessageTextId] = useState<number | null>(null);
@@ -261,6 +271,9 @@ const InfiniteTypewriterCanvas = () => {
     return sessionData?.showShortcuts ?? true;
   });
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [showSessionPanel, setShowSessionPanel] = useState(false);
+  const [showSessionRecovery, setShowSessionRecovery] = useState(false);
+  const [pendingSessionData, setPendingSessionData] = useState<SessionData | null>(null);
   const [showTextBox, setShowTextBox] = useState(() => {
     const sessionData = loadSession();
     return sessionData?.showTextBox ?? true;
@@ -344,6 +357,94 @@ const InfiniteTypewriterCanvas = () => {
   const [selectedLinks, setSelectedLinks] = useState<Set<string>>(new Set());
   const [hoveredLink, setHoveredLink] = useState<LinkObject | null>(null);
   const [pinHoveredObject, setPinHoveredObject] = useState<CanvasObject | null>(null);
+
+  // Session management
+  const handleSessionLoad = useCallback((sessionData: SessionData) => {
+    // Check if there's existing content that would be lost
+    const hasContent = canvasObjects.length > 0 || links.length > 0;
+    
+    if (hasContent) {
+      // Show confirmation dialog
+      setPendingSessionData(sessionData);
+      setShowSessionRecovery(true);
+    } else {
+      // No content to lose, load immediately
+      performSessionLoad(sessionData);
+    }
+  }, [canvasObjects.length, links.length]);
+
+  const performSessionLoad = useCallback((sessionData: SessionData) => {
+    // Update canvas objects
+    setCanvasObjects(sessionData.canvasObjects);
+    
+    // Update links
+    setLinks(sessionData.links);
+    
+    // Load channel data
+    loadSessionData(sessionData.channels, sessionData.messages, sessionData.activeChannelId);
+  }, [loadSessionData]);
+
+  // Auto-populate channels from canvas objects metadata
+  const populateChannelsFromCanvasObjects = useCallback(() => {
+    canvasObjects.forEach(obj => {
+      if (obj.type === 'text' && obj._metadata?.channelIds) {
+        const textObj = obj as TextObject;
+        const { channelIds } = textObj._metadata;
+        
+        if (channelIds.length > 0) {
+          // Check if message already exists for this text object
+          const existingMessage = allMessages.find(msg => msg.textObjectId === textObj.id);
+          
+          if (!existingMessage) {
+            // Create message for this text object
+            updateTextObjectMessage(textObj.id, textObj.content, channelIds);
+          }
+        }
+      }
+    });
+  }, [canvasObjects, allMessages, updateTextObjectMessage]);
+
+  // Run auto-population when canvas objects change
+  useEffect(() => {
+    if (canvasObjects.length > 0) {
+      // Delay to ensure channels are initialized
+      const timer = setTimeout(populateChannelsFromCanvasObjects, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [canvasObjects, populateChannelsFromCanvasObjects]);
+
+  const handleSessionRecoveryAccept = useCallback(() => {
+    if (pendingSessionData) {
+      performSessionLoad(pendingSessionData);
+      setPendingSessionData(null);
+    }
+    setShowSessionRecovery(false);
+  }, [pendingSessionData, performSessionLoad]);
+
+  const handleSessionRecoveryDecline = useCallback(() => {
+    setPendingSessionData(null);
+    setShowSessionRecovery(false);
+  }, []);
+
+  const {
+    sessionState,
+    saveSession: saveCurrentSession,
+    loadSession: loadStoredSession,
+    createNewSession,
+    clearSession: clearCurrentSession,
+    exportSession,
+    importSession,
+    generateShareLink,
+    toggleAutoSave,
+    getCurrentSessionData
+  } = useSession({
+    channels: new Map(channels.map(ch => [ch.id, ch])),
+    messages: channelMessages,
+    canvasObjects,
+    links,
+    activeChannelId,
+    onSessionLoad: handleSessionLoad
+  });
 
   useEffect(() => {
     setPxPerMm(calculateDPIPixelsPerMM());
@@ -1650,28 +1751,15 @@ const InfiniteTypewriterCanvas = () => {
     // 모든 캔버스 객체 삭제
     setCanvasObjects([]);
     
+    // 모든 링크 삭제
+    setLinks([]);
+    
+    // 모든 채널과 메시지 삭제
+    clearAllChannelsAndMessages();
+    
     // 선택 상태 초기화
     setSelectedObjects([]);
-    
-    // 리셋된 상태를 세션에 저장 (clearSession 대신)
-    saveSession({
-      canvasObjects: [],
-      canvasOffset: { x: 0, y: 0 },
-      scale: 1.0,
-      typewriterPosition: { x: typewriterX, y: typewriterY },
-      typewriterLTWorldPosition: getCurrentLTWorldPosition(),
-      currentTypingText: '',
-      baseFontSize: INITIAL_UI_FONT_SIZE_PX,
-      baseFontSizePt: INITIAL_BASE_FONT_SIZE_PT,
-      maxCharsPerLine,
-      showGrid,
-      showTextBox,
-      showInfo,
-      showShortcuts,
-      theme,
-      selectedObjectId: undefined
-    });
-  }, [maintainTypewriterLTWorldPosition, setCanvasOffset, setCanvasObjects, setSelectedObjects, typewriterX, typewriterY, getCurrentLTWorldPosition, maxCharsPerLine, showGrid, showTextBox, showInfo, showShortcuts, theme, saveSession]);;
+  }, [maintainTypewriterLTWorldPosition, clearSelection, clearAllChannelsAndMessages]);
   
   // Keyboard events
   useEffect(() => {
@@ -1845,7 +1933,7 @@ const InfiniteTypewriterCanvas = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [scale, selectedObjects, getCurrentLineHeight, zoomToLevel, setCanvasObjects, setSelectedObjects, setCanvasOffset, handleUISizeChange, handleBaseFontSizeChange, resetUIZoom, resetBaseFont, resetCanvas]);
+  }, [scale, selectedObjects, getCurrentLineHeight, zoomToLevel, setCanvasObjects, setSelectedObjects, setCanvasOffset, handleUISizeChange, handleBaseFontSizeChange, resetUIZoom, resetBaseFont, resetCanvas, clearAllChannelsAndMessages]);
 
   // Mouse events
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -2856,8 +2944,10 @@ const InfiniteTypewriterCanvas = () => {
   // 전체 삭제
   const clearAll = () => {
     setCanvasObjects([]);
+    setLinks([]);
     setCurrentTypingText('');
     clearSelection();
+    clearAllChannelsAndMessages();
   };
 
   // 패닝, 줌 등에도 pushUndo() 추가 필요(핸들러 내부에 삽입)
@@ -2918,6 +3008,22 @@ const InfiniteTypewriterCanvas = () => {
       onExportSVG={exportAsSVG}
       onExportJSON={exportAsJSON}
       theme={theme}
+    />
+    <button
+      onClick={() => setShowSessionPanel(true)}
+      className={`p-2 rounded-lg transition-colors ${
+        theme === 'dark'
+          ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+      }`}
+      title="Session Management"
+    >
+      <Settings className="w-4 h-4" />
+    </button>
+    <ShareLinkButton
+      onGenerateLink={generateShareLink}
+      theme={theme}
+      compact={true}
     />
     <div className="border-l h-6 mx-2" />
     {/* 보기/설정 관련 */}
@@ -3214,6 +3320,34 @@ const InfiniteTypewriterCanvas = () => {
         />
       )}
 
+      {/* Session Management Panel */}
+      {showSessionPanel && (
+        <SessionPanel
+          sessionState={sessionState}
+          onSaveSession={saveCurrentSession}
+          onLoadSession={loadStoredSession}
+          onCreateNewSession={createNewSession}
+          onClearSession={clearCurrentSession}
+          onExportSession={exportSession}
+          onImportSession={importSession}
+          onGenerateShareLink={generateShareLink}
+          onToggleAutoSave={toggleAutoSave}
+          isOpen={showSessionPanel}
+          onClose={() => setShowSessionPanel(false)}
+        />
+      )}
+
+      {/* Session Recovery Notification */}
+      <SessionRecoveryNotification
+        isVisible={showSessionRecovery}
+        sessionTitle={pendingSessionData?.metadata?.title}
+        sessionDescription={pendingSessionData?.metadata?.description}
+        onAccept={handleSessionRecoveryAccept}
+        onDecline={handleSessionRecoveryDecline}
+        onDismiss={handleSessionRecoveryDecline}
+        theme={theme}
+      />
+
       {/* 채널 패널 */}
       <ChannelPanel
         isOpen={isPanelOpen}
@@ -3247,6 +3381,15 @@ const InfiniteTypewriterCanvas = () => {
           // TODO: Show debug panel similar to the right side info panel
           console.log('Logo clicked - show debug panel');
         }}
+      />
+
+      {/* Debug Panel */}
+      <DebugPanel
+        channels={channels}
+        allMessages={allMessages}
+        activeChannelId={activeChannelId}
+        links={links}
+        theme={theme}
       />
     </div>
   );

@@ -174,3 +174,33 @@ export interface ChannelState {
   unreadCounts: Map<string, number>;
   isPanelOpen: boolean;
 }
+
+// 세션 관리 인터페이스
+export interface SessionMetadata {
+  id: string;
+  createdAt: string;
+  lastUpdated: string;
+  version: string;
+  title?: string;
+  description?: string;
+  userAgent?: string;
+}
+
+export interface SessionData {
+  metadata: SessionMetadata;
+  channels: Map<string, Channel>;
+  messages: Map<string, ChannelMessage[]>;
+  canvasObjects: CanvasObject[];
+  links: LinkObject[];
+  activeChannelId: string | null;
+}
+
+export interface SessionState {
+  isLoaded: boolean;
+  isLoading: boolean;
+  error: string | null;
+  metadata: SessionMetadata | null;
+  hasUnsavedChanges: boolean;
+  autoSaveEnabled: boolean;
+  lastSaved: Date | null;
+}

@@ -50,7 +50,7 @@ export function useChannels() {
         name: 'Default',
         messageCount: 0,
         lastActivity: new Date().toISOString(),
-        type: 'system',
+        type: 'default',
         color: '#6b7280'
       };
     }
@@ -305,6 +305,27 @@ export function useChannels() {
     : [];
 
 
+  /**
+   * Load session data into the channels system
+   */
+  const loadSessionData = useCallback((sessionChannels: Map<string, any>, sessionMessages: Map<string, any[]>, sessionActiveChannelId: string | null) => {
+    setChannels(sessionChannels);
+    setChannelMessages(sessionMessages);
+    if (sessionActiveChannelId) {
+      setActiveChannelId(sessionActiveChannelId);
+    }
+  }, []);
+
+  /**
+   * Clear all channels and messages (for reset functionality)
+   */
+  const clearAllChannelsAndMessages = useCallback(() => {
+    setChannels(new Map());
+    setChannelMessages(new Map());
+    setActiveChannelId('all');
+    setUnreadCounts(new Map());
+  }, []);
+
   return {
     // 상태
     channels: channelList,
@@ -313,6 +334,7 @@ export function useChannels() {
     allMessages,
     isPanelOpen,
     unreadCounts,
+    channelMessages, // Add this so session can access it
     
     // 액션
     createOrGetChannel,
@@ -323,6 +345,8 @@ export function useChannels() {
     removeChannelsFromTextObject, // 나중에 태그 제거  
     setActiveChannel,
     togglePanel,
+    loadSessionData,              // Add session loading method
+    clearAllChannelsAndMessages,  // Add reset method
     
     // 헬퍼
     getChannelById: (id: string) => channels.get(id),
