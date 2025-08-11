@@ -12,7 +12,7 @@
 
 ```typescript
 // === 기본 캔버스 객체들 ===
-interface TextObjectType {
+interface TextObject {
   id: number;
   type: 'text';
   content: string;
@@ -40,7 +40,7 @@ interface LinkObjectType {
 }
 
 // 통합 타입
-type CanvasObjectType = TextObjectType | A4GuideObjectType | LinkObjectType;
+type CanvasObject = TextObject | A4GuideObjectType | LinkObjectType;
 ```
 
 ### Event & Interaction System (현재 구현)
@@ -62,7 +62,7 @@ interface PointerEvent {
 
 // === 상태 관리 ===
 interface CanvasState {
-  canvasObjects: CanvasObjectType[];
+  canvasObjects: CanvasObject[];
   currentTypingText: string;
   isComposing: boolean;        // IME 한글 조합 상태
   isDragging: boolean;
@@ -72,10 +72,10 @@ interface CanvasState {
   
   // 멀티모드 시스템
   currentMode: 'typography' | 'link' | 'select';
-  previousMode: CanvasModeType | null;
+  previousMode: CanvasMode | null;
   
   // 선택 시스템
-  selectedObjects: CanvasObjectType[];
+  selectedObjects: CanvasObject[];
   isSelecting: boolean;
   selectionRect: SelectionRectangle | null;
   
@@ -88,7 +88,7 @@ interface CanvasState {
 interface SessionData {
   version: string;
   timestamp: number;
-  canvasObjects: CanvasObjectType[];
+  canvasObjects: CanvasObject[];
   canvasOffset: { x: number; y: number };
   scale: number;
   typewriterPosition: { x: number; y: number };
@@ -150,7 +150,7 @@ graph TD
 
 ```typescript
 // === 확장된 캔버스 객체 ===
-interface MediaObjectType extends CanvasObjectType {
+interface MediaObjectType extends CanvasObject {
   x: number; y: number;        // 월드 좌표 (호환)
   width: number; height: number; // 크기
   rotation: number;            // 회전각
@@ -168,7 +168,7 @@ interface YouTubeObjectType extends MediaObjectType {
   };
 }
 
-interface DrawingObjectType extends CanvasObjectType {
+interface DrawingObjectType extends CanvasObject {
   type: 'drawing';
   strokes: DrawingStroke[];    // 스트로크 집합
   bounds: { x: number; y: number; width: number; height: number };
@@ -224,7 +224,7 @@ interface Workspace {
 ```typescript
 interface AppStore {
   // === 기존 캔버스 (호환) ===
-  canvasObjects: Map<number, CanvasObjectType>; // TextObject | DrawingObject | MediaObject
+  canvasObjects: Map<number, CanvasObject>; // TextObject | DrawingObject | MediaObject
   selectedObjects: Set<number>;
   focusedObjectId: number | null;
   canvasViewport: { x: number; y: number; zoom: number; }; // 기존 호환
@@ -267,7 +267,7 @@ interface AppStore {
 
 ```typescript
 // === 1단계: 기존 데이터 구조 보존 ===
-interface TextObjectType {
+interface TextObject {
   // 기존 필드들 100% 유지
   id: number;
   type: 'text';
@@ -285,8 +285,8 @@ interface TextObjectType {
 }
 
 // === 2단계: 점진적 확장 ===
-type CanvasObjectType = 
-  | TextObjectType           // 기존 (100% 호환)
+type CanvasObject = 
+  | TextObject           // 기존 (100% 호환)
   | A4GuideObjectType        // 기존 (100% 호환)
   | LinkObjectType           // 기존 (100% 호환)
   | DrawingObjectType        // 신규 추가
@@ -297,8 +297,8 @@ type CanvasObjectType =
 // === 3단계: 상태 통합 ===
 interface MigratedCanvasState extends CanvasState {
   // 기존 필드들 모두 유지
-  canvasObjects: CanvasObjectType[];    // 확장된 타입
-  currentMode: CanvasModeType;          // 확장된 모드
+  canvasObjects: CanvasObject[];    // 확장된 타입
+  currentMode: CanvasMode;          // 확장된 모드
   
   // 새 시스템과의 브릿지
   _migration?: {
@@ -353,15 +353,15 @@ graph TB
 
 ```mermaid
 erDiagram
-    CanvasState ||--o{ CanvasObjectType : contains
+    CanvasState ||--o{ CanvasObject : contains
     CanvasState ||--|| Theme : uses
     CanvasState ||--o{ LinkObjectType : manages
     
-    CanvasObjectType ||--|| TextObjectType : "is-a"
-    CanvasObjectType ||--|| A4GuideObjectType : "is-a" 
-    CanvasObjectType ||--|| LinkObjectType : "is-a"
+    CanvasObject ||--|| TextObject : "is-a"
+    CanvasObject ||--|| A4GuideObjectType : "is-a" 
+    CanvasObject ||--|| LinkObjectType : "is-a"
     
-    TextObjectType {
+    TextObject {
         number id PK
         string type
         string content
@@ -391,7 +391,7 @@ erDiagram
         string color
     }
     
-    SessionData ||--o{ CanvasObjectType : stores
+    SessionData ||--o{ CanvasObject : stores
     SessionData {
         string version
         number timestamp
@@ -415,13 +415,13 @@ erDiagram
     Workspace ||--o{ Channel : contains
     Workspace ||--o{ Document : contains
     Channel ||--o{ ChannelMessage : contains
-    ChannelMessage ||--|| CanvasObjectType : references
+    ChannelMessage ||--|| CanvasObject : references
     
-    CanvasObjectType ||--|| TextObjectType : "is-a"
-    CanvasObjectType ||--|| DrawingObjectType : "is-a"
-    CanvasObjectType ||--|| YouTubeObjectType : "is-a"
-    CanvasObjectType ||--|| AudioObjectType : "is-a"
-    CanvasObjectType ||--|| ImageObjectType : "is-a"
+    CanvasObject ||--|| TextObject : "is-a"
+    CanvasObject ||--|| DrawingObjectType : "is-a"
+    CanvasObject ||--|| YouTubeObjectType : "is-a"
+    CanvasObject ||--|| AudioObjectType : "is-a"
+    CanvasObject ||--|| ImageObjectType : "is-a"
     
     DrawingObjectType ||--o{ DrawingStroke : contains
     DrawingStroke ||--o{ DrawingPoint : contains
@@ -429,7 +429,7 @@ erDiagram
     AudioRecording ||--o{ AudioSyncEvent : contains
     FloatingMediaState ||--|| YouTubeObjectType : displays
     
-    TextObjectType {
+    TextObject {
         number id PK
         string type
         string content
@@ -683,11 +683,11 @@ interface UnifiedState {
 
 ```typescript
 // === 현재 구현 (개선 필요) ===
-❌ TextObjectType        // Type 접미사 불필요 (Object는 이미 명시)
+❌ TextObject        // Type 접미사 불필요 (Object는 이미 명시)
 ❌ A4GuideObjectType     // 일관성 부족
 ❌ LinkObjectType        // 일관성 부족
-❌ CanvasModeType        // Mode는 enum이 적절
-❌ CanvasObjectType      // Union type이므로 적절하지만 일관성 필요
+❌ CanvasMode        // Mode는 enum이 적절
+❌ CanvasObject      // Union type이므로 적절하지만 일관성 필요
 
 // === 권장 개선안 ===
 ✅ TextObject           // 간결하고 명확
@@ -701,11 +701,11 @@ interface UnifiedState {
 
 | 현재 네이밍 | 문제점 | 권장 네이밍 | 변경 이유 |
 |-------------|--------|-------------|----------|
-| `TextObjectType` | 중복 접미사 | `TextObject` | Object 의미 중복 제거 |
+| `TextObject` | 중복 접미사 | `TextObject` | Object 의미 중복 제거 |
 | `A4GuideObjectType` | 제한적 네이밍 | `GuideObject` | 다양한 가이드 지원 |
 | `LinkObjectType` | 중복 접미사 | `LinkObject` | 일관성 확보 |
-| `CanvasModeType` | Type 불필요 | `CanvasMode` (enum) | Enum이 더 적절 |
-| `CanvasObjectType` | Union type 명명 | `CanvasObjectUnion` | Union 타입 명시 |
+| `CanvasMode` | Type 불필요 | `CanvasMode` (enum) | Enum이 더 적절 |
+| `CanvasObject` | Union type 명명 | `CanvasObjectUnion` | Union 타입 명시 |
 | `PointerEvent` | 브라우저 API 충돌 | `NNPointerEvent` | 네임스페이스 충돌 방지 |
 | `SessionData` | 모호한 네이밍 | `NNSessionData` | 도메인 명시 |
 
@@ -714,7 +714,7 @@ interface UnifiedState {
 ```typescript
 // === Phase 1: Core Objects 리네이밍 ===
 // 기존
-interface TextObjectType { ... }
+interface TextObject { ... }
 interface A4GuideObjectType { ... }
 interface LinkObjectType { ... }
 
@@ -747,13 +747,13 @@ enum GuideType {
 }
 
 // 하위 호환성 유지
-type TextObjectType = TextObject;      // @deprecated
+type TextObject = TextObject;      // @deprecated
 type A4GuideObjectType = GuideObject;  // @deprecated - A4Guide를 Guide로 통합
 type LinkObjectType = LinkObject;      // @deprecated
 
 // === Phase 2: Union Types 개선 ===
 // 기존
-type CanvasObjectType = TextObjectType | A4GuideObjectType | LinkObjectType;
+type CanvasObject = TextObject | A4GuideObjectType | LinkObjectType;
 
 // 개선안
 type CanvasObject = TextObject | GuideObject | LinkObject;
@@ -761,7 +761,7 @@ type CanvasObjectUnion = CanvasObject; // 명시적 Union 타입
 
 // === Phase 3: Enums 도입 ===
 // 기존
-type CanvasModeType = 'typography' | 'link' | 'select';
+type CanvasMode = 'typography' | 'link' | 'select';
 
 // 개선안
 enum CanvasMode {
@@ -907,9 +907,9 @@ function migrateA4GuideToGuide(a4Guide: A4GuideObjectType): GuideObject {
 
 | 변경 항목 | 위험도 | 영향 범위 | 마이그레이션 전략 |
 |-----------|--------|-----------|------------------|
-| `TextObjectType → TextObject` | 🟠 Medium | 전체 코드베이스 | Type alias로 점진적 전환 |
+| `TextObject → TextObject` | 🟠 Medium | 전체 코드베이스 | Type alias로 점진적 전환 |
 | `A4GuideObjectType → GuideObject` | 🔴 High | 가이드 시스템 전체 | 마이그레이션 헬퍼 + 하위 호환성 |
-| `CanvasModeType → CanvasMode` | 🟡 Low | Mode 관련 로직 | String union → Enum 변환 |
+| `CanvasMode → CanvasMode` | 🟡 Low | Mode 관련 로직 | String union → Enum 변환 |
 | `PointerEvent → NNPointerEvent` | 🔴 High | 이벤트 시스템 | 네임스페이스 도입 |
 | 파일 구조 변경 | 🟡 Low | Import 경로 | Re-export로 하위 호환성 유지 |
 
@@ -953,4 +953,4 @@ TextObject, GuideObject, LinkObject ← 통일된 네이밍
 
 ---
 
-**📝 결론**: 현재 구현과 A-claude.md 계획 간의 호환성이 높으며, 점진적 마이그레이션을 통해 안전하게 통합 가능합니다. 특히 기존 TextObjectType과 CanvasState 구조를 기반으로 확장하는 방식으로 하위 호환성을 완벽하게 보장할 수 있습니다. **네이밍 컨벤션 개선을 통해 코드의 일관성과 유지보수성을 크게 향상시킬 수 있습니다.**
+**📝 결론**: 현재 구현과 A-claude.md 계획 간의 호환성이 높으며, 점진적 마이그레이션을 통해 안전하게 통합 가능합니다. 특히 기존 TextObject과 CanvasState 구조를 기반으로 확장하는 방식으로 하위 호환성을 완벽하게 보장할 수 있습니다. **네이밍 컨벤션 개선을 통해 코드의 일관성과 유지보수성을 크게 향상시킬 수 있습니다.**

@@ -11,13 +11,13 @@
 
 ## 2. 통합 데이터 모델 (Integrated Data Model)
 
-아래 다이어그램은 현재의 `CanvasObjectType`과 제안된 `Workspace`, `Document`, `Channel` 및 다양한 미디어 객체를 통합한 전체 시스템의 데이터 구조를 보여줍니다.
+아래 다이어그램은 현재의 `CanvasObject`과 제안된 `Workspace`, `Document`, `Channel` 및 다양한 미디어 객체를 통합한 전체 시스템의 데이터 구조를 보여줍니다.
 
 * **`CanvasObjectBase`**: 모든 캔버스 객체가 상속받는 기본 속성(ID, 위치, 크기 등)을 정의합니다.
 * **관계**:
   * `Workspace`는 여러 개의 `Document`와 `Canvas`를 가질 수 있습니다.
-  * `Document`는 여러 `DocumentBlock`으로 구성되며, 이는 캔버스의 `TextObjectType`과 연결될 수 있습니다.
-  * `Channel`은 여러 `ChannelMessage`를 통해 `TextObjectType`을 그룹화합니다.
+  * `Document`는 여러 `DocumentBlock`으로 구성되며, 이는 캔버스의 `TextObject`과 연결될 수 있습니다.
+  * `Channel`은 여러 `ChannelMessage`를 통해 `TextObject`을 그룹화합니다.
   * `AudioRecording`은 `AudioSyncEvent`를 통해 캔버스 객체의 변화를 시간 순서대로 기록합니다.
 
 ```mermaid
@@ -31,12 +31,12 @@ classDiagram
         +object _metadata
     }
 
-    class TextObjectType {
+    class TextObject {
         +string content
         +number fontSize
         +string color
     }
-    TextObjectType --|> CanvasObjectBase
+    TextObject --|> CanvasObjectBase
 
     class DrawingObjectType {
         +DrawingStroke[] strokes
@@ -123,9 +123,9 @@ classDiagram
     Workspace "1" *-- "N" Document : contains
     Workspace "1" -- "1" CanvasObjectBase : manages canvas for
     Document "1" *-- "N" DocumentBlock : composed of
-    DocumentBlock "1" ..> "1" TextObjectType : (optional) links to
+    DocumentBlock "1" ..> "1" TextObject : (optional) links to
     Channel "1" *-- "N" ChannelMessage : has
-    ChannelMessage "1" -- "1" TextObjectType : references
+    ChannelMessage "1" -- "1" TextObject : references
     AudioRecording "1" *-- "N" AudioSyncEvent : contains
     AudioSyncEvent "1" ..> "1" CanvasObjectBase : syncs with
 

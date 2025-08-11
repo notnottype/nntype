@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { TextObject, Theme } from '../types';
+import { TextObject as TextObjectType, Theme } from '../types';
 
 interface TextObjectProps {
-  textObject: TextObject;
+  textObject: TextObjectType;
   scale: number;
   theme: Theme;
   isSelected: boolean;

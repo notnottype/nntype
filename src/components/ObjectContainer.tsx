@@ -1,9 +1,9 @@
 import React, { useState, useRef } from 'react';
-import { CanvasObjectType, Theme } from '../types';
+import { CanvasObject, Theme } from '../types';
 import { SnapPreview } from './SnapPreview';
 
 interface ObjectContainerProps {
-  object: CanvasObjectType;
+  object: CanvasObject;
   scale: number;
   worldToScreen: (x: number, y: number) => { x: number; y: number };
   screenToWorld: (x: number, y: number) => { x: number; y: number };

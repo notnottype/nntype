@@ -53,7 +53,7 @@ export const drawCanvasObjects = (
   ctx: CanvasRenderingContext2D,
   canvasObjects: CanvasObject[],
   scale: number,
-  selectedObject: CanvasObject | null,
+  selectedObject: CanvasObject | null, // Keep for backward compatibility
   canvasWidth: number,
   canvasHeight: number,
   worldToScreenFn: (x: number, y: number) => { x: number; y: number },
@@ -448,11 +448,15 @@ export const drawSingleSelectHighlight = (
     ctx.restore();
     
     // Store button bounds for click detection (circular)
-    (ctx as any)._deleteButtonBounds = {
+    // Support multiple delete buttons by using an array
+    if (!(ctx as any)._deleteButtonBounds) {
+      (ctx as any)._deleteButtonBounds = [];
+    }
+    (ctx as any)._deleteButtonBounds.push({
       centerX: centerX,
       centerY: centerY,
       radius: buttonRadius,
       onDelete
-    };
+    });
   }
 };

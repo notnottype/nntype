@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { CanvasObjectType, Theme } from '../types';
+import { CanvasObject, Theme } from '../types';
 import { Bug, ChevronRight, ChevronLeft, PanelRightOpen, PanelRightClose } from 'lucide-react';
 
 interface CanvasInfoOverlayProps {
   canvasOffset: { x: number; y: number };
   scale: number;
-  canvasObjects: CanvasObjectType[];
-  selectedObject: CanvasObjectType | null;
-  selectedObjects?: CanvasObjectType[];
+  canvasObjects: CanvasObject[];
+  selectedObject: CanvasObject | null;
+  selectedObjects?: CanvasObject[];
   typewriterX: number;
   typewriterY: number;
   baseFontSize: number;
@@ -90,10 +90,10 @@ interface CanvasInfoOverlayProps {
 export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selectedObject, selectedObjects, hoveredObject, mousePosition, isMouseInTextBox, typewriterX, typewriterY, baseFontSize, initialFontSize, getTextBoxWidth, screenToWorld, theme }: {
   canvasOffset: { x: number; y: number; };
   scale: number;
-  canvasObjects: CanvasObjectType[];
-  selectedObject: CanvasObjectType | null;
-  selectedObjects?: CanvasObjectType[];
-  hoveredObject: CanvasObjectType | null;
+  canvasObjects: CanvasObject[];
+  selectedObject: CanvasObject | null;
+  selectedObjects?: CanvasObject[];
+  hoveredObject: CanvasObject | null;
   mousePosition: { x: number; y: number };
   isMouseInTextBox: boolean;
   typewriterX: number;
@@ -291,7 +291,7 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
               <div className="flex justify-between items-center">
                 <span className="text-[11px] font-medium text-gray-500">Type</span>
                 <span className={`px-1.5 py-0.5 rounded-md text-[11px] font-medium ${theme === 'dark' ? 'bg-yellow-900/50 text-yellow-200' : 'bg-yellow-100 text-yellow-800'}`}>
-                  {hoveredObject.isAIResponse ? 'AI Response' : hoveredObject.type === 'text' ? 'Text' : 'A4 Guide'}
+                  {hoveredObject.type === 'text' && hoveredObject.isAIResponse ? 'AI Response' : hoveredObject.type === 'text' ? 'Text' : 'A4 Guide'}
                 </span>
               </div>
               {hoveredObject.type === 'text' && (
@@ -308,15 +308,15 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
         )}
         
         {/* Show selected objects in a dedicated section */}
-        {(selectedObjects?.length > 0 || selectedObject) && (
+        {(selectedObjects && selectedObjects.length > 0 || selectedObject) && (
           <>
             <div className={`border-t ${theme === 'dark' ? 'border-gray-800' : 'border-gray-200'}`}></div>
             <div>
               <div className={`font-bold text-[11px] uppercase tracking-wide mb-1.5 ${theme === 'dark' ? 'text-green-300' : 'text-green-700'}`}>
-                Selection ({selectedObjects?.length || (selectedObject ? 1 : 0)})
+                Selection ({selectedObjects ? selectedObjects.length : (selectedObject ? 1 : 0)})
               </div>
               <div className="space-y-1 max-h-32 overflow-y-auto">
-                {(selectedObjects?.length > 0 ? selectedObjects : (selectedObject ? [selectedObject] : [])).map((obj: any, idx: number) => (
+                {(selectedObjects && selectedObjects.length > 0 ? selectedObjects : (selectedObject ? [selectedObject] : [])).map((obj: any, idx: number) => (
                   <div key={obj.id || idx} className={`px-1.5 py-0.5 rounded text-[10px] ${theme === 'dark' ? 'bg-green-900/20 text-green-300' : 'bg-green-50 text-green-700'}`}>
                     <div className="flex justify-between items-center">
                       <span className="font-medium">

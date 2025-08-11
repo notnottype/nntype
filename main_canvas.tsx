@@ -84,7 +84,7 @@ import {
   THEME_COLORS
 } from '../constants';
 import { pxToPoints, pointsToPx } from '../utils/units';
-import { CanvasObjectType, TextObjectType, A4GuideObjectType, Theme, AICommand, SelectionRectangle, CanvasModeType, PinPosition, LinkState, SelectionState, LinkObjectType } from '../types';
+import { CanvasObject, TextObject, A4GuideObjectType, Theme, AICommand, SelectionRectangle, CanvasMode, PinPosition, LinkState, SelectionState, LinkObjectType } from '../types';
 import { aiService } from '../services/aiService';
 import { wrapTextToLines } from '../utils';
 import { ExportMenu } from './ExportMenu';
@@ -103,13 +103,13 @@ const parseCommand = (text: string): AICommand | null => {
 };
 
 // Helper function to check if object has position properties
-const hasPosition = (obj: CanvasObjectType): obj is TextObjectType | A4GuideObjectType => {
+const hasPosition = (obj: CanvasObject): obj is TextObject | A4GuideObjectType => {
   return obj.type === 'text' || obj.type === 'a4guide';
 };
 
 const InfiniteTypewriterCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [canvasObjects, setCanvasObjects] = useState<CanvasObjectType[]>(() => {
+  const [canvasObjects, setCanvasObjects] = useState<CanvasObject[]>(() => {
     const sessionData = loadSession();
     return sessionData?.canvasObjects || [];
   });
@@ -121,20 +121,20 @@ const InfiniteTypewriterCanvas = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [isDraggingText, setIsDraggingText] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [dragPreviewObjects, setDragPreviewObjects] = useState<CanvasObjectType[]>([]);
+  const [dragPreviewObjects, setDragPreviewObjects] = useState<CanvasObject[]>([]);
   const [scale, setScale] = useState(() => {
     const sessionData = loadSession();
     return sessionData?.scale || 1;
   });
   const [isTyping, setIsTyping] = useState(false);
   const [fontLoaded, setFontLoaded] = useState(false);
-  const [selectedObject, setSelectedObject] = useState<CanvasObjectType | null>(null);
-  const [selectedObjects, setSelectedObjects] = useState<CanvasObjectType[]>([]);
+  const [selectedObject, setSelectedObject] = useState<CanvasObject | null>(null);
+  const [selectedObjects, setSelectedObjects] = useState<CanvasObject[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectionRect, setSelectionRect] = useState<SelectionRectangle | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isMouseInTextBox, setIsMouseInTextBox] = useState(false);
-  const [hoveredObject, setHoveredObject] = useState<CanvasObjectType | null>(null);
+  const [hoveredObject, setHoveredObject] = useState<CanvasObject | null>(null);
   const [canvasWidth, setCanvasWidth] = useState(window.innerWidth);
   const [canvasHeight, setCanvasHeight] = useState(window.innerHeight);
   const [canvasOffset, setCanvasOffset] = useState(() => {
@@ -231,8 +231,8 @@ const InfiniteTypewriterCanvas = () => {
   });
 
   // Multi-mode system state
-  const [currentMode, setCurrentMode] = useState<CanvasModeType>('typography');
-  const [previousMode, setPreviousMode] = useState<CanvasModeType | null>(null);
+  const [currentMode, setCurrentMode] = useState<CanvasMode>('typography');
+  const [previousMode, setPreviousMode] = useState<CanvasMode | null>(null);
   const [pinPosition, setPinPosition] = useState<PinPosition>({
     x: window.innerWidth / 2,
     y: (window.innerHeight - 64) / 2,
@@ -252,7 +252,7 @@ const InfiniteTypewriterCanvas = () => {
   const [links, setLinks] = useState<LinkObjectType[]>([]);
   const [selectedLinks, setSelectedLinks] = useState<Set<string>>(new Set());
   const [hoveredLink, setHoveredLink] = useState<LinkObjectType | null>(null);
-  const [pinHoveredObject, setPinHoveredObject] = useState<CanvasObjectType | null>(null);
+  const [pinHoveredObject, setPinHoveredObject] = useState<CanvasObject | null>(null);
 
   useEffect(() => {
     setPxPerMm(calculateDPIPixelsPerMM());
@@ -584,7 +584,7 @@ const InfiniteTypewriterCanvas = () => {
     }
   }, [needsLTPositionRestore, fontLoaded, typewriterX, typewriterY, getTextBoxWidth, baseFontSize, scale]);
 
-  const isPointInObjectLocal = useCallback((obj: CanvasObjectType, screenX: number, screenY: number) => {
+  const isPointInObjectLocal = useCallback((obj: CanvasObject, screenX: number, screenY: number) => {
     return isPointInObject(obj, screenX, screenY, scale, worldToScreenLocal, measureTextWidthLocal);
   }, [scale, worldToScreenLocal, measureTextWidthLocal]);
 
@@ -1936,7 +1936,7 @@ const InfiniteTypewriterCanvas = () => {
       if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
         // 드래그 프리뷰 계산: 최종 스냅될 위치 미리보기
         const worldGridSize = baseFontSize / scale;
-        let previewObjects: CanvasObjectType[] = [];
+        let previewObjects: CanvasObject[] = [];
         
         if (selectedObjects.length > 1) {
           // Group drag: move all selected objects
@@ -2230,7 +2230,7 @@ const InfiniteTypewriterCanvas = () => {
 
   // [UNDO/REDO] 상태 스냅샷 타입 정의
   interface CanvasSnapshot {
-    canvasObjects: CanvasObjectType[];
+    canvasObjects: CanvasObject[];
     canvasOffset: { x: number; y: number };
     scale: number;
     currentTypingText: string;

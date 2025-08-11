@@ -1,5 +1,5 @@
 import React from 'react';
-import { Theme, CanvasModeType } from '../types';
+import { Theme, CanvasMode } from '../types';
 import { X, Bug, Copy, RotateCcw, Settings, Layers } from 'lucide-react';
 
 interface ShortcutsOverlayProps {
@@ -70,7 +70,7 @@ export const ShortcutsOverlay = ({ theme, typewriterY, baseFontSize, typewriterX
   baseFontSize: number; 
   typewriterX: number; 
   getTextBoxWidth: () => number;
-  currentMode: CanvasModeType;
+  currentMode: CanvasMode;
 }) => {
   const textBoxWidth = getTextBoxWidth();
   const textBoxLeft = typewriterX - textBoxWidth / 2;

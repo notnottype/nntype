@@ -63,7 +63,7 @@ nntype-1/
 ## 🔧 API Quick Reference
 
 ### Core Types
-- `TextObjectType` - Text objects on canvas
+- `TextObject` - Text objects on canvas
 - `A4GuideObjectType` - Page guide objects
 - `CanvasState` - Main application state
 - `Theme` - UI theme system

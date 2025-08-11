@@ -2,11 +2,11 @@
 
 ## Core Types & Interfaces
 
-### TextObjectType
+### TextObject
 Represents a text object on the infinite canvas.
 
 ```typescript
-interface TextObjectType {
+interface TextObject {
   id: number;                    // Unique identifier
   type: 'text';                  // Object type discriminator
   content: string;               // Text content
@@ -38,7 +38,7 @@ Main application state interface.
 
 ```typescript
 interface CanvasState {
-  canvasObjects: CanvasObjectType[];    // All canvas objects
+  canvasObjects: CanvasObject[];    // All canvas objects
   currentTypingText: string;            // Current input text
   isComposing: boolean;                 // IME composition state
   isDragging: boolean;                  // Canvas pan state
@@ -46,7 +46,7 @@ interface CanvasState {
   dragStart: { x: number; y: number };  // Drag origin point
   scale: number;                        // Canvas zoom level
   isTyping: boolean;                    // Typewriter active state
-  selectedObject: CanvasObjectType | null; // Currently selected object
+  selectedObject: CanvasObject | null; // Currently selected object
   canvasOffset: { x: number; y: number };  // Pan offset
   theme: Theme;                         // UI theme ('light' | 'dark')
   baseFontSize: number;                 // Base font size (px)
@@ -158,7 +158,7 @@ Tests if a screen point intersects with a canvas object.
 
 ```typescript
 function isPointInObject(
-  obj: CanvasObjectType,
+  obj: CanvasObject,
   screenX: number,
   screenY: number,
   scale: number,
@@ -175,7 +175,7 @@ Creates PNG export functionality.
 ```typescript
 function createPNGExporter(
   canvas: HTMLCanvasElement,
-  objects: CanvasObjectType[],
+  objects: CanvasObject[],
   state: CanvasState
 ): () => void
 ```
@@ -185,7 +185,7 @@ Creates SVG export functionality.
 
 ```typescript
 function createSVGExporter(
-  objects: CanvasObjectType[],
+  objects: CanvasObject[],
   state: CanvasState
 ): () => void
 ```
@@ -195,7 +195,7 @@ Creates JSON export functionality.
 
 ```typescript
 function createJSONExporter(
-  objects: CanvasObjectType[],
+  objects: CanvasObject[],
   state: CanvasState
 ): () => void
 ```
@@ -208,13 +208,13 @@ Main canvas hook managing state and interactions.
 ```typescript
 function useCanvas(): {
   // State
-  canvasObjects: CanvasObjectType[];
-  selectedObject: CanvasObjectType | null;
+  canvasObjects: CanvasObject[];
+  selectedObject: CanvasObject | null;
   scale: number;
   canvasOffset: { x: number; y: number };
   
   // Methods
-  setCanvasObjects: (objects: CanvasObjectType[]) => void;
+  setCanvasObjects: (objects: CanvasObject[]) => void;
   addTextObject: (text: string, x: number, y: number) => void;
   deleteObject: (id: number) => void;
   zoomToLevel: (level: number) => void;
@@ -297,7 +297,7 @@ class AIService {
 ### Session Storage
 ```typescript
 interface SessionData {
-  canvasObjects: CanvasObjectType[];
+  canvasObjects: CanvasObject[];
   currentTypingText: string;
   scale: number;
   canvasOffset: { x: number; y: number };

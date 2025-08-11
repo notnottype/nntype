@@ -48,7 +48,7 @@
 
 ```typescript
 // 기존 TextObject 확장 (하위 호환)
-interface TextObjectType {
+interface TextObject {
   // === 기존 필드들 (100% 보존) ===
   id: number;
   type: 'text';
@@ -329,7 +329,7 @@ interface SessionData {
   // === 기존 필드들 유지 ===
   version: string;
   timestamp: number;
-  canvasObjects: CanvasObjectType[];
+  canvasObjects: CanvasObject[];
   // ... 기존 필드들 ...
   
   // === 새 시스템 데이터 ===
@@ -437,7 +437,7 @@ interface SessionData {
    import Dexie from 'dexie';
    
    class nntypeDB extends Dexie {
-     canvas!: Table<TextObjectType>;
+     canvas!: Table<TextObject>;
      channels!: Table<Channel>;
      documents!: Table<Document>;
    }
@@ -466,7 +466,7 @@ interface SessionData {
 
 **작업 내용**:
 1. **`src/types/index.ts` 확장**
-   - TextObjectType에 `_metadata` 필드 추가 (하위 호환)
+   - TextObject에 `_metadata` 필드 추가 (하위 호환)
    - Channel, ChannelMessage, Workspace, Document 인터페이스 정의
 
 2. **`src/utils/sessionStorage.ts` 확장**  

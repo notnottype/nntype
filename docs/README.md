@@ -53,7 +53,7 @@ nntype 무한 캔버스 타이프라이터 프로젝트 문서 모음
 
 ### 현재 구현 완료
 - ✅ 무한 캔버스 기본 기능
-- ✅ 텍스트 객체 시스템 (`TextObjectType`)
+- ✅ 텍스트 객체 시스템 (`TextObject`)
 - ✅ A4 가이드 시스템 (`A4GuideObjectType`)
 - ✅ 링크 시스템 (`LinkObjectType`)
 - ✅ 포인터 이벤트 정규화
@@ -105,10 +105,10 @@ nntype 무한 캔버스 타이프라이터 프로젝트 문서 모음
 ### 네이밍 개선 (Breaking Changes)
 | 현재 | 계획 | 상태 |
 |------|------|------|
-| `TextObjectType` | `TextObject` | 📝 계획 |
+| `TextObject` | `TextObject` | 📝 계획 |
 | `A4GuideObjectType` | `GuideObject` | 📝 계획 |
 | `LinkObjectType` | `LinkObject` | 📝 계획 |
-| `CanvasModeType` | `CanvasMode` (enum) | 📝 계획 |
+| `CanvasMode` | `CanvasMode` (enum) | 📝 계획 |
 
 ### 새로운 객체 타입
 - `DrawingObject` - 그리기 객체
