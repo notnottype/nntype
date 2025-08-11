@@ -1,9 +1,10 @@
 /**
  * Testing utilities for nntype canvas functionality
  * Provides programmatic testing and validation functions for MCP integration
+ * NOTE: This file is temporarily commented out - Arrow functionality has been removed
  */
 
-import { CanvasObject, ArrowObjectType, TextObject } from '../types';
+import { CanvasObject, TextObject } from '../types';
 
 export interface TestResult {
   success: boolean;
@@ -255,12 +256,13 @@ export const validateObjectState = (objects: CanvasObject[]): TestResult => {
       }
     }
     
-    if (obj.type === 'arrow') {
-      const arrowObj = obj as ArrowObjectType;
-      if (!arrowObj.points || arrowObj.points.length < 2) {
-        errors.push(`Arrow object ${obj.id} has insufficient points`);
-      }
-    }
+    // Commented out - Arrow type no longer supported
+    // if (obj.type === 'arrow') {
+    //   const arrowObj = obj as ArrowObjectType;
+    //   if (!arrowObj.points || arrowObj.points.length < 2) {
+    //     errors.push(`Arrow object ${obj.id} has insufficient points`);
+    //   }
+    // }
   });
   
   return {

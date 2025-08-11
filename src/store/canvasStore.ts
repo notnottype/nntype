@@ -313,10 +313,19 @@ const useCanvasStore = create<CanvasStore>()(
       })),
       
       // UI Actions
-      toggleTheme: () => set((state) => ({
-        theme: state.theme === 'light' ? 'dark' : 'light',
-        isDarkMode: !state.isDarkMode
-      })),
+      toggleTheme: () => set((state) => {
+        const newTheme = state.theme === 'light' ? 'dark' : 'light';
+        // Apply dark class to HTML element for Tailwind CSS
+        if (newTheme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+        return {
+          theme: newTheme,
+          isDarkMode: newTheme === 'dark'
+        };
+      }),
       toggleGrid: () => set((state) => ({ showGrid: !state.showGrid })),
       toggleInfo: () => set((state) => ({ showInfo: !state.showInfo })),
       toggleShortcuts: () => set((state) => ({ showShortcuts: !state.showShortcuts })),
