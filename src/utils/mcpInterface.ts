@@ -3,18 +3,18 @@
  * Provides standardized functions for external AI integration
  */
 
-import { CanvasObjectType, ArrowObjectType, TextObjectType, CurveType, ArrowStyle } from '../types';
+import { CanvasObject, ArrowObjectType, TextObject, CurveType, ArrowStyle } from '../types';
 import { CollisionDetector, CollisionResult } from './collisionDetection';
 import { TestResult, testEscArrowCompletion, testMouseCollision, runBasicTestSuite } from './testingUtils';
 
 export interface MCPContext {
-  canvasObjects: CanvasObjectType[];
+  canvasObjects: CanvasObject[];
   linkingState: any;
   mousePosition: { x: number; y: number };
   scale: number;
   canvasOffset: { x: number; y: number };
   theme: 'light' | 'dark';
-  selectedObject: CanvasObjectType | null;
+  selectedObject: CanvasObject | null;
 }
 
 export interface MCPResponse<T = any> {
@@ -71,7 +71,7 @@ export class MCPInterface {
    */
   testMouseCollision(screenX: number, screenY: number): MCPResponse<{
     collidingObjects: Array<{
-      object: CanvasObjectType;
+      object: CanvasObject;
       collision: CollisionResult;
     }>;
     mousePosition: { x: number; y: number };
@@ -210,7 +210,7 @@ export class MCPInterface {
     screenY: number,
     radius: number = 50
   ): MCPResponse<Array<{
-    object: CanvasObjectType;
+    object: CanvasObject;
     distance: number;
     collision: CollisionResult;
   }>> {

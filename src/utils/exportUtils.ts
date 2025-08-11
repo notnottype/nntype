@@ -1,8 +1,8 @@
-import { CanvasObjectType, TextObjectType, A4GuideObjectType, Theme, ExportData } from '../types';
+import { CanvasObject, TextObject, GuideObject, Theme, ExportData } from '../types';
 
 export const drawContentForExport = (
   ctx: CanvasRenderingContext2D,
-  canvasObjects: CanvasObjectType[],
+  canvasObjects: CanvasObject[],
   currentTypingText: string,
   getCurrentWorldPosition: () => { x: number; y: number },
   baseFontSize: number,
@@ -14,7 +14,7 @@ export const drawContentForExport = (
   ctx.textBaseline = 'alphabetic';
 
   canvasObjects.filter(obj => obj.type === 'text').forEach(obj => {
-    const textObj = obj as TextObjectType;
+    const textObj = obj as TextObject;
     const screenX = textObj.x * currentScale + currentOffset.x;
     const screenY = textObj.y * currentScale + currentOffset.y;
 
@@ -48,8 +48,8 @@ export const drawContentForExport = (
   }
 
   // A4Guide 오브젝트들 렌더링
-  canvasObjects.filter(obj => obj.type === 'a4guide').forEach(obj => {
-    const a4Obj = obj as A4GuideObjectType;
+  canvasObjects.filter(obj => obj.type === 'guide').forEach(obj => {
+    const a4Obj = obj as GuideObject;
     const a4ScreenX = a4Obj.x * currentScale + currentOffset.x;
     const a4ScreenY = a4Obj.y * currentScale + currentOffset.y;
     const a4ScreenWidth = a4Obj.width * currentScale;
@@ -68,7 +68,7 @@ export const drawContentForExport = (
 };
 
 export const createExportData = (
-  canvasObjects: CanvasObjectType[],
+  canvasObjects: CanvasObject[],
   canvasOffset: { x: number; y: number },
   scale: number,
   typewriterX: number,
@@ -82,7 +82,7 @@ export const createExportData = (
     type: "infinite-typewriter-canvas",
     elements: canvasObjects.map(obj => {
       if (obj.type === 'text') {
-        const textObj = obj as TextObjectType;
+        const textObj = obj as TextObject;
         return {
           id: textObj.id,
           type: textObj.type,
@@ -92,8 +92,8 @@ export const createExportData = (
           scale: textObj.scale,
           fontSize: textObj.fontSize
         };
-      } else if (obj.type === 'a4guide') {
-        const a4Obj = obj as A4GuideObjectType;
+      } else if (obj.type === 'guide') {
+        const a4Obj = obj as GuideObject;
         return {
           id: a4Obj.id,
           type: a4Obj.type,

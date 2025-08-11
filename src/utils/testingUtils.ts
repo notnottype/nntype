@@ -3,7 +3,7 @@
  * Provides programmatic testing and validation functions for MCP integration
  */
 
-import { CanvasObjectType, ArrowObjectType, TextObjectType } from '../types';
+import { CanvasObject, ArrowObjectType, TextObject } from '../types';
 
 export interface TestResult {
   success: boolean;
@@ -18,7 +18,7 @@ export interface MousePosition {
 }
 
 export interface TestContext {
-  canvasObjects: CanvasObjectType[];
+  canvasObjects: CanvasObject[];
   linkingState: any;
   mousePosition: MousePosition;
   scale: number;
@@ -91,8 +91,8 @@ export const testEscArrowCompletion = (
  */
 export const testMouseCollision = (
   mousePos: MousePosition,
-  objects: CanvasObjectType[],
-  collisionDetector: (obj: CanvasObjectType, x: number, y: number) => boolean
+  objects: CanvasObject[],
+  collisionDetector: (obj: CanvasObject, x: number, y: number) => boolean
 ): TestResult => {
   const collidingObjects = objects.filter(obj => 
     collisionDetector(obj, mousePos.x, mousePos.y)
@@ -199,8 +199,8 @@ export const testArrowDrawingFlow = (
  */
 export const testCollisionPerformance = (
   mousePositions: MousePosition[],
-  objects: CanvasObjectType[],
-  collisionDetector: (obj: CanvasObjectType, x: number, y: number) => boolean,
+  objects: CanvasObject[],
+  collisionDetector: (obj: CanvasObject, x: number, y: number) => boolean,
   iterations: number = 1000
 ): TestResult => {
   const startTime = performance.now();
@@ -236,7 +236,7 @@ export const testCollisionPerformance = (
 /**
  * Validate canvas object state consistency
  */
-export const validateObjectState = (objects: CanvasObjectType[]): TestResult => {
+export const validateObjectState = (objects: CanvasObject[]): TestResult => {
   const errors: string[] = [];
   const warnings: string[] = [];
   
@@ -249,7 +249,7 @@ export const validateObjectState = (objects: CanvasObjectType[]): TestResult => 
     
     // Type-specific validation
     if (obj.type === 'text') {
-      const textObj = obj as TextObjectType;
+      const textObj = obj as TextObject;
       if (!textObj.content && textObj.content !== '') {
         warnings.push(`Text object ${obj.id} has undefined content`);
       }

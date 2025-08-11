@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { TextObjectType, Theme } from '../types';
+import { TextObject as TextObjectType, Theme } from '../types';
 
 interface TextObjectProps {
   textObject: TextObjectType;

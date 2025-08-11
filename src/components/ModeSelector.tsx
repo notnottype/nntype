@@ -1,10 +1,10 @@
 import React from 'react'
 import { Type, MousePointer, ArrowUpRight } from 'lucide-react'
-import { CanvasModeType } from '../types'
+import { CanvasMode } from '../types'
 
 interface ModeSelectorProps {
-  currentMode: CanvasModeType
-  onModeChange: (mode: CanvasModeType) => void
+  currentMode: CanvasMode
+  onModeChange: (mode: CanvasMode) => void
   theme: 'light' | 'dark'
 }
 
@@ -15,19 +15,19 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
 }) => {
   const modes = [
     { 
-      key: 'typography' as CanvasModeType, 
+      key: CanvasMode.TYPOGRAPHY, 
       label: 'Type', 
       icon: Type,
       description: 'Typography Mode'
     },
     { 
-      key: 'select' as CanvasModeType, 
+      key: CanvasMode.SELECT, 
       label: 'Select', 
       icon: MousePointer,
       description: 'Selection Mode'
     },
     { 
-      key: 'link' as CanvasModeType, 
+      key: CanvasMode.LINK, 
       label: 'Link', 
       icon: ArrowUpRight,
       description: 'Link Mode'

@@ -1,4 +1,4 @@
-import { CanvasObjectType, TextObjectType, A4GuideObjectType, Theme, SelectionRectangle } from '../types';
+import { CanvasObject, TextObject, GuideObject, Theme, SelectionRectangle } from '../types';
 
 export const worldToScreen = (
   worldX: number, 
@@ -51,22 +51,22 @@ export const drawGrid = (
 
 export const drawCanvasObjects = (
   ctx: CanvasRenderingContext2D,
-  canvasObjects: CanvasObjectType[],
+  canvasObjects: CanvasObject[],
   scale: number,
-  selectedObject: CanvasObjectType | null,
+  selectedObject: CanvasObject | null, // Keep for backward compatibility
   canvasWidth: number,
   canvasHeight: number,
   worldToScreenFn: (x: number, y: number) => { x: number; y: number },
   measureTextWidth: (text: string, fontSize: number) => number,
   theme: Theme,
   colors: any,
-  selectedObjects: CanvasObjectType[] = []
+  selectedObjects: CanvasObject[] = []
 ) => {
   ctx.textBaseline = 'alphabetic';
   
   // A4가이드를 먼저 그려서 배경에 배치
-  canvasObjects.filter(obj => obj.type === 'a4guide').forEach(obj => {
-    const a4Obj = obj as A4GuideObjectType;
+  canvasObjects.filter(obj => obj.type === 'guide').forEach(obj => {
+    const a4Obj = obj as GuideObject;
     const screenPos = worldToScreenFn(a4Obj.x, a4Obj.y);
     const screenWidth = a4Obj.width * scale;
     const screenHeight = a4Obj.height * scale;
@@ -91,7 +91,7 @@ export const drawCanvasObjects = (
   
   // 텍스트 오브젝트들을 나중에 그려서 전경에 배치
   canvasObjects.filter(obj => obj.type === 'text').forEach(obj => {
-    const textObj = obj as TextObjectType;
+    const textObj = obj as TextObject;
     const screenPos = worldToScreenFn(textObj.x, textObj.y);
     
     if (screenPos.x > -200 && screenPos.x < canvasWidth + 200 && 
@@ -99,40 +99,7 @@ export const drawCanvasObjects = (
       const fontSize = textObj.fontSize * scale;
       ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
       
-      const isSelected = (selectedObject && selectedObject.id === textObj.id) || 
-                        selectedObjects.some(obj => obj.id === textObj.id);
-      if (isSelected) {
-        // Handle multi-line text for selection highlight
-        const lines = textObj.content.split('\n');
-        const lineHeight = fontSize * 1.6;
-        let maxWidth = 0;
-        
-        // Calculate the maximum width among all lines
-        lines.forEach(line => {
-          const lineWidth = measureTextWidth(line, fontSize);
-          maxWidth = Math.max(maxWidth, lineWidth);
-        });
-        
-        // 마지막 줄은 fontSize만, 나머지 줄들은 lineHeight 적용
-        const totalHeight = lines.length > 1 
-          ? (lines.length - 1) * lineHeight + fontSize 
-          : fontSize;
-        
-        const rectX = screenPos.x;
-        const rectY = screenPos.y - fontSize;
-        const rectWidth = maxWidth;
-        const rectHeight = totalHeight;
-        
-        // Draw background fill first
-        ctx.fillStyle = colors[theme].selection;
-        ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
-        
-        // Draw border on top
-        ctx.strokeStyle = colors[theme].selectionBorder;
-        ctx.lineWidth = 1;
-        ctx.setLineDash([]);
-        ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
-      }
+      // Selection highlighting is now handled separately in useCanvasRenderer
       
       ctx.fillStyle = textObj.color || colors[theme].text;
       
@@ -149,7 +116,7 @@ export const drawCanvasObjects = (
 
 export const drawHoverHighlight = (
   ctx: CanvasRenderingContext2D,
-  hoveredObject: CanvasObjectType,
+  hoveredObject: CanvasObject,
   scale: number,
   worldToScreenFn: (x: number, y: number) => { x: number; y: number },
   measureTextWidth: (text: string, fontSize: number) => number,
@@ -162,7 +129,7 @@ export const drawHoverHighlight = (
   ctx.setLineDash([]);
   
   if (hoveredObject.type === 'text') {
-    const textObj = hoveredObject as TextObjectType;
+    const textObj = hoveredObject as TextObject;
     const screenPos = worldToScreenFn(textObj.x, textObj.y);
     const fontSize = textObj.fontSize * scale;
     
@@ -194,8 +161,8 @@ export const drawHoverHighlight = (
     // Draw border on top
     ctx.strokeStyle = colors[theme].hoverBorder;
     ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
-  } else if (hoveredObject.type === 'a4guide') {
-    const a4Obj = hoveredObject as A4GuideObjectType;
+  } else if (hoveredObject.type === 'guide') {
+    const a4Obj = hoveredObject as GuideObject;
     const screenPos = worldToScreenFn(a4Obj.x, a4Obj.y);
     const screenWidth = a4Obj.width * scale;
     const screenHeight = a4Obj.height * scale;
@@ -237,14 +204,14 @@ export const createSelectionRectangle = (
 };
 
 export const isObjectInSelectionRect = (
-  object: CanvasObjectType,
+  object: CanvasObject,
   selectionRect: SelectionRectangle,
   scale: number,
   canvasOffset: { x: number; y: number },
   measureText: (text: string, fontSize: number) => number
 ): boolean => {
   if (object.type === 'text') {
-    const textObj = object as TextObjectType;
+    const textObj = object as TextObject;
     const screenPos = worldToScreen(textObj.x, textObj.y, scale, canvasOffset);
     const fontSize = textObj.fontSize * scale;
     
@@ -278,8 +245,8 @@ export const isObjectInSelectionRect = (
     return !(textRight < rectLeft || textLeft > rectRight || textBottom < rectTop || textTop > rectBottom);
   }
   
-  if (object.type === 'a4guide') {
-    const guideObj = object as A4GuideObjectType;
+  if (object.type === 'guide') {
+    const guideObj = object as GuideObject;
     const screenPos = worldToScreen(guideObj.x, guideObj.y, scale, canvasOffset);
     const guideWidth = guideObj.width * scale;
     const guideHeight = guideObj.height * scale;
@@ -302,12 +269,12 @@ export const isObjectInSelectionRect = (
 };
 
 export const getObjectsInSelectionRect = (
-  objects: CanvasObjectType[],
+  objects: CanvasObject[],
   selectionRect: SelectionRectangle,
   scale: number,
   canvasOffset: { x: number; y: number },
   measureText: (text: string, fontSize: number) => number
-): CanvasObjectType[] => {
+): CanvasObject[] => {
   return objects.filter(obj => 
     isObjectInSelectionRect(obj, selectionRect, scale, canvasOffset, measureText)
   );
@@ -338,7 +305,7 @@ export const drawSelectionRectangle = (
 
 export const drawMultiSelectHighlight = (
   ctx: CanvasRenderingContext2D,
-  objects: CanvasObjectType[],
+  objects: CanvasObject[],
   scale: number,
   canvasOffset: { x: number; y: number },
   measureText: (text: string, fontSize: number) => number,
@@ -346,23 +313,18 @@ export const drawMultiSelectHighlight = (
 ) => {
   if (objects.length === 0) return;
   
-  const highlightColor = theme === 'dark' ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.2)';
-  const borderColor = theme === 'dark' ? 'rgba(147, 197, 253, 0.9)' : 'rgba(96, 165, 250, 0.8)';
-  const individualBorderColor = theme === 'dark' ? 'rgba(96, 165, 250, 0.6)' : 'rgba(59, 130, 246, 0.5)';
+  // Simple highlight colors - slightly more visible than hover
+  const highlightColor = theme === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.15)';
+  const borderColor = theme === 'dark' ? 'rgba(147, 197, 253, 0.5)' : 'rgba(96, 165, 250, 0.4)';
   
-  // Calculate bounding box for all selected objects
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  
+  // Draw individual highlights for each selected object (like hover)
   objects.forEach(obj => {
     if (obj.type === 'text') {
-      const textObj = obj as TextObjectType;
+      const textObj = obj as TextObject;
       const screenPos = worldToScreen(textObj.x, textObj.y, scale, canvasOffset);
       const fontSize = textObj.fontSize * scale;
       
-      // Handle multi-line text for multi-select highlight
+      // Handle multi-line text
       const lines = textObj.content.split('\n');
       const lineHeight = fontSize * 1.6;
       let maxWidth = 0;
@@ -373,61 +335,44 @@ export const drawMultiSelectHighlight = (
         maxWidth = Math.max(maxWidth, lineWidth);
       });
       
-      // 마지막 줄은 fontSize만, 나머지 줄들은 lineHeight 적용
       const totalHeight = lines.length > 1 
         ? (lines.length - 1) * lineHeight + fontSize 
         : fontSize;
       
-      const left = screenPos.x;
-      const top = screenPos.y - fontSize;
-      const right = screenPos.x + maxWidth;
-      const bottom = screenPos.y + totalHeight - fontSize;
+      const rectX = screenPos.x;
+      const rectY = screenPos.y - fontSize;
+      const rectWidth = maxWidth;
+      const rectHeight = totalHeight;
       
-      minX = Math.min(minX, left);
-      minY = Math.min(minY, top);
-      maxX = Math.max(maxX, right);
-      maxY = Math.max(maxY, bottom);
-    } else if (obj.type === 'a4guide') {
-      const guideObj = obj as A4GuideObjectType;
+      // Draw background fill
+      ctx.fillStyle = highlightColor;
+      ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
+      
+      // Draw simple border
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
+    } else if (obj.type === 'guide') {
+      const guideObj = obj as GuideObject;
       const screenPos = worldToScreen(guideObj.x, guideObj.y, scale, canvasOffset);
       const guideWidth = guideObj.width * scale;
       const guideHeight = guideObj.height * scale;
       
-      const left = screenPos.x;
-      const top = screenPos.y;
-      const right = screenPos.x + guideWidth;
-      const bottom = screenPos.y + guideHeight;
+      // Draw background fill
+      ctx.fillStyle = highlightColor;
+      ctx.fillRect(screenPos.x, screenPos.y, guideWidth, guideHeight);
       
-      minX = Math.min(minX, left);
-      minY = Math.min(minY, top);
-      maxX = Math.max(maxX, right);
-      maxY = Math.max(maxY, bottom);
+      // Draw simple border
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(screenPos.x, screenPos.y, guideWidth, guideHeight);
     }
   });
-  
-  if (minX !== Infinity && minY !== Infinity && maxX !== -Infinity && maxY !== -Infinity) {
-    // 패딩 제거 - 정확한 텍스트 경계에 맞춘 하이라이트
-    const boundingBoxX = minX;
-    const boundingBoxY = minY;
-    const boundingBoxWidth = maxX - minX;
-    const boundingBoxHeight = maxY - minY;
-    
-    // Fill bounding box with highlight color
-    ctx.fillStyle = highlightColor;
-    ctx.fillRect(boundingBoxX, boundingBoxY, boundingBoxWidth, boundingBoxHeight);
-    
-    // Draw bounding box border
-    ctx.strokeStyle = borderColor;
-    ctx.lineWidth = 0.5;
-    ctx.setLineDash([5, 5]);
-    ctx.strokeRect(boundingBoxX, boundingBoxY, boundingBoxWidth, boundingBoxHeight);
-    ctx.setLineDash([]);
-  }
 };
 
 export const drawSingleSelectHighlight = (
   ctx: CanvasRenderingContext2D,
-  object: CanvasObjectType,
+  object: CanvasObject,
   scale: number,
   canvasOffset: { x: number; y: number },
   measureText: (text: string, fontSize: number) => number,
@@ -438,7 +383,7 @@ export const drawSingleSelectHighlight = (
   const borderColor = theme === 'dark' ? 'rgba(147, 197, 253, 0.4)' : 'rgba(96, 165, 250, 0.3)';
 
   if (object.type === 'text') {
-    const textObj = object as TextObjectType;
+    const textObj = object as TextObject;
     const screenPos = worldToScreen(textObj.x, textObj.y, scale, canvasOffset);
     const fontSize = textObj.fontSize * scale;
     
@@ -503,11 +448,15 @@ export const drawSingleSelectHighlight = (
     ctx.restore();
     
     // Store button bounds for click detection (circular)
-    (ctx as any)._deleteButtonBounds = {
+    // Support multiple delete buttons by using an array
+    if (!(ctx as any)._deleteButtonBounds) {
+      (ctx as any)._deleteButtonBounds = [];
+    }
+    (ctx as any)._deleteButtonBounds.push({
       centerX: centerX,
       centerY: centerY,
       radius: buttonRadius,
       onDelete
-    };
+    });
   }
 };

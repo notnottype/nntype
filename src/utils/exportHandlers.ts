@@ -12,10 +12,10 @@ import {
   calculateSVGOutputSize,
   serializeSVG
 } from './index'
-import { CanvasObjectType, TextObjectType, A4GuideObjectType, Theme } from '../types'
+import { CanvasObject, TextObject, GuideObject, Theme } from '../types'
 
 export const createPNGExporter = (
-  canvasObjects: CanvasObjectType[],
+  canvasObjects: CanvasObject[],
   currentTypingText: string,
   baseFontSize: number,
   getCurrentWorldPosition: () => { x: number; y: number },
@@ -80,7 +80,7 @@ export const createPNGExporter = (
 };
 
 export const createJSONExporter = (
-  canvasObjects: CanvasObjectType[],
+  canvasObjects: CanvasObject[],
   canvasOffset: { x: number; y: number },
   scale: number,
   typewriterX: number,
@@ -110,7 +110,7 @@ export const createJSONExporter = (
 };
 
 export const createSVGExporter = (
-  canvasObjects: CanvasObjectType[],
+  canvasObjects: CanvasObject[],
   currentTypingText: string,
   baseFontSize: number,
   getCurrentWorldPosition: () => { x: number; y: number },
@@ -148,7 +148,7 @@ export const createSVGExporter = (
     addSVGBackground(svg, "#ffffff");
 
     canvasObjects.filter(obj => obj.type === 'text').forEach(obj => {
-      addTextObjectToSVG(svg, obj as TextObjectType, "#000000");
+      addTextObjectToSVG(svg, obj as TextObject, "#000000");
     });
 
     if (currentTypingText.trim()) {
@@ -156,8 +156,8 @@ export const createSVGExporter = (
       addCurrentTypingTextToSVG(svg, currentTypingText, worldPos, baseFontSize, "#000000");
     }
 
-    canvasObjects.filter(obj => obj.type === 'a4guide').forEach(obj => {
-      addA4GuideToSVG(svg, obj as A4GuideObjectType);
+    canvasObjects.filter(obj => obj.type === 'guide').forEach(obj => {
+      addA4GuideToSVG(svg, obj as GuideObject);
     });
     
     const svgString = serializeSVG(svg);

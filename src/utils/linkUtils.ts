@@ -2,7 +2,7 @@
  * Link utilities for connecting and rendering text objects
  */
 
-import { LinkObjectType, CanvasObjectType, PinPosition } from '../types';
+import { LinkObject, CanvasObject, PinPosition } from '../types';
 
 export interface LinkRenderData {
   startX: number;
@@ -16,7 +16,7 @@ export interface LinkRenderData {
 /**
  * Calculate text object bounds
  */
-function getTextObjectBounds(textObj: CanvasObjectType, measureTextWidth?: (text: string, fontSize: number) => number) {
+export function getTextObjectBounds(textObj: CanvasObject, measureTextWidth?: (text: string, fontSize: number) => number) {
   if (textObj.type !== 'text') {
     throw new Error('Object must be a text object');
   }
@@ -85,7 +85,7 @@ function calculateDistance(p1: { x: number; y: number }, p2: { x: number; y: num
  * Find the optimal connection points between two objects
  * Uses minimum distance between all possible edge midpoint combinations
  */
-function getBestConnectionPoints(
+export function getBestConnectionPoints(
   fromBounds: ReturnType<typeof getTextObjectBounds>,
   toBounds: ReturnType<typeof getTextObjectBounds>
 ): { start: { x: number; y: number }, end: { x: number; y: number } } {
@@ -130,8 +130,8 @@ function getBestConnectionPoint(
  * Calculate link endpoints based on object positions
  */
 export function calculateLinkEndpoints(
-  fromObject: CanvasObjectType,
-  toObject: CanvasObjectType,
+  fromObject: CanvasObject,
+  toObject: CanvasObject,
   measureTextWidth?: (text: string, fontSize: number) => number
 ): LinkRenderData {
   if (fromObject.type !== 'text' || toObject.type !== 'text') {
@@ -175,9 +175,9 @@ export function calculateLinkEndpoints(
  */
 export function renderLink(
   ctx: CanvasRenderingContext2D,
-  link: LinkObjectType,
-  fromObject: CanvasObjectType,
-  toObject: CanvasObjectType,
+  link: LinkObject,
+  fromObject: CanvasObject,
+  toObject: CanvasObject,
   scale: number,
   canvasOffset: { x: number; y: number },
   isSelected: boolean = false,
@@ -299,19 +299,27 @@ export function renderLinkPreview(
   from: PinPosition,
   to: PinPosition,
   scale: number,
-  canvasOffset: { x: number; y: number }
+  canvasOffset: { x: number; y: number },
+  fromObject?: CanvasObject,
+  measureTextWidth?: (text: string, fontSize: number) => number
 ) {
-  const startX = from.worldX * scale + canvasOffset.x;
-  const startY = from.worldY * scale + canvasOffset.y;
-  const endX = to.worldX * scale + canvasOffset.x;
-  const endY = to.worldY * scale + canvasOffset.y;
+  console.log('🎨 renderLinkPreview 호출:', { from, to, scale, canvasOffset });
+  
+  // Use pre-calculated screen coordinates from the previewPath
+  const startX = from.x;
+  const startY = from.y;
+  const endX = to.x;
+  const endY = to.y;
 
   ctx.save();
+  
+  // Preview styling
   ctx.strokeStyle = '#ff6b6b';
   ctx.lineWidth = 2;
-  ctx.setLineDash([3, 3]);
-  ctx.globalAlpha = 0.7;
+  ctx.setLineDash([5, 5]);
+  ctx.globalAlpha = 0.8;
 
+  // Draw the preview line
   ctx.beginPath();
   ctx.moveTo(startX, startY);
   ctx.lineTo(endX, endY);
@@ -319,6 +327,20 @@ export function renderLinkPreview(
 
   // Draw preview arrowhead
   drawArrowhead(ctx, startX, startY, endX, endY, 8);
+
+  // Draw connection points for better visual feedback
+  ctx.fillStyle = '#ff6b6b';
+  ctx.globalAlpha = 0.9;
+  
+  // Start point
+  ctx.beginPath();
+  ctx.arc(startX, startY, 3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // End point
+  ctx.beginPath();
+  ctx.arc(endX, endY, 3, 0, Math.PI * 2);
+  ctx.fill();
 
   ctx.restore();
 }
@@ -328,7 +350,7 @@ export function renderLinkPreview(
  * This creates a temporary text object for calculations
  */
 export function calculatePreviewConnectionPoint(
-  sourceObject: CanvasObjectType,
+  sourceObject: CanvasObject,
   targetWorldPos: { x: number; y: number },
   measureTextWidth?: (text: string, fontSize: number) => number
 ): { x: number; y: number } {
@@ -357,14 +379,14 @@ export function calculatePreviewConnectionPoint(
 /**
  * Get link by ID
  */
-export function getLinkById(links: LinkObjectType[], linkId: string): LinkObjectType | null {
+export function getLinkById(links: LinkObject[], linkId: string): LinkObject | null {
   return links.find(link => link.id === linkId) || null;
 }
 
 /**
  * Update link color
  */
-export function updateLinkColor(links: LinkObjectType[], linkId: string, color: string): LinkObjectType[] {
+export function updateLinkColor(links: LinkObject[], linkId: string, color: string): LinkObject[] {
   return links.map(link => 
     link.id === linkId ? { ...link, color } : link
   );
@@ -374,10 +396,10 @@ export function updateLinkColor(links: LinkObjectType[], linkId: string, color: 
  * Update link style
  */
 export function updateLinkStyle(
-  links: LinkObjectType[], 
+  links: LinkObject[], 
   linkId: string, 
   style: 'arrow' | 'line' | 'dashed'
-): LinkObjectType[] {
+): LinkObject[] {
   return links.map(link => 
     link.id === linkId ? { ...link, style } : link
   );
@@ -386,14 +408,14 @@ export function updateLinkStyle(
 /**
  * Remove link by ID
  */
-export function removeLink(links: LinkObjectType[], linkId: string): LinkObjectType[] {
+export function removeLink(links: LinkObject[], linkId: string): LinkObject[] {
   return links.filter(link => link.id !== linkId);
 }
 
 /**
  * Get all objects that have links
  */
-export function getLinkedObjectIds(links: LinkObjectType[]): Set<string> {
+export function getLinkedObjectIds(links: LinkObject[]): Set<string> {
   const linkedIds = new Set<string>();
   links.forEach(link => {
     linkedIds.add(link.from);
@@ -407,26 +429,30 @@ export function getLinkedObjectIds(links: LinkObjectType[]): Set<string> {
  */
 export function isPointOnLink(
   point: { x: number; y: number },
-  link: LinkObjectType,
-  fromObject: CanvasObjectType,
-  toObject: CanvasObjectType,
-  tolerance: number = 10,
+  link: LinkObject,
+  fromObject: CanvasObject,
+  toObject: CanvasObject,
+  tolerance: number = 0,
   measureTextWidth?: (text: string, fontSize: number) => number
 ): boolean {
   if (fromObject.type !== 'text' || toObject.type !== 'text') {
     return false;
   }
 
-  const linkData = calculateLinkEndpoints(fromObject, toObject, measureTextWidth);
+  // Use bounding box centers for collision detection instead of edge connection points
+  const fromBounds = getTextObjectBounds(fromObject, measureTextWidth);
+  const toBounds = getTextObjectBounds(toObject, measureTextWidth);
   
-  // Calculate distance from point to line segment
   const distance = distancePointToLine(
     point.x, point.y,
-    linkData.startX, linkData.startY,
-    linkData.endX, linkData.endY
+    fromBounds.centerX, fromBounds.centerY,
+    toBounds.centerX, toBounds.centerY
   );
-
-  return distance <= tolerance;
+  
+  // Use a minimum tolerance of 3 units for usability
+  const effectiveTolerance = Math.max(tolerance, 3);
+  
+  return distance <= effectiveTolerance;
 }
 
 /**
@@ -473,11 +499,11 @@ function distancePointToLine(
  */
 export function findLinkAtPosition(
   worldPos: { x: number; y: number },
-  links: LinkObjectType[],
-  canvasObjects: CanvasObjectType[],
+  links: LinkObject[],
+  canvasObjects: CanvasObject[],
   tolerance: number = 10,
   measureTextWidth?: (text: string, fontSize: number) => number
-): LinkObjectType | null {
+): LinkObject | null {
   for (const link of links) {
     const fromObject = canvasObjects.find(obj => obj.id.toString() === link.from);
     const toObject = canvasObjects.find(obj => obj.id.toString() === link.to);

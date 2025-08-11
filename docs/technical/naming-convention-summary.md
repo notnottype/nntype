@@ -7,10 +7,10 @@
 #### 기존 → 개선
 | 기존 | 개선 | 상태 |
 |------|------|------|
-| `TextObjectType` | `TextObject` | ✅ A-claude.md 반영 |
+| `TextObject` | `TextObject` | ✅ A-claude.md 반영 |
 | `A4GuideObjectType` | `GuideObject` | ✅ A-claude.md 반영 |
 | `LinkObjectType` | `LinkObject` | ✅ data-architecture-analysis.md 반영 |
-| `CanvasModeType` | `CanvasMode` (enum) | ✅ A-claude.md 반영 |
+| `CanvasMode` | `CanvasMode` (enum) | ✅ A-claude.md 반영 |
 | `MediaObjectType` | `MediaObject` | ✅ A-claude.md 반영 |
 | `YouTubeObjectType` | `YouTubeObject` | ✅ A-claude.md 반영 |
 | `AudioObjectType` | `AudioObject` | ✅ A-claude.md 반영 |
@@ -63,7 +63,7 @@ enum CanvasMode {
 ### 완료된 문서
 1. **A-claude.md** ✅
    - 모든 `*ObjectType` → `*Object` 변경 완료
-   - `CanvasModeType` → `CanvasMode` enum 변경 완료
+   - `CanvasMode` → `CanvasMode` enum 변경 완료
    - AppStore의 타입 참조 업데이트 완료
 
 2. **data-architecture-analysis.md** ✅
@@ -79,14 +79,14 @@ enum CanvasMode {
 
 ### Phase 1: 타입 정의 (우선순위: High)
 - [ ] `src/types/index.ts`에서 기본 타입 변경
-  - [ ] `TextObjectType` → `TextObject` 
+  - [ ] `TextObject` → `TextObject` 
   - [ ] `A4GuideObjectType` → `GuideObject`
   - [ ] `LinkObjectType` → `LinkObject`
 - [ ] 하위 호환성을 위한 type alias 추가
 - [ ] `PointerEvent` → `NNPointerEvent` 변경 (네임스페이스 충돌 방지)
 
 ### Phase 2: Enum 도입 (우선순위: Medium)
-- [ ] `CanvasModeType` → `CanvasMode` enum
+- [ ] `CanvasMode` → `CanvasMode` enum
 - [ ] `GuideType` enum 추가
 - [ ] 기존 string literal 사용처 enum으로 변경
 
@@ -110,7 +110,7 @@ enum CanvasMode {
 ### 하위 호환성 전략
 ```typescript
 // 점진적 마이그레이션을 위한 type alias
-type TextObjectType = TextObject;      // @deprecated
+type TextObject = TextObject;      // @deprecated
 type A4GuideObjectType = GuideObject;  // @deprecated  
 type LinkObjectType = LinkObject;      // @deprecated
 ```

@@ -1,171 +1,303 @@
-import { useCallback, useEffect } from 'react';
-import { CanvasObjectType, TextObjectType, A4GuideObjectType, ThemeColors } from '../types';
+import { useCallback, useRef } from 'react';
+import { 
+  drawGrid,
+  drawCanvasObjects,
+  drawHoverHighlight,
+  drawSelectionRectangle,
+  worldToScreen
+} from '../utils';
+import { renderLink, renderLinkPreview } from '../utils/linkUtils';
+import { renderSelectionRect } from '../utils/selectionUtils';
+import { CanvasMode } from '../types';
+import useCanvasStore from '../store/canvasStore';
 
-interface UseCanvasRendererProps {
-  canvasRef: React.RefObject<HTMLCanvasElement>;
-  canvasObjects: CanvasObjectType[];
-  canvasWidth: number;
-  canvasHeight: number;
-  canvasOffset: { x: number; y: number };
-  scale: number;
-  selectedObject: CanvasObjectType | null;
-  showGrid: boolean;
-  theme: ThemeColors;
-  baseFontSize: number;
-  getCurrentLineHeight: () => number;
-  worldToScreen: (x: number, y: number) => { x: number; y: number };
-  measureText: (text: string, fontSize: number) => number;
-}
+export const useCanvasRenderer = (selectedObject?: any, dragPreviewObjects?: any[]) => {
+  const {
+    canvasWidth,
+    canvasHeight,
+    theme,
+    showGrid,
+    hoveredObject,
+    selectedObjects,
+    selectionRect,
+    isSelecting,
+    scale,
+    canvasOffset,
+    currentMode,
+    links,
+    linkState,
+    selectionState,
+    pinPosition,
+    pinHoveredObject,
+    hoveredLink,
+    selectedLinks,
+    canvasObjects,
+    isDraggingText
+  } = useCanvasStore();
 
-export const useCanvasRenderer = ({
-  canvasRef,
-  canvasObjects,
-  canvasWidth,
-  canvasHeight,
-  canvasOffset,
-  scale,
-  selectedObject,
-  showGrid,
-  theme,
-  baseFontSize,
-  getCurrentLineHeight,
-  worldToScreen,
-  measureText,
-}: UseCanvasRendererProps) => {
+  const drawGridLocal = useCallback((ctx: CanvasRenderingContext2D) => {
+    if (!showGrid) return;
+    const gridSize = 20; // Fixed grid size in pixels, not scaled
+    const gridColor = theme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+    drawGrid(ctx, canvasWidth, canvasHeight, canvasOffset, gridSize, gridColor);
+  }, [canvasWidth, canvasHeight, scale, canvasOffset, theme, showGrid]);
 
-  const drawGrid = useCallback((ctx: CanvasRenderingContext2D) => {
-    // 고정된 기준 그리드 크기 사용 (선택된 객체와 무관)
-    const baseGridSize = baseFontSize;
-    const gridSize = baseGridSize;
-    const offsetX = canvasOffset.x % gridSize;
-    const offsetY = canvasOffset.y % gridSize;
-    
-    ctx.strokeStyle = theme.grid;
-    ctx.lineWidth = 1;
-    
-    for (let x = offsetX; x < canvasWidth; x += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, canvasHeight);
-      ctx.stroke();
+  const worldToScreenLocal = useCallback((worldX: number, worldY: number) => {
+    return worldToScreen(worldX, worldY, scale, canvasOffset);
+  }, [scale, canvasOffset]);
+
+  // Create a shared canvas context for text measurement
+  const measurementCanvas = useRef<HTMLCanvasElement | null>(null);
+  const measurementCtx = useRef<CanvasRenderingContext2D | null>(null);
+  
+  if (!measurementCanvas.current) {
+    measurementCanvas.current = document.createElement('canvas');
+    measurementCtx.current = measurementCanvas.current.getContext('2d');
+  }
+  
+  const measureTextWidthLocal = useCallback((text: string, fontSize: number) => {
+    const ctx = measurementCtx.current;
+    if (!ctx) {
+      // Fallback to approximate calculation
+      return text.length * fontSize * 0.6;
     }
     
-    for (let y = offsetY; y < canvasHeight; y += gridSize) {
+    // Set the same font used for rendering
+    ctx.font = `400 ${fontSize}px "JetBrains Mono", monospace`;
+    const metrics = ctx.measureText(text);
+    return metrics.width;
+  }, []);
+
+  const drawCanvasObjectsLocal = useCallback((ctx: CanvasRenderingContext2D) => {
+    drawCanvasObjects(
+      ctx, 
+      canvasObjects, 
+      scale, 
+      null, // selectedObject - we'll need to get this from store
+      canvasWidth, 
+      canvasHeight, 
+      worldToScreenLocal, 
+      measureTextWidthLocal, 
+      theme, 
+      { dark: { background: '#0f172a', text: '#f8fafc', a4Guide: '#64748b' }, light: { background: '#ffffff', text: '#1e293b', a4Guide: '#64748b' } }, // colors
+      selectedObjects
+    );
+  }, [canvasObjects, scale, canvasWidth, canvasHeight, worldToScreenLocal, measureTextWidthLocal, theme, selectedObjects]);
+
+  const drawDragPreviewObjects = useCallback((ctx: CanvasRenderingContext2D) => {
+    if (!dragPreviewObjects || dragPreviewObjects.length === 0) return;
+    
+    // Draw drag preview with hover highlight style
+    const colors = {
+      dark: { 
+        hover: 'rgba(59, 130, 246, 0.25)',
+        hoverBorder: 'rgba(147, 197, 253, 0.8)'
+      },
+      light: { 
+        hover: 'rgba(59, 130, 246, 0.2)',
+        hoverBorder: 'rgba(96, 165, 250, 0.7)'
+      }
+    };
+    
+    dragPreviewObjects.forEach(obj => {
+      drawHoverHighlight(ctx, obj, scale, worldToScreenLocal, measureTextWidthLocal, theme, colors);
+    });
+  }, [dragPreviewObjects, scale, worldToScreenLocal, measureTextWidthLocal, theme]);
+
+  const drawPinIndicator = useCallback((ctx: CanvasRenderingContext2D) => {
+    if (currentMode !== CanvasMode.LINK && currentMode !== CanvasMode.SELECT) return;
+    
+    const pinScreenX = pinPosition.worldX * scale + canvasOffset.x;
+    const pinScreenY = pinPosition.worldY * scale + canvasOffset.y;
+    
+    // Pin drawing logic
+    
+    ctx.save();
+    
+    const isHoveringObject = pinHoveredObject !== null;
+    const pinColor = currentMode === CanvasMode.LINK ? '#ff6b6b' : '#4a9eff';
+    const hoverColor = currentMode === CanvasMode.LINK ? '#ff4444' : '#2563eb';
+    
+    ctx.strokeStyle = isHoveringObject ? hoverColor : pinColor;
+    ctx.fillStyle = isHoveringObject ? hoverColor : pinColor;
+    ctx.lineWidth = isHoveringObject ? 2 : 1;
+    
+    const crossSize = isHoveringObject ? 12 : 10;
+    ctx.beginPath();
+    ctx.moveTo(pinScreenX - crossSize, pinScreenY);
+    ctx.lineTo(pinScreenX + crossSize, pinScreenY);
+    ctx.moveTo(pinScreenX, pinScreenY - crossSize);
+    ctx.lineTo(pinScreenX, pinScreenY + crossSize);
+    ctx.stroke();
+    
+    if (isHoveringObject) {
       ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(canvasWidth, y);
-      ctx.stroke();
+      ctx.arc(pinScreenX, pinScreenY, 3, 0, Math.PI * 2);
+      ctx.fill();
     }
-  }, [canvasOffset, canvasWidth, canvasHeight, theme, baseFontSize]);
-
-  const drawCanvasObjects = useCallback((ctx: CanvasRenderingContext2D) => {
-    ctx.textBaseline = 'alphabetic';
     
-    // Draw A4 guides first (background)
-    canvasObjects.filter(obj => obj.type === 'a4guide').forEach(obj => {
-      const a4Obj = obj as A4GuideObjectType;
-      const screenPos = worldToScreen(a4Obj.x, a4Obj.y);
-      const screenWidth = a4Obj.width * scale;
-      const screenHeight = a4Obj.height * scale;
-      
-      if (selectedObject && selectedObject.id === a4Obj.id) {
-        ctx.fillStyle = theme.selection;
-        ctx.fillRect(screenPos.x - 4, screenPos.y - 4, screenWidth + 8, screenHeight + 8);
-      }
-      
-      ctx.strokeStyle = theme.a4Guide;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([10, 5]);
-      ctx.strokeRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
-      ctx.setLineDash([]);
-      
-      ctx.fillStyle = theme.a4Guide;
-      ctx.font = `${14 * scale}px "Inter", sans-serif`;
-      ctx.fillText('A4', screenPos.x + 10 * scale, screenPos.y + 20 * scale);
-    });
+    const arrowOffset = crossSize + 5;
+    const arrowSize = isHoveringObject ? 6 : 4;
+    ctx.beginPath();
+    ctx.moveTo(pinScreenX, pinScreenY + arrowOffset);
+    ctx.lineTo(pinScreenX - arrowSize, pinScreenY + arrowOffset + arrowSize);
+    ctx.lineTo(pinScreenX + arrowSize, pinScreenY + arrowOffset + arrowSize);
+    ctx.closePath();
+    ctx.fill();
     
-    // Draw text objects (foreground)
-    canvasObjects.filter(obj => obj.type === 'text').forEach(obj => {
-      const textObj = obj as TextObjectType;
-      const screenPos = worldToScreen(textObj.x, textObj.y);
-      
-      if (screenPos.x > -200 && screenPos.x < canvasWidth + 200 && screenPos.y > -50 && screenPos.y < canvasHeight + 50) {
-        const fontSize = textObj.fontSize * scale;
-        ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
-        
-        if (selectedObject && selectedObject.id === textObj.id) {
-          const lines = textObj.content.split('\n');
-          const lineHeight = fontSize * 1.6; // 현재 텍스트 객체의 실제 fontSize 사용
-          
-          // Calculate selection rectangle for multi-line text
-          let maxWidth = 0;
-          lines.forEach(line => {
-            const lineWidth = measureText(line, fontSize);
-            maxWidth = Math.max(maxWidth, lineWidth);
-          });
-          
-          // 마지막 줄은 fontSize만, 나머지 줄들은 lineHeight 적용
-          const totalHeight = lines.length > 1 
-            ? (lines.length - 1) * lineHeight + fontSize 
-            : fontSize;
-          
-          const rectX = screenPos.x;
-          const rectY = screenPos.y - fontSize;
-          const rectWidth = maxWidth;
-          const rectHeight = totalHeight;
-          
-          // Draw background fill first
-          ctx.fillStyle = theme.selection;
-          ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
-          
-          // Draw border on top
-          ctx.strokeStyle = theme.selectionBorder;
-          ctx.lineWidth = 1;
-          ctx.setLineDash([]);
-          ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
-        }
-        
-        // 텍스트 색상 설정: 객체에 색상이 지정되어 있으면 해당 색상 사용, 없으면 테마 기본 색상 사용
-        ctx.fillStyle = textObj.color || theme.text;
-        
-        // Handle multi-line text
-        const lines = textObj.content.split('\n');
-        const lineHeight = fontSize * 1.6; // 현재 텍스트 객체의 실제 fontSize 사용
-        
-        lines.forEach((line, index) => {
-          ctx.fillText(line, screenPos.x, screenPos.y + (index * lineHeight));
-        });
-      }
-    });
-  }, [canvasObjects, scale, selectedObject, canvasWidth, canvasHeight, worldToScreen, measureText, theme]);
+    ctx.restore();
+  }, [currentMode, pinPosition, canvasOffset, scale, pinHoveredObject]);
 
-  const render = useCallback(() => {
+  const render = useCallback((canvasRef: React.RefObject<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
+    // Clear canvas
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    
     // Background
-    ctx.fillStyle = theme.background;
+    ctx.fillStyle = theme === 'dark' ? '#0f172a' : '#ffffff';
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
     
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     
-    if (showGrid) {
-      drawGrid(ctx);
+    // Draw grid
+    drawGridLocal(ctx);
+    
+    // Draw selection highlights FIRST (as background) - using same style as hover
+    // Don't draw selection highlights when dragging (drag preview will handle it)
+    const allSelectedObjects = selectedObjects.length > 0 
+      ? selectedObjects 
+      : (selectedObject ? [selectedObject] : []);
+    
+    if (allSelectedObjects.length > 0 && !isDraggingText) {
+      const selectionColors = {
+        dark: { 
+          hover: 'rgba(59, 130, 246, 0.2)',
+          hoverBorder: 'rgba(147, 197, 253, 0.7)'
+        },
+        light: { 
+          hover: 'rgba(59, 130, 246, 0.15)',
+          hoverBorder: 'rgba(96, 165, 250, 0.6)'
+        }
+      };
+      
+      // Draw each selected object individually like hover
+      allSelectedObjects.forEach(obj => {
+        drawHoverHighlight(ctx, obj, scale, worldToScreenLocal, measureTextWidthLocal, theme, selectionColors);
+      });
     }
-    drawCanvasObjects(ctx);
-  }, [canvasRef, theme, canvasWidth, canvasHeight, showGrid, drawGrid, drawCanvasObjects]);
+    
+    // Draw hover highlight (on top of selection but below objects)
+    if (hoveredObject) {
+      const colors = {
+        dark: { 
+          hover: 'rgba(59, 130, 246, 0.15)',
+          hoverBorder: 'rgba(147, 197, 253, 0.6)'
+        },
+        light: { 
+          hover: 'rgba(59, 130, 246, 0.1)',
+          hoverBorder: 'rgba(96, 165, 250, 0.5)'
+        }
+      };
+      drawHoverHighlight(ctx, hoveredObject, scale, worldToScreenLocal, measureTextWidthLocal, theme, colors);
+    }
+    
+    // Draw canvas objects LAST so text appears on top
+    drawCanvasObjectsLocal(ctx);
+    
+    // Draw drag preview
+    drawDragPreviewObjects(ctx);
+    
+    // Draw selection rectangle
+    if (selectionRect && isSelecting) {
+      drawSelectionRectangle(ctx, selectionRect, theme);
+    }
+    
+    // Draw links
+    links.forEach(link => {
+      const fromObject = canvasObjects.find(obj => obj.id.toString() === link.from);
+      const toObject = canvasObjects.find(obj => obj.id.toString() === link.to);
+      
+      if (fromObject && toObject) {
+        const isSelected = selectedLinks.has(link.id);
+        const isHovered = hoveredLink?.id === link.id;
+        renderLink(ctx, link, fromObject, toObject, scale, canvasOffset, isSelected, isHovered, measureTextWidthLocal);
+      }
+    });
+    
+    // Draw link preview
+    if (currentMode === CanvasMode.LINK && linkState.previewPath) {
+      console.log('🎨 링크 프리뷰 그리기:', linkState.previewPath);
+      
+      // Find the source object for proper connection point calculation
+      const sourceObject = canvasObjects.find(obj => 
+        obj.id.toString() === linkState.sourceObjectId
+      );
+      
+      renderLinkPreview(
+        ctx, 
+        linkState.previewPath.from, 
+        linkState.previewPath.to, 
+        scale, 
+        canvasOffset,
+        sourceObject,
+        measureTextWidthLocal
+      );
+    }
+    
+    // Selection highlights moved to before objects are drawn
+    
+    // Draw selection area
+    if (currentMode === CanvasMode.SELECT && selectionState.dragArea) {
+      const rect = {
+        x: selectionState.dragArea.start.x,
+        y: selectionState.dragArea.start.y,
+        width: selectionState.dragArea.end.x - selectionState.dragArea.start.x,
+        height: selectionState.dragArea.end.y - selectionState.dragArea.start.y
+      };
+      renderSelectionRect(ctx, rect, scale, canvasOffset);
+    }
+    
+    // Draw pin indicator
+    drawPinIndicator(ctx);
+  }, [
+    canvasWidth,
+    canvasHeight,
+    drawGridLocal,
+    drawCanvasObjectsLocal,
+    
+    hoveredObject,
+    scale,
+    canvasOffset,
+    measureTextWidthLocal,
+    theme,
+    drawDragPreviewObjects,
+    selectionRect,
+    isSelecting,
+    links,
+    canvasObjects,
+    selectedLinks,
+    hoveredLink,
+    currentMode,
+    linkState,
+    selectedObjects,
+    selectedObject,
+    selectionState,
+    drawPinIndicator,
+    worldToScreenLocal,
+    dragPreviewObjects,
+    isDraggingText,
+    pinPosition
+  ]);
 
-  useEffect(() => {
-    const animate = () => {
-      render();
-      requestAnimationFrame(animate);
-    };
-    animate();
-  }, [render]);
-
-  return { render };
+  return {
+    render,
+    measureTextWidthLocal,
+    worldToScreenLocal
+  };
 };

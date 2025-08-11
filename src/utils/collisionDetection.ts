@@ -3,7 +3,7 @@
  * Optimized for performance and future MCP integration
  */
 
-import { CanvasObjectType, TextObjectType, ArrowObjectType, A4GuideObjectType } from '../types';
+import { CanvasObject, TextObject, ArrowObjectType, GuideObject } from '../types';
 
 export interface CollisionResult {
   isColliding: boolean;
@@ -30,7 +30,7 @@ export class CollisionDetector {
    * Primary collision detection method - optimized for performance
    */
   static isPointInObject(
-    object: CanvasObjectType,
+    object: CanvasObject,
     screenX: number,
     screenY: number,
     worldToScreen: (x: number, y: number) => { x: number; y: number },
@@ -38,11 +38,11 @@ export class CollisionDetector {
   ): CollisionResult {
     switch (object.type) {
       case 'text':
-        return this.isPointInTextObject(object as TextObjectType, screenX, screenY, worldToScreen, measureTextWidth);
+        return this.isPointInTextObject(object as TextObject, screenX, screenY, worldToScreen, measureTextWidth);
       case 'arrow':
         return this.isPointInArrowObject(object as ArrowObjectType, screenX, screenY, worldToScreen);
       case 'a4guide':
-        return this.isPointInA4GuideObject(object as A4GuideObjectType, screenX, screenY, worldToScreen);
+        return this.isPointInA4GuideObject(object as GuideObject, screenX, screenY, worldToScreen);
       default:
         return { isColliding: false };
     }
@@ -52,7 +52,7 @@ export class CollisionDetector {
    * Text object collision detection with bounding box
    */
   private static isPointInTextObject(
-    textObj: TextObjectType,
+    textObj: TextObject,
     screenX: number,
     screenY: number,
     worldToScreen: (x: number, y: number) => { x: number; y: number },
@@ -180,7 +180,7 @@ export class CollisionDetector {
    * A4 Guide object collision detection
    */
   private static isPointInA4GuideObject(
-    guideObj: A4GuideObjectType,
+    guideObj: GuideObject,
     screenX: number,
     screenY: number,
     worldToScreen: (x: number, y: number) => { x: number; y: number }
@@ -265,17 +265,17 @@ export class CollisionDetector {
    * Get bounding box for any object type
    */
   static getBoundingBox(
-    object: CanvasObjectType,
+    object: CanvasObject,
     worldToScreen: (x: number, y: number) => { x: number; y: number },
     measureTextWidth?: (text: string, fontSize: number, canvas?: HTMLCanvasElement | null, fontLoaded?: boolean) => number
   ): BoundingBox {
     switch (object.type) {
       case 'text':
-        return this.getTextBoundingBox(object as TextObjectType, worldToScreen, measureTextWidth);
+        return this.getTextBoundingBox(object as TextObject, worldToScreen, measureTextWidth);
       case 'arrow':
         return this.getArrowBoundingBox(object as ArrowObjectType, worldToScreen);
       case 'a4guide':
-        return this.getA4GuideBoundingBox(object as A4GuideObjectType, worldToScreen);
+        return this.getA4GuideBoundingBox(object as GuideObject, worldToScreen);
       default:
         const pos = worldToScreen((object as any).x || 0, (object as any).y || 0);
         return { x: pos.x, y: pos.y, width: 0, height: 0 };
@@ -283,7 +283,7 @@ export class CollisionDetector {
   }
 
   private static getTextBoundingBox(
-    textObj: TextObjectType,
+    textObj: TextObject,
     worldToScreen: (x: number, y: number) => { x: number; y: number },
     measureTextWidth?: (text: string, fontSize: number, canvas?: HTMLCanvasElement | null, fontLoaded?: boolean) => number
   ): BoundingBox {
@@ -336,7 +336,7 @@ export class CollisionDetector {
   }
 
   private static getA4GuideBoundingBox(
-    guideObj: A4GuideObjectType,
+    guideObj: GuideObject,
     worldToScreen: (x: number, y: number) => { x: number; y: number }
   ): BoundingBox {
     const screenPos = worldToScreen(guideObj.x, guideObj.y);
@@ -355,11 +355,11 @@ export class CollisionDetector {
    * Spatial indexing for performance optimization (future use)
    */
   static createSpatialIndex(
-    objects: CanvasObjectType[],
+    objects: CanvasObject[],
     worldToScreen: (x: number, y: number) => { x: number; y: number },
     measureTextWidth?: (text: string, fontSize: number, canvas?: HTMLCanvasElement | null, fontLoaded?: boolean) => number
   ) {
-    const index = new Map<string, CanvasObjectType[]>();
+    const index = new Map<string, CanvasObject[]>();
     const gridSize = 100; // pixels
     
     objects.forEach(obj => {
@@ -384,7 +384,7 @@ export class CollisionDetector {
     
     return {
       index,
-      getCandidates: (screenX: number, screenY: number): CanvasObjectType[] => {
+      getCandidates: (screenX: number, screenY: number): CanvasObject[] => {
         const gridX = Math.floor(screenX / gridSize);
         const gridY = Math.floor(screenY / gridSize);
         const key = `${gridX},${gridY}`;
@@ -398,7 +398,7 @@ export class CollisionDetector {
  * Backward compatibility wrapper
  */
 export const isPointInObject = (
-  object: CanvasObjectType,
+  object: CanvasObject,
   screenX: number,
   screenY: number,
   worldToScreen: (x: number, y: number) => { x: number; y: number },

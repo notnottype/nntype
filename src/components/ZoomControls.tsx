@@ -30,7 +30,7 @@ export const ZoomControls: React.FC<ZoomControlsProps> = ({
       <span className={`text-xs font-mono w-12 text-center ${
         theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
       }`}>
-        {(scale * 100).toFixed(0)}%
+        {(scale * 100).toFixed(1)}%
       </span>
       <button
         onClick={onZoomIn}

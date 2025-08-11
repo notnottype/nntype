@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { A4GuideObjectType, Theme } from '../types';
+import { GuideObject, Theme } from '../types';
 
 interface A4GuideObjectProps {
-  a4Object: A4GuideObjectType;
+  a4Object: GuideObject;
   scale: number;
   theme: Theme;
   isSelected: boolean;

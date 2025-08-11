@@ -1,7 +1,7 @@
 import React from 'react'
 import { CornerUpLeft, CornerUpRight, Loader2, AlertCircle } from 'lucide-react'
 import { pxToPoints } from '../utils/units'
-import { AIState, CanvasModeType, PinPosition, LinkState, SelectionState } from '../types'
+import { AIState, CanvasMode, PinPosition, LinkState, SelectionState } from '../types'
 import { getModeDisplayProperties } from '../utils/modeUtils'
 
 // Add CSS for placeholder styling
@@ -57,7 +57,7 @@ interface TypewriterInputProps {
   THEME_COLORS: any
   
   // Multi-mode system props
-  currentMode: CanvasModeType
+  currentMode: CanvasMode
   pinPosition: PinPosition
   linkState: LinkState
   selectionState: SelectionState
@@ -97,7 +97,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
   const modeProps = getModeDisplayProperties(currentMode, theme);
   
   // In Link and Select modes, hide the textarea to prevent conflicts
-  const showTextArea = currentMode === 'typography';
+  const showTextArea = currentMode === CanvasMode.TYPOGRAPHY;
 
   return (
     <>
@@ -123,7 +123,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
           id="typewriter-input"
           className={`typewriter-input-${currentMode}`}
           value={currentTypingText}
-          placeholder={modeProps.placeholder}
+          placeholder={modeProps?.placeholder || ''}
           onChange={handleInputChange}
           onKeyDown={handleInputKeyDown}
           onCompositionStart={handleCompositionStart}
@@ -141,7 +141,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
             fontFamily: '"JetBrains Mono", monospace',
             fontSize: baseFontSize,
             background: THEME_COLORS[theme].inputBg,
-            border: `1px solid ${modeProps.borderColor}`,
+            border: `1px solid ${modeProps?.borderColor || '#ccc'}`,
             outline: 'none',
             color: THEME_COLORS[theme].text,
             backdropFilter: 'blur(1px)',
@@ -157,10 +157,7 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
             whiteSpace: 'pre-wrap',
             verticalAlign: 'baseline',
             textAlign: 'left',
-            // CSS variable for typography mode placeholder color
-            '--placeholder-color': theme === 'dark' ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.4)',
-            '--base-font-size': `${baseFontSize}px`
-          }}
+          } as React.CSSProperties}
         />
         )}
 
@@ -175,9 +172,9 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
               fontSize: baseFontSize,
               lineHeight: `${baseFontSize * 1.6}px`,
               background: THEME_COLORS[theme].inputBg,
-              border: `1px solid ${modeProps.borderColor}`,
+              border: `1px solid ${modeProps?.borderColor || '#ccc'}`,
               outline: 'none',
-              color: currentMode === 'link' ? '#ff6b6b' : '#4a9eff',
+              color: currentMode === CanvasMode.LINK ? 'rgba(255, 107, 107, 0.4)' : 'rgba(74, 158, 255, 0.4)',
               backdropFilter: 'blur(1px)',
               borderRadius: '4px',
               padding: '0px 8px',
@@ -186,11 +183,11 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-start',
-              opacity: 0.8,
+              opacity: 0.6,
               fontWeight: 'normal'
             }}
           >
-            {modeProps.placeholder}
+            {modeProps?.placeholder || ''}
           </div>
         )}
 

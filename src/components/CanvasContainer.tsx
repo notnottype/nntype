@@ -5,7 +5,7 @@ import { CanvasInfoOverlay } from './CanvasInfoOverlay'
 import { ShortcutsOverlay } from './ShortcutsOverlay'
 import { StatusMessages } from './StatusMessages'
 import { ZoomControls } from './ZoomControls'
-import { CanvasObjectType, AIState, CanvasModeType, PinPosition, LinkState, SelectionState } from '../types'
+import { CanvasObject, AIState, CanvasMode, PinPosition, LinkState, SelectionState } from '../types'
 
 interface CanvasContainerProps {
   // Canvas props
@@ -13,7 +13,7 @@ interface CanvasContainerProps {
   canvasWidth: number
   canvasHeight: number
   isSpacePressed: boolean
-  hoveredObject: CanvasObjectType | null
+  hoveredObject: CanvasObject | null
   isMouseInTextBox: boolean
   theme: 'light' | 'dark'
   
@@ -34,6 +34,7 @@ interface CanvasContainerProps {
   scale: number
   maxCharsPerLine: number
   selectedObject: any
+  selectedObjects: any[]
   undoStack: any[]
   redoStack: any[]
   aiState: AIState
@@ -52,7 +53,7 @@ interface CanvasContainerProps {
   showInfo: boolean
   showShortcuts: boolean
   canvasOffset: { x: number; y: number }
-  canvasObjects: CanvasObjectType[]
+  canvasObjects: CanvasObject[]
   mousePosition: { x: number; y: number }
   INITIAL_FONT_SIZE: number  // TODO: 향후 INITIAL_UI_FONT_SIZE_PX로 변경 예정
   screenToWorld: (screenX: number, screenY: number) => { x: number; y: number }
@@ -75,7 +76,7 @@ interface CanvasContainerProps {
   onShowInfoToggle: () => void
   
   // Multi-mode system props
-  currentMode: CanvasModeType
+  currentMode: CanvasMode
   pinPosition: PinPosition
   linkState: LinkState
   selectionState: SelectionState
@@ -106,6 +107,7 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
   scale,
   maxCharsPerLine,
   selectedObject,
+  selectedObjects,
   undoStack,
   redoStack,
   aiState,
@@ -167,8 +169,8 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
         tabIndex={0}
       />
       
-      {(showShortcuts || currentMode === 'select' || currentMode === 'link') && (
-        <div className="relative z-50">
+      {(showShortcuts || currentMode === CanvasMode.SELECT || currentMode === CanvasMode.LINK) && (
+        <div className="relative z-50 pointer-events-none">
           <ShortcutsOverlay 
             theme={theme} 
             typewriterY={typewriterY} 
@@ -215,6 +217,7 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
         scale={scale}
         canvasObjects={canvasObjects}
         selectedObject={selectedObject}
+        selectedObjects={selectedObjects}
         hoveredObject={hoveredObject}
         mousePosition={mousePosition}
         isMouseInTextBox={isMouseInTextBox}

@@ -1,196 +1,218 @@
-import { useEffect } from 'react';
-import { CanvasObjectType } from '../types';
-import { CANVAS_ZOOM_LEVELS } from '../constants';
+import { useCallback, useEffect } from 'react';
+import { CanvasMode } from '../types';
+import { 
+  CANVAS_ZOOM_LEVELS,
+  INITIAL_UI_FONT_SIZE_PX,
+  INITIAL_BASE_FONT_SIZE_PT
+} from '../constants';
+import { findZoomLevel } from '../utils';
+import useCanvasStore from '../store/canvasStore';
 
-interface UseKeyboardEventsProps {
-  scale: number;
-  selectedObject: CanvasObjectType | null;
-  selectedObjects: CanvasObjectType[];
-  baseFontSize: number;
-  canvasOffset: { x: number; y: number };
-  getCurrentLineHeight: () => number;
-  zoomToLevel: (scale: number) => void;
-  setCanvasObjects: React.Dispatch<React.SetStateAction<CanvasObjectType[]>>;
-  setSelectedObject: React.Dispatch<React.SetStateAction<CanvasObjectType | null>>;
-  setSelectedObjects: React.Dispatch<React.SetStateAction<CanvasObjectType[]>>;
-  setCanvasOffset: React.Dispatch<React.SetStateAction<{ x: number; y: number }>>;
-  setIsExportMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setIsSpacePressed: React.Dispatch<React.SetStateAction<boolean>>;
-  setBaseFontSize: React.Dispatch<React.SetStateAction<number>>;
-  setScale: React.Dispatch<React.SetStateAction<number>>;
-  resetCanvas: () => void;
-  handleUISizeChange: (up: boolean) => void;
-}
+export const useKeyboardEvents = (
+  isComposing: boolean,
+  handleUISizeChange: (increase: boolean) => void,
+  resetUIZoom: () => void,
+  handleBaseFontSizeChange: (increase: boolean) => void,
+  resetBaseFont: () => void,
+  zoomToLevel: (level: number) => void
+) => {
+  const {
+    scale,
+    canvasOffset,
+    setCanvasOffset,
+    currentMode,
+    selectionState,
+    setSelectionState,
+    selectedObjects,
+    setSelectedObjects,
+    selectedObject,
+    setSelectedObject,
+    canvasObjects,
+    setCanvasObjects,
+    selectedLinks,
+    setSelectedLinks,
+    deleteLink,
+    baseFontSize,
+    baseFontSizePt,
+    setBaseFontSizePt
+  } = useCanvasStore();
 
-export const useKeyboardEvents = ({
-  scale,
-  selectedObject,
-  selectedObjects,
-  baseFontSize,
-  canvasOffset,
-  getCurrentLineHeight,
-  zoomToLevel,
-  setCanvasObjects,
-  setSelectedObject,
-  setSelectedObjects,
-  setCanvasOffset,
-  setIsExportMenuOpen,
-  setIsSpacePressed,
-  setBaseFontSize,
-  setScale,
-  resetCanvas,
-  handleUISizeChange,
-}: UseKeyboardEventsProps) => {
-  
-  useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.key === ' ') {
-        setIsSpacePressed(true);
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // IME 조합 중이면 단축키 무시
+    if (isComposing) return;
+    
+    const input = document.getElementById('typewriter-input') as HTMLInputElement;
+    const isInputFocused = document.activeElement === input;
+    
+    if (e.key === 'Escape') {
+      // Handle escape key logic here
+      return;
+    }
+    
+    const currentZoomIndex = findZoomLevel(scale, CANVAS_ZOOM_LEVELS);
+    
+    // Display Font Size: Ctrl/Cmd + +/- (화면에 표시되는 폰트 크기 조정)
+    if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+      if (e.key === '=' || e.key === '+') {
         e.preventDefault();
-      }
-    };
-
-    const handleGlobalKeyUp = (e: KeyboardEvent) => {
-      if (e.key === ' ') {
-        setIsSpacePressed(false);
-      }
-    };
-
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    window.addEventListener('keyup', handleGlobalKeyUp);
-
-    return () => {
-      window.removeEventListener('keydown', handleGlobalKeyDown);
-      window.removeEventListener('keyup', handleGlobalKeyUp);
-    };
-  }, [setIsSpacePressed]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const input = document.getElementById('typewriter-input') as HTMLInputElement;
-      const isInputFocused = document.activeElement === input;
-      
-      if (e.key === 'Escape') {
-        setIsExportMenuOpen(false);
-      }
-      
-      const currentIndex = CANVAS_ZOOM_LEVELS.findIndex((level: number) => Math.abs(level - scale) < 0.01);
-      
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
-        if (e.key === '=' || e.key === '+') {
-          e.preventDefault();
-          const newIndex = Math.min(CANVAS_ZOOM_LEVELS.length - 1, currentIndex + 1);
-          if (newIndex !== currentIndex) {
-            zoomToLevel(CANVAS_ZOOM_LEVELS[newIndex]);
-          }
-          return;
-        } else if (e.key === '-') {
-          e.preventDefault();
-          const newIndex = Math.max(0, currentIndex - 1);
-          if (newIndex !== currentIndex) {
-            zoomToLevel(CANVAS_ZOOM_LEVELS[newIndex]);
-          }
-          return;
-        } else if (e.key === '0') {
-          e.preventDefault();
-          if (Math.abs(scale - 1) > 0.01) {
-            zoomToLevel(1);
-          }
-          return;
-        } else if (e.key === 'Home' || e.key === 'r' || e.key === 'R') {
-          e.preventDefault();
-          resetCanvas();
-          return;
-        } else if (e.key === 'c' || e.key === 'C') {
-          e.preventDefault();
-          // Copy functionality for multi-selected objects
-          if (selectedObjects.length > 0) {
-            const textContent = selectedObjects
-              .filter(obj => obj.type === 'text')
-              .map(obj => (obj as any).content)
-              .join('\n');
-            
-            if (textContent) {
-              navigator.clipboard.writeText(textContent).catch(err => {
-                console.error('Failed to copy to clipboard:', err);
-              });
-            }
-          } else if (selectedObject && selectedObject.type === 'text') {
-            // Fallback for single selected object
-            const textObj = selectedObject as any;
-            navigator.clipboard.writeText(textObj.content).catch(err => {
+        handleUISizeChange(true);
+        return;
+      } else if (e.key === '-') {
+        e.preventDefault();
+        handleUISizeChange(false);
+        return;
+      } else if (e.key === '0') {
+        e.preventDefault();
+        resetUIZoom();
+        return;
+      } else if (e.key === 'Home' || e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        resetBaseFont();
+        resetUIZoom();
+        return;
+      } else if (e.key === 'c' || e.key === 'C') {
+        e.preventDefault();
+        
+        // Copy functionality for multi-selected objects
+        if (selectedObjects.length > 0) {
+          const textContent = selectedObjects
+            .filter(obj => obj.type === 'text')
+            .map(obj => (obj as any).content)
+            .join('\n');
+          
+          if (textContent) {
+            navigator.clipboard.writeText(textContent).catch(err => {
               console.error('Failed to copy to clipboard:', err);
             });
           }
-          return;
-        }
-      }
-
-      if (e.altKey && !e.ctrlKey && !e.metaKey) {
-        if (e.key === '=' || e.key === '+') {
-          e.preventDefault();
-          handleUISizeChange(true);
-          return;
-        } else if (e.key === '-') {
-          e.preventDefault();
-          handleUISizeChange(false);
-          return;
-        }
-      }
-      
-      if (e.key === 'Delete' && !isInputFocused) {
-        e.preventDefault();
-        if (selectedObjects.length > 0) {
-          // Delete multi-selected objects
-          const selectedIds = selectedObjects.map(obj => obj.id);
-          setCanvasObjects(prev => prev.filter(obj => !selectedIds.includes(obj.id)));
-          setSelectedObjects([]);
-          setSelectedObject(null);
-        } else if (selectedObject) {
-          // Delete single selected object
-          setCanvasObjects(prev => prev.filter(obj => obj.id !== selectedObject.id));
-          setSelectedObject(null);
+        } else if (selectedObject && selectedObject.type === 'text') {
+          const textObj = selectedObject as any;
+          navigator.clipboard.writeText(textObj.content).catch(err => {
+            console.error('Failed to copy to clipboard:', err);
+          });
         }
         return;
       }
-      
-      if (e.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+    }
+    
+    // Logical Font Size: Alt/Option + +/- (텍스트 객체 논리적 크기 조정)
+    if (e.altKey && !e.ctrlKey && !e.metaKey) {
+      if (e.key === '=' || e.key === '+' || e.code === 'Equal') {
         e.preventDefault();
-        // 고정된 기준 그리드 크기 사용 (선택된 객체와 무관하게 일정한 이동 단위)
-        const moveDistance = baseFontSize;
-        
-        setCanvasOffset(prev => {
-          switch (e.key) {
-            case 'ArrowUp':
-              return { x: prev.x, y: prev.y + moveDistance };
-            case 'ArrowDown':
-              return { x: prev.x, y: prev.y - moveDistance };
-            case 'ArrowLeft':
-              return { x: prev.x + moveDistance, y: prev.y };
-            case 'ArrowRight':
-              return { x: prev.x - moveDistance, y: prev.y };
-            default:
-              return prev;
-          }
-        });
+        handleBaseFontSizeChange(true);
         return;
       }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+      if (e.key === '-' || e.key === '_' || e.code === 'Minus') {
+        e.preventDefault();
+        handleBaseFontSizeChange(false);
+        return;
+      }
+      if (e.key === '0') {
+        e.preventDefault();
+        resetBaseFont();
+        return;
+      }
+    }
+    
+    // Canvas Zoom: Shift + Alt + +/- (캔버스 확대/축소)
+    if (e.shiftKey && e.altKey && !e.ctrlKey && !e.metaKey) {
+      if (e.key === '=' || e.key === '+' || e.code === 'Equal') {
+        e.preventDefault();
+        const newZoomIndex = Math.min(CANVAS_ZOOM_LEVELS.length - 1, currentZoomIndex + 1);
+        if (newZoomIndex !== currentZoomIndex) {
+          zoomToLevel(CANVAS_ZOOM_LEVELS[newZoomIndex]);
+        }
+        return;
+      }
+      if (e.key === '-' || e.key === '_' || e.code === 'Minus') {
+        e.preventDefault();
+        const newZoomIndex = Math.max(0, currentZoomIndex - 1);
+        if (newZoomIndex !== currentZoomIndex) {
+          zoomToLevel(CANVAS_ZOOM_LEVELS[newZoomIndex]);
+        }
+        return;
+      }
+    }
+    
+    // Delete key
+    if (e.key === 'Delete' && !isInputFocused) {
+      e.preventDefault();
+      
+      if (currentMode === CanvasMode.SELECT && selectionState.selectedObjects.size > 0) {
+        const selectedIds = Array.from(selectionState.selectedObjects);
+        setCanvasObjects(canvasObjects.filter(obj => !selectedIds.includes(obj.id.toString())));
+        setSelectionState({ selectedObjects: new Set(), dragArea: null });
+        setSelectedObjects([]);
+        setSelectedObject(null);
+      } else if (selectedObjects.length > 0) {
+        const selectedIds = selectedObjects.map(obj => obj.id);
+        setCanvasObjects(canvasObjects.filter(obj => !selectedIds.includes(obj.id)));
+        setSelectedObjects([]);
+        setSelectedObject(null);
+      } else if (selectedObject) {
+        setCanvasObjects(canvasObjects.filter(obj => obj.id !== selectedObject.id));
+        setSelectedObject(null);
+      } else if (selectedLinks.size > 0) {
+        const selectedLinkIds = Array.from(selectedLinks);
+        selectedLinkIds.forEach(id => deleteLink(id));
+        setSelectedLinks(new Set());
+      }
+      return;
+    }
+    
+    // Arrow key canvas movement
+    if (e.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+      e.preventDefault();
+      const moveDistance = baseFontSize * 1.6;
+      const newOffset = (() => {
+        switch (e.key) {
+          case 'ArrowUp':
+            return { x: canvasOffset.x, y: canvasOffset.y + moveDistance };
+          case 'ArrowDown':
+            return { x: canvasOffset.x, y: canvasOffset.y - moveDistance };
+          case 'ArrowLeft':
+            return { x: canvasOffset.x + moveDistance, y: canvasOffset.y };
+          case 'ArrowRight':
+            return { x: canvasOffset.x - moveDistance, y: canvasOffset.y };
+          default:
+            return canvasOffset;
+        }
+      })();
+      
+      setCanvasOffset(newOffset);
+      return;
+    }
   }, [
+    isComposing,
     scale,
-    selectedObject,
+    canvasOffset,
+    currentMode,
+    selectionState,
     selectedObjects,
-    getCurrentLineHeight,
-    zoomToLevel,
-    setCanvasObjects,
-    setSelectedObject,
-    setSelectedObjects,
-    setCanvasOffset,
-    setIsExportMenuOpen,
+    selectedObject,
+    canvasObjects,
+    selectedLinks,
+    baseFontSize,
     handleUISizeChange,
-    resetCanvas,
+    resetUIZoom,
+    handleBaseFontSizeChange,
+    resetBaseFont,
+    zoomToLevel,
+    setCanvasOffset,
+    setSelectionState,
+    setSelectedObjects,
+    setSelectedObject,
+    setCanvasObjects,
+    setSelectedLinks,
+    deleteLink
   ]);
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleKeyDown]);
+
+  return { handleKeyDown };
 };
