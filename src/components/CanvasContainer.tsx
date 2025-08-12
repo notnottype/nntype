@@ -83,6 +83,16 @@ interface CanvasContainerProps {
   
   // Theme toggle
   onThemeToggle: () => void
+  
+  // Panel state props
+  isPanelOpen?: boolean
+  panelWidth?: number
+  
+  // Channel/Debug props
+  channels?: any[]
+  allMessages?: any[]
+  activeChannelId?: string | null
+  links?: any[]
 }
 
 export const CanvasContainer: React.FC<CanvasContainerProps> = ({
@@ -139,7 +149,13 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
   pinPosition,
   linkState,
   selectionState,
-  onThemeToggle
+  onThemeToggle,
+  isPanelOpen = false,
+  panelWidth = 280,
+  channels,
+  allMessages,
+  activeChannelId,
+  links
 }) => {
   const getCursorClass = () => {
     if (isSpacePressed) {
@@ -228,6 +244,10 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
         getTextBoxWidth={getTextBoxWidth}
         screenToWorld={screenToWorld}
         theme={theme}
+        channels={channels}
+        allMessages={allMessages}
+        activeChannelId={activeChannelId}
+        links={links}
       />
 
       <StatusMessages

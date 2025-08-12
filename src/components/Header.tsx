@@ -16,6 +16,8 @@ interface HeaderProps {
   onApiKeyClick: () => void
   onChannelPanelToggle?: () => void
   infoPanel?: React.ReactNode
+  isPanelOpen?: boolean
+  panelWidth?: number
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -26,7 +28,9 @@ export const Header: React.FC<HeaderProps> = ({
   onClearAll,
   onApiKeyClick,
   onChannelPanelToggle,
-  infoPanel
+  infoPanel,
+  isPanelOpen = false,
+  panelWidth = 280
 }) => {
   // Get state from Zustand store
   const {
@@ -41,21 +45,6 @@ export const Header: React.FC<HeaderProps> = ({
     <React.Fragment>
       {/* Top Header Container */}
       <div className="absolute top-0 left-0 right-0 z-50 flex items-center px-2 py-1 pr-4 pointer-events-none">
-        {/* Logo - Left (클릭 시 채널 패널 토글) */}
-        <div className="pointer-events-auto flex items-center h-10 mt-1">
-          <button
-            onClick={onChannelPanelToggle}
-            className="rounded-lg p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            title="채널 패널 열기/닫기"
-          >
-            <img 
-              src="/nntype.svg" 
-              alt="nntype" 
-              className="w-28 h-14"
-              style={{ filter: theme === 'dark' ? 'invert(1)' : 'none' }}
-            />
-          </button>
-        </div>
 
         {/* Floating Toolbar - Center */}
         <div className="absolute left-1/2 transform -translate-x-1/2 pointer-events-none flex items-center h-10 mt-2">

@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Hash, Clock, MessageSquare, X, ArrowUp, ArrowDown } from 'lucide-react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import { Hash, Clock, MessageSquare, X, ArrowUp, ArrowDown, ChevronRight } from 'lucide-react';
 import { Channel, ChannelMessage, Theme } from '../types';
 import { useResizable } from '../hooks/useResizable';
 import { groupMessagesByDate, formatClusterTime } from '../utils/messageGrouping';
@@ -44,6 +44,10 @@ export function ChannelPanel({
 
   // Sort order state (true = newest first, false = oldest first)
   const [sortNewestFirst, setSortNewestFirst] = useState(false);
+  
+  // Channel list height state
+  const [channelListHeight, setChannelListHeight] = useState(200);
+  const [isVerticalResizing, setIsVerticalResizing] = useState(false);
 
   // Sort and group messages by date and cluster them
   const messageGroups = useMemo(() => {
@@ -74,58 +78,150 @@ export function ChannelPanel({
     });
   };
 
+  // Vertical resize handlers
+  const handleVerticalMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsVerticalResizing(true);
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+
+  const handleVerticalMouseMove = useCallback((e: MouseEvent) => {
+    if (!isVerticalResizing) return;
+
+    const panelRect = document.querySelector('[data-panel-container]')?.getBoundingClientRect();
+    if (!panelRect) return;
+
+    const relativeY = e.clientY - panelRect.top;
+    const headerHeight = 60; // Approximate header height
+    const minChannelHeight = 120;
+    const minMessageHeight = 200;
+    const maxChannelHeight = panelRect.height - headerHeight - minMessageHeight;
+
+    const newHeight = Math.min(
+      Math.max(relativeY - headerHeight, minChannelHeight),
+      maxChannelHeight
+    );
+
+    setChannelListHeight(newHeight);
+  }, [isVerticalResizing]);
+
+  const handleVerticalMouseUp = useCallback(() => {
+    setIsVerticalResizing(false);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, []);
+
+  useEffect(() => {
+    if (isVerticalResizing) {
+      document.addEventListener('mousemove', handleVerticalMouseMove);
+      document.addEventListener('mouseup', handleVerticalMouseUp);
+      
+      return () => {
+        document.removeEventListener('mousemove', handleVerticalMouseMove);
+        document.removeEventListener('mouseup', handleVerticalMouseUp);
+      };
+    }
+  }, [isVerticalResizing, handleVerticalMouseMove, handleVerticalMouseUp]);
+
   return (
     <div 
       className={`
-        fixed inset-y-0 left-0 z-40 flex transition-transform duration-300 ease-in-out
-        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+        fixed z-40 flex
       `}
+      data-panel-container
+      style={{
+        top: '0px',
+        left: '0px',
+        width: isOpen ? `${width}px` : '40px',
+        height: isOpen ? '100vh' : '40px',
+        transformOrigin: 'top left',
+        transition: 'width 300ms cubic-bezier(0.4, 0, 0.2, 1), height 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+      }}
     >
-      {/* 패널 콘텐츠 - 미니멀한 스타일 */}
+      {/* 패널 콘텐츠 */}
       <div 
-        className={`flex flex-col backdrop-blur-sm border-r relative ${
-          theme === 'dark' 
-            ? 'bg-black/20 border-gray-700/30' 
-            : 'bg-white/40 border-gray-200/30'
+        className={`flex flex-col relative h-full w-full ${
+          isOpen 
+            ? `backdrop-blur-sm shadow-lg ${
+                theme === 'dark' 
+                  ? 'bg-gray-900/95 border-r border-gray-700/50' 
+                  : 'bg-white/95 border-r border-gray-200/50'
+              }`
+            : 'bg-transparent'
         }`}
-        style={{ width: `${width}px` }}
+        style={{ 
+          fontFamily: '"SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+          fontSize: '13px',
+          lineHeight: '1.4',
+          padding: isOpen ? '0px' : '0px',
+          overflowY: isOpen ? 'auto' : 'hidden',
+        }}
       >
 
-        {/* 헤더 - 미니멀 스타일 */}
-        <div className={`flex items-center justify-between px-3 py-1.5 border-b ${
-          theme === 'dark' ? 'border-gray-700/30' : 'border-gray-200/30'
-        }`}>
-          <div className="flex items-center gap-2">
-            <Hash className={`w-4 h-4 ${
-              theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-            }`} />
-            <h2 className={`text-sm font-medium ${
-              theme === 'dark' ? 'text-white/90' : 'text-gray-900'
-            }`}>Channels</h2>
-          </div>
+        {/* Collapsed state - Show logo button */}
+        {!isOpen ? (
           <button
-            onClick={onClose}
-            className={`p-1 rounded transition-colors ${
+            onClick={onLogoClick}
+            className={`absolute top-3 left-3 w-8 h-8 flex items-center justify-center transition-colors ${
               theme === 'dark' 
-                ? 'hover:bg-white/10 text-gray-400 hover:text-white' 
-                : 'hover:bg-black/5 text-gray-500 hover:text-gray-700'
-            }`}
+                ? 'hover:bg-gray-800/50' 
+                : 'hover:bg-gray-100/50'
+            } rounded-lg`}
+            title="Open Channel Panel"
+            style={{ backgroundColor: 'transparent' }}
           >
-            <X className="w-3.5 h-3.5" />
+            <img 
+              src="/favicon.svg" 
+              alt="nntype" 
+              className="w-5 h-5"
+              style={{ filter: theme === 'dark' ? 'invert(1)' : 'none' }}
+            />
           </button>
-        </div>
-        
-        {/* 채널 목록 - 미니멀 스타일 */}
-        <div className={`flex-none border-b ${
-          theme === 'dark' ? 'border-gray-700/30' : 'border-gray-200/30'
-        }`}>
-          <div className="px-2 py-1">
-            <div className="space-y-0.5 max-h-32 overflow-y-auto">
+        ) : (
+          <>
+            {/* 헤더 - 채널 정보와 닫기 버튼 */}
+            <div className={`px-4 py-3 border-b ${
+              theme === 'dark' ? 'border-gray-700/30' : 'border-gray-200/30'
+            }`}>
+              {/* 제목과 닫기 버튼을 한 줄에 */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Hash className={`w-4 h-4 ${
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                  }`} />
+                  <h2 className={`text-sm font-medium ${
+                    theme === 'dark' ? 'text-white/90' : 'text-gray-900'
+                  }`}>Channels</h2>
+                </div>
+                <button
+                  onClick={onClose}
+                  className={`p-1 rounded hover:bg-gray-500/20 transition-colors ${
+                    theme === 'dark' 
+                      ? 'text-gray-400 hover:text-gray-200' 
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                  title="Close panel"
+                >
+                  <ChevronRight className="w-4 h-4 rotate-180" />
+                </button>
+              </div>
+            </div>
+            
+            {/* 채널 목록 - 미니멀 스타일 */}
+            <div 
+              className={`flex-none border-b ${
+                theme === 'dark' ? 'border-gray-700/30' : 'border-gray-200/30'
+              }`}
+              style={{ height: `${channelListHeight}px` }}
+            >
+              <div className="px-4 py-3 h-full">
+                <div className="space-y-1 h-full overflow-y-auto">
               {/* View All button */}
               <button
                 onClick={() => onChannelSelect('all')}
                 className={`
-                  w-full flex items-center gap-2 px-2 py-0.5 rounded text-left transition-colors text-sm
+                  w-full flex items-center gap-2 px-3 py-2 rounded text-left transition-colors text-sm
                   ${activeChannelId === 'all' 
                     ? theme === 'dark'
                       ? 'bg-white/10 text-white border border-white/20'
@@ -151,7 +247,7 @@ export function ChannelPanel({
                     key={channel.id}
                     onClick={() => onChannelSelect(channel.id)}
                     className={`
-                      w-full flex items-center gap-2 px-2 py-0.5 rounded text-left transition-colors text-sm
+                      w-full flex items-center gap-2 px-3 py-2 rounded text-left transition-colors text-sm
                       ${isActive 
                         ? theme === 'dark'
                           ? 'bg-white/10 text-white border border-white/20'
@@ -182,15 +278,25 @@ export function ChannelPanel({
                   </button>
                 );
               })}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-        
-        {/* Messages Timeline - Minimal Style */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className={`px-3 py-1.5 border-b ${
-            theme === 'dark' ? 'border-gray-700/30' : 'border-gray-200/30'
-          }`}>
+            
+            {/* Vertical Resize Handle */}
+            <div
+              className={`relative h-1 cursor-row-resize group ${
+                isVerticalResizing ? 'bg-blue-500/50' : 'hover:bg-gray-400/50'
+              } transition-colors`}
+              onMouseDown={handleVerticalMouseDown}
+            >
+              <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-8 h-0.5 bg-gray-400/30 group-hover:bg-gray-600/50 transition-colors" />
+            </div>
+            
+            {/* Messages Timeline - Minimal Style */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <div className={`px-4 py-3 border-b ${
+                theme === 'dark' ? 'border-gray-700/30' : 'border-gray-200/30'
+              }`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <MessageSquare className={`w-3.5 h-3.5 ${
@@ -229,8 +335,8 @@ export function ChannelPanel({
               )}
             </div>
           </div>
-          
-          <div className="flex-1 overflow-y-auto px-2 py-1">
+              
+              <div className="flex-1 overflow-y-auto px-4 py-2">
             {messageGroups.length === 0 ? (
               <div className="text-center py-6">
                 <MessageSquare className={`w-6 h-6 mx-auto mb-2 ${
@@ -406,17 +512,19 @@ export function ChannelPanel({
               ))
             )}
           </div>
-        </div>
-        
-        {/* 리사이즈 핸들 */}
-        <div
-          className={`absolute top-0 right-0 w-1 h-full cursor-col-resize group ${
-            isResizing ? 'bg-blue-500/50' : 'hover:bg-gray-400/50'
-          } transition-colors`}
-          onMouseDown={handleMouseDown}
-        >
-          <div className="absolute top-1/2 right-0.5 transform -translate-y-1/2 w-0.5 h-8 bg-gray-400/30 group-hover:bg-gray-600/50 transition-colors" />
-        </div>
+            </div>
+            
+            {/* 리사이즈 핸들 */}
+            <div
+              className={`absolute top-0 right-0 w-1 h-full cursor-col-resize group ${
+                isResizing ? 'bg-blue-500/50' : 'hover:bg-gray-400/50'
+              } transition-colors`}
+              onMouseDown={handleMouseDown}
+            >
+              <div className="absolute top-1/2 right-0.5 transform -translate-y-1/2 w-0.5 h-8 bg-gray-400/30 group-hover:bg-gray-600/50 transition-colors" />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

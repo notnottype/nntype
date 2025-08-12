@@ -1,5 +1,26 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 
+// Throttle function to limit how often a function can be called
+function throttle<T extends (...args: any[]) => any>(func: T, delay: number): T {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let lastExecTime = 0;
+  
+  return ((...args: any[]) => {
+    const currentTime = Date.now();
+    
+    if (currentTime - lastExecTime > delay) {
+      func(...args);
+      lastExecTime = currentTime;
+    } else {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        func(...args);
+        lastExecTime = Date.now();
+      }, delay - (currentTime - lastExecTime));
+    }
+  }) as T;
+}
+
 interface UseResizableOptions {
   initialWidth: number;
   minWidth: number;
@@ -18,6 +39,14 @@ export function useResizable({
   const resizeRef = useRef<HTMLDivElement>(null);
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
+  
+  // Throttled width update function - only execute every 16ms (60fps)
+  const throttledOnWidthChange = useCallback(
+    throttle((newWidth: number) => {
+      onWidthChange?.(newWidth);
+    }, 16),
+    [onWidthChange]
+  );
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -39,8 +68,8 @@ export function useResizable({
     );
     
     setWidth(newWidth);
-    onWidthChange?.(newWidth);
-  }, [isResizing, minWidth, maxWidth, onWidthChange]);
+    throttledOnWidthChange(newWidth);
+  }, [isResizing, minWidth, maxWidth, throttledOnWidthChange]);
 
   const handleMouseUp = useCallback(() => {
     setIsResizing(false);

@@ -11,6 +11,27 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+
+// Throttle function to limit how often a function can be called
+function throttle<T extends (...args: any[]) => any>(func: T, delay: number): T {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let lastExecTime = 0;
+  
+  return ((...args: any[]) => {
+    const currentTime = Date.now();
+    
+    if (currentTime - lastExecTime > delay) {
+      func(...args);
+      lastExecTime = currentTime;
+    } else {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        func(...args);
+        lastExecTime = Date.now();
+      }, delay - (currentTime - lastExecTime));
+    }
+  }) as T;
+}
 import { Type, Move, Download, Import, Grid, FileText, Image, Code, RotateCcw, Trash2, Eye, EyeOff, Sun, Moon, Layers, Info, NotepadTextDashed, TextCursorInput, Settings } from 'lucide-react';
 import { Header } from './Header';
 import { CanvasContainer } from './CanvasContainer';
@@ -100,7 +121,6 @@ import { parseChannelTags, hasChannelTags } from '../utils/channelUtils';
 import { SessionPanel } from './SessionPanel';
 import { ShareLinkButton } from './ShareLinkButton';
 import { SessionRecoveryNotification } from './SessionRecoveryNotification';
-import { DebugPanel } from './DebugPanel';
 
 const parseCommand = (text: string): AICommand | null => {
   const trimmedText = text.trim();
@@ -203,7 +223,13 @@ const InfiniteTypewriterCanvas = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isMouseInTextBox, setIsMouseInTextBox] = useState(false);
   const [hoveredObject, setHoveredObject] = useState<CanvasObject | null>(null);
-  const [canvasWidth, setCanvasWidth] = useState(window.innerWidth);
+  // 캔버스 크기 계산 - 패널이 열려있으면 너비를 줄임
+  const [canvasWidth, setCanvasWidth] = useState(() => {
+    // 초기 상태에서도 패널 상태를 고려
+    const savedPanelState = localStorage.getItem('channelPanelOpen');
+    const isOpen = savedPanelState === 'true';
+    return window.innerWidth - (isOpen ? 280 : 0);
+  });
   const [canvasHeight, setCanvasHeight] = useState(window.innerHeight);
   const [canvasOffset, setCanvasOffset] = useState(() => {
     // 초기 렌더링 시 세션에서 LT 위치 복구하여 깜빡임 방지
@@ -249,6 +275,14 @@ const InfiniteTypewriterCanvas = () => {
   });
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [panelWidth, setPanelWidth] = useState(280);
+  
+  // Throttle panel width updates to reduce re-rendering during resize
+  const throttledSetPanelWidth = useCallback(
+    throttle((width: number) => {
+      setPanelWidth(width);
+    }, 16), // 60fps
+    []
+  );
   const [showGrid, setShowGrid] = useState(() => {
     const sessionData = loadSession();
     return storeShowGrid ?? sessionData?.showGrid ?? true;
@@ -507,6 +541,7 @@ const InfiniteTypewriterCanvas = () => {
 
 
   // 타이프라이터 위치는 절대 스냅하지 않음 - 화면 중앙 고정
+  // 캔버스 자체는 marginLeft로 이동하므로 typewriter 위치는 항상 캔버스의 중앙
   const typewriterX = canvasWidth / 2;
   const typewriterY = canvasHeight / 2;
 
@@ -792,8 +827,8 @@ const InfiniteTypewriterCanvas = () => {
       // 1. 실시간 LT World 좌표 사용 (세션 데이터 지연 문제 해결)
       const targetLTWorld = getCurrentLTWorldPosition();
       
-      // 2. 새로운 윈도우 크기 설정
-      const newWidth = window.innerWidth;
+      // 2. 새로운 윈도우 크기 설정 - 패널 상태 고려
+      const newWidth = window.innerWidth - (isPanelOpen ? panelWidth : 0);
       const newHeight = window.innerHeight;
       const newTypewriterX = newWidth / 2;
       const newTypewriterY = newHeight / 2;
@@ -823,7 +858,13 @@ const InfiniteTypewriterCanvas = () => {
     
     // 초기 로드 시에만 centerTypewriter 실행
     return () => window.removeEventListener('resize', handleResize);
-  }, [getCurrentLTWorldPosition, getTextBoxWidth, baseFontSize, scale]);
+  }, [getCurrentLTWorldPosition, getTextBoxWidth, baseFontSize, scale, isPanelOpen, panelWidth]);
+
+  // 패널 상태 변경 시 캔버스 크기 조정
+  useEffect(() => {
+    const newWidth = window.innerWidth - (isPanelOpen ? panelWidth : 0);
+    setCanvasWidth(newWidth);
+  }, [isPanelOpen, panelWidth]);
 
   // 초기 중앙 배치는 세션 로드에서 처리 (중복 제거)
 
@@ -3202,9 +3243,10 @@ const InfiniteTypewriterCanvas = () => {
 
   return (
     <div 
-      className="w-full h-screen relative bg-transparent transition-all duration-300 ease-in-out"
+      className="h-screen relative bg-transparent transition-all duration-300 ease-in-out"
       style={{
-        marginLeft: isPanelOpen ? `${panelWidth}px` : '0'
+        marginLeft: isPanelOpen ? `${panelWidth}px` : '0',
+        width: `calc(100% - ${isPanelOpen ? panelWidth : 0}px)`
       }}
     >
       <Header
@@ -3215,6 +3257,8 @@ const InfiniteTypewriterCanvas = () => {
         onClearAll={clearAll}
         onApiKeyClick={() => setShowApiKeyInput(true)}
         onChannelPanelToggle={togglePanel}
+        isPanelOpen={isPanelOpen}
+        panelWidth={panelWidth}
       />
 
       <CanvasContainer
@@ -3228,6 +3272,12 @@ const InfiniteTypewriterCanvas = () => {
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
+        isPanelOpen={isPanelOpen}
+        panelWidth={panelWidth}
+        channels={channels}
+        allMessages={allMessages}
+        activeChannelId={activeChannelId}
+        links={links}
         onMouseLeave={() => {
           handleMouseUp();
           setHoveredObject(null);
@@ -3376,21 +3426,10 @@ const InfiniteTypewriterCanvas = () => {
           }
         }}
         theme={theme}
-        onWidthChange={setPanelWidth}
-        onLogoClick={() => {
-          // TODO: Show debug panel similar to the right side info panel
-          console.log('Logo clicked - show debug panel');
-        }}
+        onWidthChange={throttledSetPanelWidth}
+        onLogoClick={togglePanel}
       />
 
-      {/* Debug Panel */}
-      <DebugPanel
-        channels={channels}
-        allMessages={allMessages}
-        activeChannelId={activeChannelId}
-        links={links}
-        theme={theme}
-      />
     </div>
   );
 };
