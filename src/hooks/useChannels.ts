@@ -25,6 +25,9 @@ export function useChannels() {
   
   // 읽지 않은 메시지 개수
   const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
+  
+  // 입력박스에 활성화된 채널들 (다음 메시지에 자동으로 적용될 채널들)
+  const [activeInputChannels, setActiveInputChannels] = useState<string[]>([]);
 
   // 초기화: 기본 채널들 설정 (이제 빈 채널 맵으로 시작)
   useEffect(() => {
@@ -317,6 +320,47 @@ export function useChannels() {
   }, []);
 
   /**
+   * 입력박스 활성 채널들 관리
+   */
+  const addInputChannels = useCallback((channelIds: string[]) => {
+    setActiveInputChannels(prev => {
+      const newChannels = [...prev];
+      channelIds.forEach(channelId => {
+        if (!newChannels.includes(channelId)) {
+          newChannels.push(channelId);
+          // 채널 생성 (없는 경우)
+          createOrGetChannel(channelId);
+        }
+      });
+      return newChannels;
+    });
+  }, [createOrGetChannel]);
+
+  const removeInputChannels = useCallback((channelIds: string[]) => {
+    setActiveInputChannels(prev => 
+      prev.filter(channelId => !channelIds.includes(channelId))
+    );
+  }, []);
+
+  const clearInputChannels = useCallback(() => {
+    setActiveInputChannels([]);
+  }, []);
+
+  const getEffectiveChannels = useCallback((textChannels: string[] = []) => {
+    // 텍스트에 명시적 채널이 있으면 그것을 사용, 없으면 활성 입력 채널들 사용
+    if (textChannels.length > 0) {
+      return textChannels;
+    }
+    
+    // 활성 입력 채널이 있으면 그것을 사용, 없으면 기본 채널
+    if (activeInputChannels.length > 0) {
+      return activeInputChannels;
+    }
+    
+    return ['default'];
+  }, [activeInputChannels]);
+
+  /**
    * Clear all channels and messages (for reset functionality)
    */
   const clearAllChannelsAndMessages = useCallback(() => {
@@ -324,6 +368,7 @@ export function useChannels() {
     setChannelMessages(new Map());
     setActiveChannelId('all');
     setUnreadCounts(new Map());
+    setActiveInputChannels([]);
   }, []);
 
   return {
@@ -335,6 +380,7 @@ export function useChannels() {
     isPanelOpen,
     unreadCounts,
     channelMessages, // Add this so session can access it
+    activeInputChannels, // 입력박스 활성 채널들
     
     // 액션
     createOrGetChannel,
@@ -347,6 +393,12 @@ export function useChannels() {
     togglePanel,
     loadSessionData,              // Add session loading method
     clearAllChannelsAndMessages,  // Add reset method
+    
+    // 입력박스 채널 관리
+    addInputChannels,
+    removeInputChannels,
+    clearInputChannels,
+    getEffectiveChannels,
     
     // 헬퍼
     getChannelById: (id: string) => channels.get(id),

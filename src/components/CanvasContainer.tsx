@@ -47,6 +47,10 @@ interface CanvasContainerProps {
   handleMaxCharsChange: (chars: number) => void
   handleUndo: () => void
   handleRedo: () => void
+  
+  // Channel props
+  activeInputChannels: string[]
+  onRemoveInputChannel: (channelIds: string[]) => void
   THEME_COLORS: any
   
   // Overlay props
@@ -155,7 +159,9 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
   channels,
   allMessages,
   activeChannelId,
-  links
+  links,
+  activeInputChannels,
+  onRemoveInputChannel
 }) => {
   const getCursorClass = () => {
     if (isSpacePressed) {
@@ -226,6 +232,8 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
         pinPosition={pinPosition}
         linkState={linkState}
         selectionState={selectionState}
+        activeInputChannels={activeInputChannels}
+        onRemoveInputChannel={onRemoveInputChannel}
       />
 
       <CanvasInfoOverlay

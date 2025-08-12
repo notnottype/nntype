@@ -117,7 +117,8 @@ import { SessionData } from '../types';
 import { ChannelPanel } from './ChannelPanel';
 import { FloatingMessagePanel } from './FloatingMessagePanel';
 import { ChannelTags, LiveChannelPreview } from './ChannelTags';
-import { parseChannelTags, hasChannelTags } from '../utils/channelUtils';
+import { parseChannelTags, hasChannelTags, parseChannelSwitch } from '../utils/channelUtils';
+import { ActiveChannelIndicator } from './ActiveChannelIndicator';
 import { SessionPanel } from './SessionPanel';
 import { ShareLinkButton } from './ShareLinkButton';
 import { SessionRecoveryNotification } from './SessionRecoveryNotification';
@@ -185,7 +186,12 @@ const InfiniteTypewriterCanvas = () => {
     getTextObjectChannels,
     channelMessages,
     loadSessionData,
-    clearAllChannelsAndMessages
+    clearAllChannelsAndMessages,
+    activeInputChannels,
+    addInputChannels,
+    removeInputChannels,
+    clearInputChannels,
+    getEffectiveChannels
   } = useChannels();
 
   
@@ -2795,6 +2801,34 @@ const InfiniteTypewriterCanvas = () => {
       return; // Let global handler take care of mode switching
     }
 
+    // Handle channel switching commands
+    if (e.key === 'Enter' || e.key === ' ') {
+      const channelSwitchResult = parseChannelSwitch(currentTypingText + (e.key === ' ' ? ' ' : ''));
+      
+      if (channelSwitchResult.isChannelCommand) {
+        e.preventDefault();
+        
+        // Apply channel changes
+        if (channelSwitchResult.addChannels.length > 0) {
+          addInputChannels(channelSwitchResult.addChannels);
+        }
+        if (channelSwitchResult.removeChannels.length > 0) {
+          removeInputChannels(channelSwitchResult.removeChannels);
+        }
+        
+        // Clear the input text and enter input mode if needed
+        setCurrentTypingText('');
+        
+        // If triggered by space or ends with space/enter, stay focused for text input
+        if (channelSwitchResult.enterInputMode || e.key === ' ') {
+          // Stay focused, user can start typing immediately
+          return;
+        }
+        
+        return;
+      }
+    }
+
     // Handle Escape key - only clear selections and states, don't change modes
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -2858,12 +2892,11 @@ const InfiniteTypewriterCanvas = () => {
             // AI 질문도 채널 시스템 적용
             const channelTagsResult = parseChannelTags(currentTypingText);
             const cleanContent = channelTagsResult.cleanContent;
-            let channelIds = channelTagsResult.addChannels;
+            // 텍스트에 명시적 채널이 있으면 그것을 사용, 없으면 활성 입력 채널들 사용
+            let channelIds = getEffectiveChannels(channelTagsResult.addChannels);
             
             // 기본적으로 default에 추가 (보이지 않는 내부 태그)
-            if (channelIds.length === 0) {
-              channelIds = ['default'];
-            } else if (!channelIds.includes('default')) {
+            if (!channelIds.includes('default')) {
               channelIds = ['default', ...channelIds];
             }
             
@@ -2910,12 +2943,11 @@ const InfiniteTypewriterCanvas = () => {
             // 채널 태그 파싱
             const channelTagsResult = parseChannelTags(currentTypingText);
             const cleanContent = channelTagsResult.cleanContent;
-            let channelIds = channelTagsResult.addChannels;
+            // 텍스트에 명시적 채널이 있으면 그것을 사용, 없으면 활성 입력 채널들 사용
+            let channelIds = getEffectiveChannels(channelTagsResult.addChannels);
             
             // 기본적으로 모든 메시지는 default에 추가 (보이지 않는 내부 태그)
-            if (channelIds.length === 0) {
-              channelIds = ['default'];
-            } else if (!channelIds.includes('default')) {
+            if (!channelIds.includes('default')) {
               channelIds = ['default', ...channelIds];
             }
             
@@ -3304,6 +3336,8 @@ const InfiniteTypewriterCanvas = () => {
         pinPosition={pinPosition}
         linkState={linkState}
         selectionState={selectionState}
+        activeInputChannels={activeInputChannels}
+        onRemoveInputChannel={removeInputChannels}
         onThemeToggle={() => {
           setTheme(prev => {
             const newTheme = prev === 'dark' ? 'light' : 'dark';

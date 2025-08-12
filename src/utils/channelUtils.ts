@@ -10,6 +10,14 @@ export interface ChannelTagsResult {
   cleanContent: string;     // 태그가 제거된 순수 텍스트
 }
 
+// 채널 스위칭 명령어 파싱 결과 인터페이스
+export interface ChannelSwitchResult {
+  isChannelCommand: boolean;  // 채널 전환 명령어인지 여부
+  addChannels: string[];      // +#work +#urgent  
+  removeChannels: string[];   // -#old -#temp
+  enterInputMode: boolean;    // 즉시 입력 모드로 전환할지 여부
+}
+
 /**
  * 텍스트에서 +#/-# 채널 태그를 파싱합니다
  * @param text 입력 텍스트 (예: "Hello world +#work +#urgent -#old")
@@ -110,6 +118,63 @@ export function isValidChannelId(channelId: string): boolean {
   // 1-50자 제한
   const regex = /^[a-zA-Z0-9-_가-힣]{1,50}$/;
   return regex.test(channelId);
+}
+
+/**
+ * 채널 스위칭 명령어를 파싱합니다 (+#channel_name 또는 -#channel_name만 있는 경우)
+ * @param text 입력 텍스트 (예: "+#work", "+#work +#urgent", "-#old", "+#channel ")
+ * @returns 채널 스위칭 파싱 결과
+ */
+export function parseChannelSwitch(text: string): ChannelSwitchResult {
+  const trimmedText = text.trim();
+  
+  // 채널 태그만 있는지 확인 (공백 + Enter는 허용)
+  const channelOnlyRegex = /^([+-]#[a-zA-Z0-9-_가-힣]+(\s+|$))+$/;
+  const isChannelCommand = channelOnlyRegex.test(trimmedText);
+  
+  if (!isChannelCommand) {
+    return {
+      isChannelCommand: false,
+      addChannels: [],
+      removeChannels: [],
+      enterInputMode: false
+    };
+  }
+  
+  // 채널 태그 파싱
+  const addChannelRegex = /\+#([a-zA-Z0-9-_가-힣]+)/g;
+  const removeChannelRegex = /-#([a-zA-Z0-9-_가-힣]+)/g;
+  
+  const addChannels: string[] = [];
+  const removeChannels: string[] = [];
+  
+  let match;
+  
+  // +# 태그 추출
+  while ((match = addChannelRegex.exec(trimmedText)) !== null) {
+    const channelName = match[1].toLowerCase();
+    if (!addChannels.includes(channelName)) {
+      addChannels.push(channelName);
+    }
+  }
+  
+  // -# 태그 추출  
+  while ((match = removeChannelRegex.exec(trimmedText)) !== null) {
+    const channelName = match[1].toLowerCase();
+    if (!removeChannels.includes(channelName)) {
+      removeChannels.push(channelName);
+    }
+  }
+  
+  // 공백이나 Enter로 끝나면 즉시 입력 모드로 전환
+  const enterInputMode = /\s+$/.test(text) || text.endsWith('\n');
+  
+  return {
+    isChannelCommand: true,
+    addChannels,
+    removeChannels,
+    enterInputMode
+  };
 }
 
 /**
