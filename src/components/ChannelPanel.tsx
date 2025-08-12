@@ -181,7 +181,7 @@ export function ChannelPanel({
         ) : (
           <>
             {/* 헤더 - 채널 정보와 닫기 버튼 */}
-            <div className={`px-4 py-3 border-b ${
+            <div className={`px-4 py-4 border-b ${
               theme === 'dark' ? 'border-gray-700/30' : 'border-gray-200/30'
             }`}>
               {/* 제목과 닫기 버튼을 한 줄에 */}
@@ -215,13 +215,13 @@ export function ChannelPanel({
               }`}
               style={{ height: `${channelListHeight}px` }}
             >
-              <div className="px-4 py-3 h-full">
-                <div className="space-y-1 h-full overflow-y-auto">
+              <div className="px-3 py-1.5 h-full">
+                <div className="space-y-0.5 h-full overflow-y-auto pr-1">
               {/* View All button */}
               <button
                 onClick={() => onChannelSelect('all')}
                 className={`
-                  w-full flex items-center gap-2 px-3 py-2 rounded text-left transition-colors text-sm
+                  w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded text-left transition-colors text-xs
                   ${activeChannelId === 'all' 
                     ? theme === 'dark'
                       ? 'bg-white/10 text-white border border-white/20'
@@ -247,7 +247,7 @@ export function ChannelPanel({
                     key={channel.id}
                     onClick={() => onChannelSelect(channel.id)}
                     className={`
-                      w-full flex items-center gap-2 px-3 py-2 rounded text-left transition-colors text-sm
+                      w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded text-left transition-colors text-xs
                       ${isActive 
                         ? theme === 'dark'
                           ? 'bg-white/10 text-white border border-white/20'
@@ -266,8 +266,10 @@ export function ChannelPanel({
                       #{channel.name}
                     </span>
                     {channel.messageCount > 0 && (
-                      <span className={`text-xs flex-shrink-0 ${
-                        theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 font-medium ${
+                        theme === 'dark' 
+                          ? 'bg-gray-700/50 text-gray-300' 
+                          : 'bg-gray-200/70 text-gray-600'
                       }`}>
                         {channel.messageCount}
                       </span>
@@ -294,15 +296,15 @@ export function ChannelPanel({
             
             {/* Messages Timeline - Minimal Style */}
             <div className="flex-1 flex flex-col overflow-hidden">
-              <div className={`px-4 py-3 border-b ${
+              <div className={`px-3 py-2.5 border-b ${
                 theme === 'dark' ? 'border-gray-700/30' : 'border-gray-200/30'
               }`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <MessageSquare className={`w-3.5 h-3.5 ${
+                <MessageSquare className={`w-3 h-3 ${
                   theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
                 }`} />
-                <h3 className={`text-sm font-medium ${
+                <h3 className={`text-xs font-medium ${
                   theme === 'dark' ? 'text-white/90' : 'text-gray-900'
                 }`}>
                   {activeChannelId === 'all' ? 'All' : activeChannelId ? `#${channels.find(c => c.id === activeChannelId)?.name}` : 'All'}
@@ -328,15 +330,15 @@ export function ChannelPanel({
                   title={sortNewestFirst ? 'Sort oldest first' : 'Sort newest first'}
                 >
                   {sortNewestFirst ? 
-                    <ArrowDown className="w-3 h-3" /> : 
-                    <ArrowUp className="w-3 h-3" />
+                    <ArrowDown className="w-2.5 h-2.5" /> : 
+                    <ArrowUp className="w-2.5 h-2.5" />
                   }
                 </button>
               )}
             </div>
           </div>
               
-              <div className="flex-1 overflow-y-auto px-4 py-2">
+              <div className="flex-1 overflow-y-auto px-3 py-2">
             {messageGroups.length === 0 ? (
               <div className="text-center py-6">
                 <MessageSquare className={`w-6 h-6 mx-auto mb-2 ${
@@ -355,7 +357,7 @@ export function ChannelPanel({
               </div>
             ) : (
               messageGroups.map((group, groupIndex) => (
-                <div key={group.id} className={groupIndex > 0 ? 'mt-2' : ''}>
+                <div key={group.id} className={groupIndex > 0 ? 'mt-1.5' : ''}>
                   {/* Date separator */}
                   <div className="flex items-center gap-2 my-1">
                     <div className={`flex-1 h-px ${
@@ -377,7 +379,7 @@ export function ChannelPanel({
                     const isAllView = activeChannelId === 'all';
                     
                     return (
-                      <div key={cluster.id} className={`${clusterIndex > 0 ? 'mt-1' : ''}`}>
+                      <div key={cluster.id} className={`${clusterIndex > 0 ? 'mt-0.5' : ''}`}>
                         {/* Cluster header - show only in individual channel views if time gap > 5 minutes (default 채널 제외) */}
                         {!isAllView && cluster.timeGap > 5 && cluster.primaryChannel !== 'default' && (
                           <div className="flex items-center gap-2 mb-1">
@@ -390,7 +392,7 @@ export function ChannelPanel({
                             }`}>
                               #{cluster.primaryChannel}
                             </span>
-                            <span className={`text-xs opacity-50 ${
+                            <span className={`text-[10px] opacity-50 ${
                               theme === 'dark' ? 'text-gray-500' : 'text-gray-400'
                             }`}>
                               {formatClusterTime(cluster.timestamp)}
@@ -399,7 +401,7 @@ export function ChannelPanel({
                         )}
 
                         {/* Messages in cluster */}
-                        <div className="space-y-px">
+                        <div className="space-y-0">
                           {cluster.messages.map((message, messageIndex) => {
                             const isFirstInCluster = messageIndex === 0;
                             const otherChannels = message.channelIds.slice(1);
@@ -416,7 +418,7 @@ export function ChannelPanel({
                                 onClick={() => onMessageClick(message)}
                                 onMouseEnter={() => onMessageHover?.(message)}
                                 onMouseLeave={() => onMessageLeave?.()}
-                                className={`group cursor-pointer px-2 py-1 rounded transition-all duration-150 ${
+                                className={`group cursor-pointer px-2 py-0.5 rounded transition-all duration-150 ${
                                   theme === 'dark'
                                     ? 'hover:bg-white/5 active:bg-white/10'
                                     : 'hover:bg-black/3 active:bg-black/5'
@@ -436,7 +438,6 @@ export function ChannelPanel({
                                             theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
                                           }`}>
                                             #{displayChannels[0]}
-                                            {displayChannels.length > 1 && ` +${displayChannels.length - 1}`}
                                           </span>
                                         </>
                                       ) : (
@@ -447,7 +448,7 @@ export function ChannelPanel({
                                         </span>
                                       )}
                                     </div>
-                                    <span className={`text-xs flex-shrink-0 opacity-60 ${
+                                    <span className={`text-[10px] flex-shrink-0 opacity-60 ${
                                       theme === 'dark' ? 'text-gray-500' : 'text-gray-400'
                                     }`}>
                                       {formatClusterTime(message.timestamp)}
@@ -468,15 +469,8 @@ export function ChannelPanel({
                                       }`}>
                                         #{cluster.primaryChannel}
                                       </span>
-                                      {otherChannels.filter(id => id !== 'default').length > 0 && (
-                                        <span className={`text-xs ${
-                                          theme === 'dark' ? 'text-gray-500' : 'text-gray-400'
-                                        }`}>
-                                          +{otherChannels.filter(id => id !== 'default').length}
-                                        </span>
-                                      )}
                                     </div>
-                                    <span className={`text-xs flex-shrink-0 opacity-60 ${
+                                    <span className={`text-[10px] flex-shrink-0 opacity-60 ${
                                       theme === 'dark' ? 'text-gray-500' : 'text-gray-400'
                                     }`}>
                                       {formatClusterTime(message.timestamp)}
@@ -485,16 +479,19 @@ export function ChannelPanel({
                                 )}
 
                                 {/* Message content */}
-                                <div className={`flex items-center justify-between gap-2 ${
-                                  isAllView ? 'pl-1' : (isFirstInCluster && cluster.timeGap <= 5 ? 'pl-3' : 'pl-1')
-                                }`}>
-                                  <p className={`text-sm leading-relaxed flex-1 ${
-                                    theme === 'dark' ? 'text-white/90' : 'text-gray-900'
-                                  }`}>
+                                <div className={`flex items-center justify-between gap-2 pl-1`}>
+                                  <p 
+                                    className={`text-xs leading-relaxed flex-1 ${
+                                      theme === 'dark' ? 'text-white/90' : 'text-gray-900'
+                                    }`}
+                                    style={{ 
+                                      fontFamily: '"JetBrains Mono", "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace'
+                                    }}
+                                  >
                                     {message.content}
                                   </p>
                                   {!isAllView && (
-                                    <span className={`text-xs opacity-60 flex-shrink-0 ${
+                                    <span className={`text-[10px] opacity-60 flex-shrink-0 ${
                                       theme === 'dark' ? 'text-gray-500' : 'text-gray-400'
                                     }`}>
                                       {formatClusterTime(message.timestamp)}

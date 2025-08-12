@@ -130,63 +130,80 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
 
   return (
     <div
-      className={`fixed z-60 top-3 right-4 rounded-lg ${
-        theme === 'dark'
-          ? 'bg-gray-900/90 text-gray-100 border border-gray-700/50'
-          : 'bg-white/90 text-gray-800 border border-gray-200/50'
-      } backdrop-blur-sm shadow-lg`}
+      className={`fixed z-60 ${
+        isCollapsed 
+          ? `backdrop-blur-sm shadow-lg ${
+              theme === 'dark'
+                ? 'bg-gray-900/95 border-l border-gray-700/50'
+                : 'bg-white/95 border-l border-gray-200/50'
+            }`
+          : 'bg-transparent'
+      }`}
       style={{
-        width: isCollapsed ? '40px' : '288px',
-        height: isCollapsed ? '40px' : 'calc(100vh - 24px)',
-        maxHeight: isCollapsed ? '40px' : 'calc(100vh - 24px)',
-        padding: isCollapsed ? '4px' : '16px 14px',
-        paddingTop: isCollapsed ? '4px' : '16px',
-        overflowY: isCollapsed ? 'hidden' : 'auto',
+        top: '0px',
+        right: '0px',
+        width: isCollapsed ? '288px' : '40px',
+        height: isCollapsed ? '100vh' : '40px',
+        padding: isCollapsed ? '0px' : '0px',
+        overflowY: isCollapsed ? 'auto' : 'hidden',
         fontFamily: '"JetBrains Mono", "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace',
         fontSize: '11px',
         lineHeight: '1.5',
         transformOrigin: 'top right',
-        transition: 'width 300ms cubic-bezier(0.4, 0, 0.2, 1), height 300ms cubic-bezier(0.4, 0, 0.2, 1), padding 300ms ease-out',
+        transition: 'width 300ms cubic-bezier(0.4, 0, 0.2, 1), height 300ms cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
       {/* Collapsed state - Show bug icon button */}
-      {isCollapsed ? (
+      {!isCollapsed ? (
         <button
-          onClick={() => setIsCollapsed(false)}
-          className="absolute inset-0 w-full h-full rounded-lg flex items-center justify-center hover:bg-gray-500/20 transition-colors"
-          title="Expand Info"
+          onClick={() => setIsCollapsed(true)}
+          className={`absolute top-3 right-3 w-8 h-8 flex items-center justify-center transition-colors ${
+            theme === 'dark' 
+              ? 'hover:bg-gray-800/50' 
+              : 'hover:bg-gray-100/50'
+          } rounded-lg`}
+          title="Open Debug Panel"
+          style={{ backgroundColor: 'transparent' }}
         >
           <Bug className={`w-4 h-4 ${
             theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
           }`} />
         </button>
       ) : (
-        /* Expanded state - Show header with close button */
-        <div className={`mb-4 pb-3 border-b ${
-          theme === 'dark' ? 'border-gray-800' : 'border-gray-200'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div className={`font-semibold text-sm flex items-center gap-2 ${
-              theme === 'dark' ? 'text-gray-100' : 'text-gray-900'
-            }`}>
-              <Bug className="w-4 h-4" />
-              <span>Debug Info</span>
+        <div 
+          className={`flex flex-col relative h-full w-full backdrop-blur-sm shadow-lg ${
+            theme === 'dark' 
+              ? 'bg-gray-900/95 border-l border-gray-700/50' 
+              : 'bg-white/95 border-l border-gray-200/50'
+          }`}
+          style={{ 
+            padding: '16px 14px',
+          }}
+        >
+          {/* Expanded state - Show header with close button */}
+          <div className={`mb-4 pb-3 border-b ${
+            theme === 'dark' ? 'border-gray-800' : 'border-gray-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className={`font-semibold text-sm flex items-center gap-2 ${
+                theme === 'dark' ? 'text-gray-100' : 'text-gray-900'
+              }`}>
+                <Bug className="w-4 h-4" />
+                <span>Debug Info</span>
+              </div>
+              <button
+                onClick={() => setIsCollapsed(false)}
+                className={`p-1 rounded hover:bg-gray-500/20 transition-colors ${
+                  theme === 'dark' ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'
+                }`}
+                title="Collapse Info"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
-            <button
-              onClick={() => setIsCollapsed(true)}
-              className={`p-1 rounded hover:bg-gray-500/20 transition-colors ${
-                theme === 'dark' ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'
-              }`}
-              title="Collapse Info"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
           </div>
-        </div>
-      )}
-      
-      {/* Content - Hidden when collapsed */}
-      {!isCollapsed && (
+          
+          {/* Content */}
       <div className="space-y-5">
         <div>
           <div className={`font-bold text-[11px] uppercase tracking-wide mb-1.5 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>Canvas View</div>
@@ -432,7 +449,8 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
             </div>
           </>
         )}
-      </div>
+        </div>
+        </div>
       )}
     </div>
   );
