@@ -11,7 +11,28 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Type, Move, Download, Import, Grid, FileText, Image, Code, RotateCcw, Trash2, Eye, EyeOff, Sun, Moon, Layers, Info, NotepadTextDashed, TextCursorInput } from 'lucide-react';
+
+// Throttle function to limit how often a function can be called
+function throttle<T extends (...args: any[]) => any>(func: T, delay: number): T {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let lastExecTime = 0;
+  
+  return ((...args: any[]) => {
+    const currentTime = Date.now();
+    
+    if (currentTime - lastExecTime > delay) {
+      func(...args);
+      lastExecTime = currentTime;
+    } else {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        func(...args);
+        lastExecTime = Date.now();
+      }, delay - (currentTime - lastExecTime));
+    }
+  }) as T;
+}
+import { Type, Move, Download, Import, Grid, FileText, Image, Code, RotateCcw, Trash2, Eye, EyeOff, Sun, Moon, Layers, Info, NotepadTextDashed, TextCursorInput, Settings } from 'lucide-react';
 import { Header } from './Header';
 import { CanvasContainer } from './CanvasContainer';
 import useCanvasStore from '../store/canvasStore';
@@ -90,6 +111,17 @@ import { wrapTextToLines } from '../utils';
 import { ExportMenu } from './ExportMenu';
 import { ApiKeyInput } from './ApiKeyInput';
 import { saveSession, loadSession, clearSession } from '../utils/sessionStorage';
+import { useChannels } from '../hooks/useChannels';
+import { useSession } from '../hooks/useSession';
+import { SessionData } from '../types';
+import { ChannelPanel } from './ChannelPanel';
+import { FloatingMessagePanel } from './FloatingMessagePanel';
+import { ChannelTags, LiveChannelPreview } from './ChannelTags';
+import { parseChannelTags, hasChannelTags, parseChannelSwitch } from '../utils/channelUtils';
+import { ActiveChannelIndicator } from './ActiveChannelIndicator';
+import { SessionPanel } from './SessionPanel';
+import { ShareLinkButton } from './ShareLinkButton';
+import { SessionRecoveryNotification } from './SessionRecoveryNotification';
 
 const parseCommand = (text: string): AICommand | null => {
   const trimmedText = text.trim();
@@ -141,6 +173,34 @@ const InfiniteTypewriterCanvas = () => {
   const [selectedObjects, setSelectedObjects] = useState<CanvasObject[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
   
+  // 채널 시스템 훅
+  const {
+    channels,
+    activeChannelId,
+    activeChannelMessages,
+    allMessages,
+    isPanelOpen,
+    togglePanel,
+    setActiveChannel,
+    updateTextObjectMessage,
+    getTextObjectChannels,
+    channelMessages,
+    loadSessionData,
+    clearAllChannelsAndMessages,
+    activeInputChannels,
+    addInputChannels,
+    removeInputChannels,
+    clearInputChannels,
+    getEffectiveChannels
+  } = useChannels();
+
+  
+  // 메시지 호버로 하이라이트된 텍스트 객체 ID
+  const [hoveredMessageTextId, setHoveredMessageTextId] = useState<number | null>(null);
+  
+  // Get messages for display - show all messages when "all" is selected
+  const displayMessages = activeChannelId === 'all' ? allMessages : activeChannelMessages;
+  
   // Helper functions for selection management
   const getFirstSelectedObject = (): CanvasObject | null => {
     return selectedObjects.length > 0 ? selectedObjects[0] : null;
@@ -169,7 +229,13 @@ const InfiniteTypewriterCanvas = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isMouseInTextBox, setIsMouseInTextBox] = useState(false);
   const [hoveredObject, setHoveredObject] = useState<CanvasObject | null>(null);
-  const [canvasWidth, setCanvasWidth] = useState(window.innerWidth);
+  // 캔버스 크기 계산 - 패널이 열려있으면 너비를 줄임
+  const [canvasWidth, setCanvasWidth] = useState(() => {
+    // 초기 상태에서도 패널 상태를 고려
+    const savedPanelState = localStorage.getItem('channelPanelOpen');
+    const isOpen = savedPanelState === 'true';
+    return window.innerWidth - (isOpen ? 280 : 0);
+  });
   const [canvasHeight, setCanvasHeight] = useState(window.innerHeight);
   const [canvasOffset, setCanvasOffset] = useState(() => {
     // 초기 렌더링 시 세션에서 LT 위치 복구하여 깜빡임 방지
@@ -214,6 +280,15 @@ const InfiniteTypewriterCanvas = () => {
     return { x: 0, y: 0 };
   });
   const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(280);
+  
+  // Throttle panel width updates to reduce re-rendering during resize
+  const throttledSetPanelWidth = useCallback(
+    throttle((width: number) => {
+      setPanelWidth(width);
+    }, 16), // 60fps
+    []
+  );
   const [showGrid, setShowGrid] = useState(() => {
     const sessionData = loadSession();
     return storeShowGrid ?? sessionData?.showGrid ?? true;
@@ -236,6 +311,9 @@ const InfiniteTypewriterCanvas = () => {
     return sessionData?.showShortcuts ?? true;
   });
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [showSessionPanel, setShowSessionPanel] = useState(false);
+  const [showSessionRecovery, setShowSessionRecovery] = useState(false);
+  const [pendingSessionData, setPendingSessionData] = useState<SessionData | null>(null);
   const [showTextBox, setShowTextBox] = useState(() => {
     const sessionData = loadSession();
     return sessionData?.showTextBox ?? true;
@@ -320,6 +398,94 @@ const InfiniteTypewriterCanvas = () => {
   const [hoveredLink, setHoveredLink] = useState<LinkObject | null>(null);
   const [pinHoveredObject, setPinHoveredObject] = useState<CanvasObject | null>(null);
 
+  // Session management
+  const handleSessionLoad = useCallback((sessionData: SessionData) => {
+    // Check if there's existing content that would be lost
+    const hasContent = canvasObjects.length > 0 || links.length > 0;
+    
+    if (hasContent) {
+      // Show confirmation dialog
+      setPendingSessionData(sessionData);
+      setShowSessionRecovery(true);
+    } else {
+      // No content to lose, load immediately
+      performSessionLoad(sessionData);
+    }
+  }, [canvasObjects.length, links.length]);
+
+  const performSessionLoad = useCallback((sessionData: SessionData) => {
+    // Update canvas objects
+    setCanvasObjects(sessionData.canvasObjects);
+    
+    // Update links
+    setLinks(sessionData.links);
+    
+    // Load channel data
+    loadSessionData(sessionData.channels, sessionData.messages, sessionData.activeChannelId);
+  }, [loadSessionData]);
+
+  // Auto-populate channels from canvas objects metadata
+  const populateChannelsFromCanvasObjects = useCallback(() => {
+    canvasObjects.forEach(obj => {
+      if (obj.type === 'text' && obj._metadata?.channelIds) {
+        const textObj = obj as TextObject;
+        const { channelIds } = textObj._metadata;
+        
+        if (channelIds.length > 0) {
+          // Check if message already exists for this text object
+          const existingMessage = allMessages.find(msg => msg.textObjectId === textObj.id);
+          
+          if (!existingMessage) {
+            // Create message for this text object
+            updateTextObjectMessage(textObj.id, textObj.content, channelIds);
+          }
+        }
+      }
+    });
+  }, [canvasObjects, allMessages, updateTextObjectMessage]);
+
+  // Run auto-population when canvas objects change
+  useEffect(() => {
+    if (canvasObjects.length > 0) {
+      // Delay to ensure channels are initialized
+      const timer = setTimeout(populateChannelsFromCanvasObjects, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [canvasObjects, populateChannelsFromCanvasObjects]);
+
+  const handleSessionRecoveryAccept = useCallback(() => {
+    if (pendingSessionData) {
+      performSessionLoad(pendingSessionData);
+      setPendingSessionData(null);
+    }
+    setShowSessionRecovery(false);
+  }, [pendingSessionData, performSessionLoad]);
+
+  const handleSessionRecoveryDecline = useCallback(() => {
+    setPendingSessionData(null);
+    setShowSessionRecovery(false);
+  }, []);
+
+  const {
+    sessionState,
+    saveSession: saveCurrentSession,
+    loadSession: loadStoredSession,
+    createNewSession,
+    clearSession: clearCurrentSession,
+    exportSession,
+    importSession,
+    generateShareLink,
+    toggleAutoSave,
+    getCurrentSessionData
+  } = useSession({
+    channels: new Map(channels.map(ch => [ch.id, ch])),
+    messages: channelMessages,
+    canvasObjects,
+    links,
+    activeChannelId,
+    onSessionLoad: handleSessionLoad
+  });
+
   useEffect(() => {
     setPxPerMm(calculateDPIPixelsPerMM());
   }, []);
@@ -381,6 +547,7 @@ const InfiniteTypewriterCanvas = () => {
 
 
   // 타이프라이터 위치는 절대 스냅하지 않음 - 화면 중앙 고정
+  // 캔버스 자체는 marginLeft로 이동하므로 typewriter 위치는 항상 캔버스의 중앙
   const typewriterX = canvasWidth / 2;
   const typewriterY = canvasHeight / 2;
 
@@ -666,8 +833,8 @@ const InfiniteTypewriterCanvas = () => {
       // 1. 실시간 LT World 좌표 사용 (세션 데이터 지연 문제 해결)
       const targetLTWorld = getCurrentLTWorldPosition();
       
-      // 2. 새로운 윈도우 크기 설정
-      const newWidth = window.innerWidth;
+      // 2. 새로운 윈도우 크기 설정 - 패널 상태 고려
+      const newWidth = window.innerWidth - (isPanelOpen ? panelWidth : 0);
       const newHeight = window.innerHeight;
       const newTypewriterX = newWidth / 2;
       const newTypewriterY = newHeight / 2;
@@ -697,7 +864,13 @@ const InfiniteTypewriterCanvas = () => {
     
     // 초기 로드 시에만 centerTypewriter 실행
     return () => window.removeEventListener('resize', handleResize);
-  }, [getCurrentLTWorldPosition, getTextBoxWidth, baseFontSize, scale]);
+  }, [getCurrentLTWorldPosition, getTextBoxWidth, baseFontSize, scale, isPanelOpen, panelWidth]);
+
+  // 패널 상태 변경 시 캔버스 크기 조정
+  useEffect(() => {
+    const newWidth = window.innerWidth - (isPanelOpen ? panelWidth : 0);
+    setCanvasWidth(newWidth);
+  }, [isPanelOpen, panelWidth]);
 
   // 초기 중앙 배치는 세션 로드에서 처리 (중복 제거)
 
@@ -758,6 +931,8 @@ const InfiniteTypewriterCanvas = () => {
     if (hoveredObject) {
       drawHoverHighlight(ctx, hoveredObject, scale, worldToScreenLocal, measureTextWidthLocal, theme, THEME_COLORS);
     }
+    
+    // 메시지 호버 하이라이트 제거 (불필요한 그리기 방지)
     
     // 멀티 셀렉트된 오브젝트 하이라이트 표시 (Typography mode only)
     if (currentMode === CanvasMode.TYPOGRAPHY && selectedObjects.length > 0) {
@@ -1623,28 +1798,15 @@ const InfiniteTypewriterCanvas = () => {
     // 모든 캔버스 객체 삭제
     setCanvasObjects([]);
     
+    // 모든 링크 삭제
+    setLinks([]);
+    
+    // 모든 채널과 메시지 삭제
+    clearAllChannelsAndMessages();
+    
     // 선택 상태 초기화
     setSelectedObjects([]);
-    
-    // 리셋된 상태를 세션에 저장 (clearSession 대신)
-    saveSession({
-      canvasObjects: [],
-      canvasOffset: { x: 0, y: 0 },
-      scale: 1.0,
-      typewriterPosition: { x: typewriterX, y: typewriterY },
-      typewriterLTWorldPosition: getCurrentLTWorldPosition(),
-      currentTypingText: '',
-      baseFontSize: INITIAL_UI_FONT_SIZE_PX,
-      baseFontSizePt: INITIAL_BASE_FONT_SIZE_PT,
-      maxCharsPerLine,
-      showGrid,
-      showTextBox,
-      showInfo,
-      showShortcuts,
-      theme,
-      selectedObjectId: undefined
-    });
-  }, [maintainTypewriterLTWorldPosition, setCanvasOffset, setCanvasObjects, setSelectedObjects, typewriterX, typewriterY, getCurrentLTWorldPosition, maxCharsPerLine, showGrid, showTextBox, showInfo, showShortcuts, theme, saveSession]);;
+  }, [maintainTypewriterLTWorldPosition, clearSelection, clearAllChannelsAndMessages]);
   
   // Keyboard events
   useEffect(() => {
@@ -1818,7 +1980,7 @@ const InfiniteTypewriterCanvas = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [scale, selectedObjects, getCurrentLineHeight, zoomToLevel, setCanvasObjects, setSelectedObjects, setCanvasOffset, handleUISizeChange, handleBaseFontSizeChange, resetUIZoom, resetBaseFont, resetCanvas]);
+  }, [scale, selectedObjects, getCurrentLineHeight, zoomToLevel, setCanvasObjects, setSelectedObjects, setCanvasOffset, handleUISizeChange, handleBaseFontSizeChange, resetUIZoom, resetBaseFont, resetCanvas, clearAllChannelsAndMessages]);
 
   // Mouse events
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -2639,6 +2801,34 @@ const InfiniteTypewriterCanvas = () => {
       return; // Let global handler take care of mode switching
     }
 
+    // Handle channel switching commands
+    if (e.key === 'Enter' || e.key === ' ') {
+      const channelSwitchResult = parseChannelSwitch(currentTypingText + (e.key === ' ' ? ' ' : ''));
+      
+      if (channelSwitchResult.isChannelCommand) {
+        e.preventDefault();
+        
+        // Apply channel changes
+        if (channelSwitchResult.addChannels.length > 0) {
+          addInputChannels(channelSwitchResult.addChannels);
+        }
+        if (channelSwitchResult.removeChannels.length > 0) {
+          removeInputChannels(channelSwitchResult.removeChannels);
+        }
+        
+        // Clear the input text and enter input mode if needed
+        setCurrentTypingText('');
+        
+        // If triggered by space or ends with space/enter, stay focused for text input
+        if (channelSwitchResult.enterInputMode || e.key === ' ') {
+          // Stay focused, user can start typing immediately
+          return;
+        }
+        
+        return;
+      }
+    }
+
     // Handle Escape key - only clear selections and states, don't change modes
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -2697,18 +2887,40 @@ const InfiniteTypewriterCanvas = () => {
             
             // 질문을 먼저 텍스트 오브젝트로 추가
             const worldPos = getCurrentWorldPosition();
-            setCanvasObjects(prev => [
-              ...prev,
-              {
-                type: 'text',
-                content: currentTypingText,
-                x: worldPos.x,
-                y: worldPos.y,
-                scale: 1,
-                fontSize: baseFontSize / scale,
-                id: Date.now()
+            const textId = Date.now();
+            
+            // AI 질문도 채널 시스템 적용
+            const channelTagsResult = parseChannelTags(currentTypingText);
+            const cleanContent = channelTagsResult.cleanContent;
+            // 텍스트에 명시적 채널이 있으면 그것을 사용, 없으면 활성 입력 채널들 사용
+            let channelIds = getEffectiveChannels(channelTagsResult.addChannels);
+            
+            // 기본적으로 default에 추가 (보이지 않는 내부 태그)
+            if (!channelIds.includes('default')) {
+              channelIds = ['default', ...channelIds];
+            }
+            
+            const newTextObject: TextObject = {
+              type: 'text',
+              content: cleanContent,
+              x: worldPos.x,
+              y: worldPos.y,
+              scale: 1,
+              fontSize: baseFontSize / scale,
+              id: textId,
+              _metadata: {
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                channelIds: channelIds
               }
-            ]);
+            };
+            
+            setCanvasObjects(prev => [...prev, newTextObject]);
+            
+            // 채널 시스템에 메시지 추가
+            if (cleanContent.trim()) {
+              updateTextObjectMessage(textId, cleanContent, channelIds);
+            }
             
             setCurrentTypingText('');
             
@@ -2723,21 +2935,45 @@ const InfiniteTypewriterCanvas = () => {
             // AI 처리 시작
             processAICommand(command);
           } else {
-            // 일반 텍스트 처리
+            // 일반 텍스트 처리 (채널 시스템 통합)
             pushUndo(); // 상태 변경 전 스냅샷 저장
             const worldPos = getCurrentWorldPosition();
-            setCanvasObjects(prev => [
-              ...prev,
-              {
-                type: 'text',
-                content: currentTypingText,
-                x: worldPos.x,
-                y: worldPos.y,
-                scale: 1,
-                fontSize: baseFontSize / scale, // 월드 px로 변환해서 저장!
-                id: Date.now()
+            const textId = Date.now();
+            
+            // 채널 태그 파싱
+            const channelTagsResult = parseChannelTags(currentTypingText);
+            const cleanContent = channelTagsResult.cleanContent;
+            // 텍스트에 명시적 채널이 있으면 그것을 사용, 없으면 활성 입력 채널들 사용
+            let channelIds = getEffectiveChannels(channelTagsResult.addChannels);
+            
+            // 기본적으로 모든 메시지는 default에 추가 (보이지 않는 내부 태그)
+            if (!channelIds.includes('default')) {
+              channelIds = ['default', ...channelIds];
+            }
+            
+            // 텍스트 객체 생성 (메타데이터 포함)
+            const newTextObject: TextObject = {
+              type: 'text',
+              content: cleanContent,
+              x: worldPos.x,
+              y: worldPos.y,
+              scale: 1,
+              fontSize: baseFontSize / scale,
+              id: textId,
+              _metadata: {
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                channelIds: channelIds
               }
-            ]);
+            };
+            
+            setCanvasObjects(prev => [...prev, newTextObject]);
+            
+            // 채널 시스템에 메시지 추가 (내용이 있는 경우 항상)
+            if (cleanContent.trim()) {
+              updateTextObjectMessage(textId, cleanContent, channelIds);
+            }
+            
             setCurrentTypingText('');
             
             // 오브젝트 생성 여부와 상관없이 줄바꿈(캔버스 오프셋 이동)은 항상 실행
@@ -2781,8 +3017,10 @@ const InfiniteTypewriterCanvas = () => {
   // 전체 삭제
   const clearAll = () => {
     setCanvasObjects([]);
+    setLinks([]);
     setCurrentTypingText('');
     clearSelection();
+    clearAllChannelsAndMessages();
   };
 
   // 패닝, 줌 등에도 pushUndo() 추가 필요(핸들러 내부에 삽입)
@@ -2843,6 +3081,22 @@ const InfiniteTypewriterCanvas = () => {
       onExportSVG={exportAsSVG}
       onExportJSON={exportAsJSON}
       theme={theme}
+    />
+    <button
+      onClick={() => setShowSessionPanel(true)}
+      className={`p-2 rounded-lg transition-colors ${
+        theme === 'dark'
+          ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+      }`}
+      title="Session Management"
+    >
+      <Settings className="w-4 h-4" />
+    </button>
+    <ShareLinkButton
+      onGenerateLink={generateShareLink}
+      theme={theme}
+      compact={true}
     />
     <div className="border-l h-6 mx-2" />
     {/* 보기/설정 관련 */}
@@ -3020,7 +3274,13 @@ const InfiniteTypewriterCanvas = () => {
   const isComposingRef = useRef(false);
 
   return (
-    <div className="w-full h-screen relative bg-transparent">
+    <div 
+      className="h-screen relative bg-transparent transition-all duration-300 ease-in-out"
+      style={{
+        marginLeft: isPanelOpen ? `${panelWidth}px` : '0',
+        width: `calc(100% - ${isPanelOpen ? panelWidth : 0}px)`
+      }}
+    >
       <Header
         onImportFile={importFile}
         onExportPNG={exportAsPNG}
@@ -3028,6 +3288,9 @@ const InfiniteTypewriterCanvas = () => {
         onExportJSON={exportAsJSON}
         onClearAll={clearAll}
         onApiKeyClick={() => setShowApiKeyInput(true)}
+        onChannelPanelToggle={togglePanel}
+        isPanelOpen={isPanelOpen}
+        panelWidth={panelWidth}
       />
 
       <CanvasContainer
@@ -3041,6 +3304,12 @@ const InfiniteTypewriterCanvas = () => {
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
+        isPanelOpen={isPanelOpen}
+        panelWidth={panelWidth}
+        channels={channels}
+        allMessages={allMessages}
+        activeChannelId={activeChannelId}
+        links={links}
         onMouseLeave={() => {
           handleMouseUp();
           setHoveredObject(null);
@@ -3067,6 +3336,8 @@ const InfiniteTypewriterCanvas = () => {
         pinPosition={pinPosition}
         linkState={linkState}
         selectionState={selectionState}
+        activeInputChannels={activeInputChannels}
+        onRemoveInputChannel={removeInputChannels}
         onThemeToggle={() => {
           setTheme(prev => {
             const newTheme = prev === 'dark' ? 'light' : 'dark';
@@ -3132,6 +3403,67 @@ const InfiniteTypewriterCanvas = () => {
           onClose={() => setShowApiKeyInput(false)}
         />
       )}
+
+      {/* Session Management Panel */}
+      {showSessionPanel && (
+        <SessionPanel
+          sessionState={sessionState}
+          onSaveSession={saveCurrentSession}
+          onLoadSession={loadStoredSession}
+          onCreateNewSession={createNewSession}
+          onClearSession={clearCurrentSession}
+          onExportSession={exportSession}
+          onImportSession={importSession}
+          onGenerateShareLink={generateShareLink}
+          onToggleAutoSave={toggleAutoSave}
+          isOpen={showSessionPanel}
+          onClose={() => setShowSessionPanel(false)}
+        />
+      )}
+
+      {/* Session Recovery Notification */}
+      <SessionRecoveryNotification
+        isVisible={showSessionRecovery}
+        sessionTitle={pendingSessionData?.metadata?.title}
+        sessionDescription={pendingSessionData?.metadata?.description}
+        onAccept={handleSessionRecoveryAccept}
+        onDecline={handleSessionRecoveryDecline}
+        onDismiss={handleSessionRecoveryDecline}
+        theme={theme}
+      />
+
+      {/* 채널 패널 */}
+      <ChannelPanel
+        isOpen={isPanelOpen}
+        channels={channels}
+        activeChannelId={activeChannelId}
+        activeChannelMessages={displayMessages}
+        unreadCounts={new Map()} // TODO: 읽지 않은 메시지 카운트 구현
+        onChannelSelect={setActiveChannel}
+        onClose={togglePanel}
+        onMessageHover={(message) => {
+          // 메시지 hover 하이라이트 비활성화
+          // setHoveredMessageTextId(message.textObjectId);
+        }}
+        onMessageLeave={() => {
+          // setHoveredMessageTextId(null);
+        }}
+        onMessageClick={(message) => {
+          // 메시지 클릭 시 해당 텍스트 객체만 선택 (단일 선택)
+          const textObject = canvasObjects.find(obj => 
+            obj.type === 'text' && obj.id === message.textObjectId
+          ) as TextObject;
+          
+          if (textObject) {
+            // 해당 텍스트 객체만 선택 (기존 선택 대체)
+            setSelectedObjects([textObject]);
+          }
+        }}
+        theme={theme}
+        onWidthChange={throttledSetPanelWidth}
+        onLogoClick={togglePanel}
+      />
+
     </div>
   );
 };

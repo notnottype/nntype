@@ -47,6 +47,10 @@ interface CanvasContainerProps {
   handleMaxCharsChange: (chars: number) => void
   handleUndo: () => void
   handleRedo: () => void
+  
+  // Channel props
+  activeInputChannels: string[]
+  onRemoveInputChannel: (channelIds: string[]) => void
   THEME_COLORS: any
   
   // Overlay props
@@ -83,6 +87,16 @@ interface CanvasContainerProps {
   
   // Theme toggle
   onThemeToggle: () => void
+  
+  // Panel state props
+  isPanelOpen?: boolean
+  panelWidth?: number
+  
+  // Channel/Debug props
+  channels?: any[]
+  allMessages?: any[]
+  activeChannelId?: string | null
+  links?: any[]
 }
 
 export const CanvasContainer: React.FC<CanvasContainerProps> = ({
@@ -139,7 +153,15 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
   pinPosition,
   linkState,
   selectionState,
-  onThemeToggle
+  onThemeToggle,
+  isPanelOpen = false,
+  panelWidth = 280,
+  channels,
+  allMessages,
+  activeChannelId,
+  links,
+  activeInputChannels,
+  onRemoveInputChannel
 }) => {
   const getCursorClass = () => {
     if (isSpacePressed) {
@@ -210,6 +232,8 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
         pinPosition={pinPosition}
         linkState={linkState}
         selectionState={selectionState}
+        activeInputChannels={activeInputChannels}
+        onRemoveInputChannel={onRemoveInputChannel}
       />
 
       <CanvasInfoOverlay
@@ -228,6 +252,10 @@ export const CanvasContainer: React.FC<CanvasContainerProps> = ({
         getTextBoxWidth={getTextBoxWidth}
         screenToWorld={screenToWorld}
         theme={theme}
+        channels={channels}
+        allMessages={allMessages}
+        activeChannelId={activeChannelId}
+        links={links}
       />
 
       <StatusMessages

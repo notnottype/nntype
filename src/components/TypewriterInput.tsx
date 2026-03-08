@@ -3,6 +3,7 @@ import { CornerUpLeft, CornerUpRight, Loader2, AlertCircle } from 'lucide-react'
 import { pxToPoints } from '../utils/units'
 import { AIState, CanvasMode, PinPosition, LinkState, SelectionState } from '../types'
 import { getModeDisplayProperties } from '../utils/modeUtils'
+import { ActiveChannelIndicator } from './ActiveChannelIndicator'
 
 // Add CSS for placeholder styling
 const placeholderStyle = document.createElement('style')
@@ -61,6 +62,10 @@ interface TypewriterInputProps {
   pinPosition: PinPosition
   linkState: LinkState
   selectionState: SelectionState
+  
+  // Channel props
+  activeInputChannels: string[]
+  onRemoveInputChannel: (channelIds: string[]) => void
 }
 
 export const TypewriterInput: React.FC<TypewriterInputProps> = ({
@@ -90,7 +95,9 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
   currentMode,
   pinPosition,
   linkState,
-  selectionState
+  selectionState,
+  activeInputChannels,
+  onRemoveInputChannel
 }) => {
   if (!showTextBox) return null
 
@@ -115,8 +122,6 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
           pointerEvents: 'auto',
         }}
       >
-
-
         {/* Input Field - Only show in Typography mode */}
         {showTextArea && (
         <textarea
@@ -257,8 +262,16 @@ export const TypewriterInput: React.FC<TypewriterInputProps> = ({
             pointerEvents: 'auto',
           }}
         >
-          {/* Left side spacer for balance */}
-          <div style={{ width: '68px' }} />
+          {/* Active Channel Indicator - Bottom left */}
+          {activeInputChannels.length > 0 ? (
+            <ActiveChannelIndicator
+              activeChannels={activeInputChannels}
+              onRemoveChannel={(channelId) => onRemoveInputChannel([channelId])}
+              className=""
+            />
+          ) : (
+            <div style={{ width: '68px' }} />
+          )}
 
           {/* Width Selection Buttons */}
           <div

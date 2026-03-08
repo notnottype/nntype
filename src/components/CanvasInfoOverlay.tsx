@@ -87,7 +87,7 @@ interface CanvasInfoOverlayProps {
 // };
 
 
-export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selectedObject, selectedObjects, hoveredObject, mousePosition, isMouseInTextBox, typewriterX, typewriterY, baseFontSize, initialFontSize, getTextBoxWidth, screenToWorld, theme }: {
+export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selectedObject, selectedObjects, hoveredObject, mousePosition, isMouseInTextBox, typewriterX, typewriterY, baseFontSize, initialFontSize, getTextBoxWidth, screenToWorld, theme, channels, allMessages, activeChannelId, links }: {
   canvasOffset: { x: number; y: number; };
   scale: number;
   canvasObjects: CanvasObject[];
@@ -103,6 +103,10 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
   getTextBoxWidth: () => number;
   screenToWorld: (screenX: number, screenY: number) => { x: number; y: number; };
   theme: Theme;
+  channels?: any[];
+  allMessages?: any[];
+  activeChannelId?: string | null;
+  links?: any[];
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const textBoxWidth = getTextBoxWidth();
@@ -126,58 +130,80 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
 
   return (
     <div
-      className={`fixed z-60 transition-[width] duration-200 ease-out ${
-        isCollapsed ? 'top-3 right-4 w-10 h-10 rounded-lg' : 'top-0 right-0 w-72 h-screen'
-      } ${
-        theme === 'dark'
-          ? 'bg-gray-900/90 text-gray-100 border border-gray-700/50'
-          : 'bg-white/90 text-gray-800 border border-gray-200/50'
-      } backdrop-blur-sm shadow-xs`}
+      className={`fixed z-60 ${
+        isCollapsed 
+          ? `backdrop-blur-sm shadow-lg ${
+              theme === 'dark'
+                ? 'bg-gray-900/95 border-l border-gray-700/50'
+                : 'bg-white/95 border-l border-gray-200/50'
+            }`
+          : 'bg-transparent'
+      }`}
       style={{
-        height: isCollapsed ? '40px' : '100vh',
-        padding: isCollapsed ? '4px' : '16px 14px',
-        paddingTop: isCollapsed ? '4px' : '16px',
-        overflowY: 'auto',
-        fontFamily: 'Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace',
-        fontSize: '12px',
-        lineHeight: '1.1',
+        top: '0px',
+        right: '0px',
+        width: isCollapsed ? '288px' : '40px',
+        height: isCollapsed ? '100vh' : '40px',
+        padding: isCollapsed ? '0px' : '0px',
+        overflowY: isCollapsed ? 'auto' : 'hidden',
+        fontFamily: '"JetBrains Mono", "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace',
+        fontSize: '11px',
+        lineHeight: '1.5',
+        transformOrigin: 'top right',
+        transition: 'width 300ms cubic-bezier(0.4, 0, 0.2, 1), height 300ms cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
-      {/* Toggle Button - Positioned absolutely in center when collapsed */}
-      <button
-        onClick={() => setIsCollapsed(!isCollapsed)}
-        className={`${
-          isCollapsed 
-            ? 'absolute inset-0 w-full h-full rounded-lg flex items-center justify-center' 
-            : 'absolute top-2 right-2 w-6 h-6 rounded flex items-center justify-center'
-        } hover:bg-gray-500/20 transition-colors ${
-          theme === 'dark' ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'
-        }`}
-        title={isCollapsed ? "Expand Info" : "Collapse Info"}
-      >
-        {isCollapsed ? (
-          <Bug className="w-4 h-4" />
-        ) : (
-          <ChevronRight className="w-4 h-4" />
-        )}
-      </button>
-
-      {/* Header - Only show when expanded */}
-      {!isCollapsed && (
-        <div className={`mb-4 pb-3 border-b ${
-          theme === 'dark' ? 'border-gray-800' : 'border-gray-200'
-        }`}>
-          <div className={`font-semibold text-sm flex items-center gap-2 ${
-            theme === 'dark' ? 'text-gray-100' : 'text-gray-900'
+      {/* Collapsed state - Show bug icon button */}
+      {!isCollapsed ? (
+        <button
+          onClick={() => setIsCollapsed(true)}
+          className={`absolute top-3 right-3 w-8 h-8 flex items-center justify-center transition-colors ${
+            theme === 'dark' 
+              ? 'hover:bg-gray-800/50' 
+              : 'hover:bg-gray-100/50'
+          } rounded-lg`}
+          title="Open Debug Panel"
+          style={{ backgroundColor: 'transparent' }}
+        >
+          <Bug className={`w-4 h-4 ${
+            theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+          }`} />
+        </button>
+      ) : (
+        <div 
+          className={`flex flex-col relative h-full w-full backdrop-blur-sm shadow-lg ${
+            theme === 'dark' 
+              ? 'bg-gray-900/95 border-l border-gray-700/50' 
+              : 'bg-white/95 border-l border-gray-200/50'
+          }`}
+          style={{ 
+            padding: '16px 14px',
+          }}
+        >
+          {/* Expanded state - Show header with close button */}
+          <div className={`mb-4 pb-3 border-b ${
+            theme === 'dark' ? 'border-gray-800' : 'border-gray-200'
           }`}>
-            <Bug className="w-4 h-4" />
-            <span>Debug Info</span>
+            <div className="flex items-center justify-between">
+              <div className={`font-semibold text-sm flex items-center gap-2 ${
+                theme === 'dark' ? 'text-gray-100' : 'text-gray-900'
+              }`}>
+                <Bug className="w-4 h-4" />
+                <span>Debug Info</span>
+              </div>
+              <button
+                onClick={() => setIsCollapsed(false)}
+                className={`p-1 rounded hover:bg-gray-500/20 transition-colors ${
+                  theme === 'dark' ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'
+                }`}
+                title="Collapse Info"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-      
-      {/* Content - Hidden when collapsed */}
-      {!isCollapsed && (
+          
+          {/* Content */}
       <div className="space-y-5">
         <div>
           <div className={`font-bold text-[11px] uppercase tracking-wide mb-1.5 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>Canvas View</div>
@@ -346,7 +372,85 @@ export const CanvasInfoOverlay = ({ canvasOffset, scale, canvasObjects, selected
             </div>
           </>
         )}
-      </div>
+
+        {/* Channel & Message Debug Info */}
+        {(channels || allMessages || links) && (
+          <>
+            <div className={`border-t ${theme === 'dark' ? 'border-gray-800' : 'border-gray-200'}`}></div>
+            <div>
+              <div className={`font-bold text-[11px] uppercase tracking-wide mb-1.5 ${theme === 'dark' ? 'text-blue-300' : 'text-blue-700'}`}>
+                Channel System
+              </div>
+              <div className="space-y-2">
+                {channels && (
+                  <div>
+                    <div className="text-[10px] font-medium text-gray-500 mb-1">
+                      Channels ({channels.length})
+                    </div>
+                    <div className={`px-1.5 py-1 rounded text-[9px] space-y-0.5 ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                      <div className="font-medium">Active: {activeChannelId || 'none'}</div>
+                      {channels.slice(0, 3).map((channel: any) => (
+                        <div key={channel.id} className="opacity-70">
+                          {channel.id}: {channel.name} ({channel.messageCount || 0})
+                        </div>
+                      ))}
+                      {channels.length > 3 && (
+                        <div className="opacity-50">... +{channels.length - 3} more</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {allMessages && (
+                  <div>
+                    <div className="text-[10px] font-medium text-gray-500 mb-1">
+                      Messages ({allMessages.length})
+                    </div>
+                    <div className={`px-1.5 py-1 rounded text-[9px] space-y-0.5 ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                      {allMessages.slice(0, 3).map((msg: any, i: number) => (
+                        <div key={msg.id || i} className="opacity-70 truncate">
+                          {msg.content?.substring(0, 40)}...
+                        </div>
+                      ))}
+                      {allMessages.length > 3 && (
+                        <div className="opacity-50">... +{allMessages.length - 3} more</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {links && links.length > 0 && (
+                  <div>
+                    <div className="text-[10px] font-medium text-gray-500 mb-1">
+                      Links ({links.length})
+                    </div>
+                    <div className={`px-1.5 py-1 rounded text-[9px] space-y-0.5 ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                      {links.slice(0, 3).map((link: any, i: number) => (
+                        <div key={link.id || i} className="opacity-70">
+                          {link.from} → {link.to}
+                        </div>
+                      ))}
+                      {links.length > 3 && (
+                        <div className="opacity-50">... +{links.length - 3} more</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <div className="text-[10px] font-medium text-gray-500 mb-1">
+                    IndexedDB Status
+                  </div>
+                  <div className={`px-1.5 py-1 rounded text-[9px] ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                    {typeof indexedDB !== 'undefined' ? '✓ Available' : '✗ Not Available'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+        </div>
+        </div>
       )}
     </div>
   );

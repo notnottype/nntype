@@ -14,7 +14,10 @@ interface HeaderProps {
   onExportJSON: () => void
   onClearAll: () => void
   onApiKeyClick: () => void
+  onChannelPanelToggle?: () => void
   infoPanel?: React.ReactNode
+  isPanelOpen?: boolean
+  panelWidth?: number
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -24,7 +27,10 @@ export const Header: React.FC<HeaderProps> = ({
   onExportJSON,
   onClearAll,
   onApiKeyClick,
-  infoPanel
+  onChannelPanelToggle,
+  infoPanel,
+  isPanelOpen = false,
+  panelWidth = 280
 }) => {
   // Get state from Zustand store
   const {
@@ -39,15 +45,6 @@ export const Header: React.FC<HeaderProps> = ({
     <React.Fragment>
       {/* Top Header Container */}
       <div className="absolute top-0 left-0 right-0 z-50 flex items-center px-2 py-1 pr-4 pointer-events-none">
-        {/* Logo - Left */}
-        <div className="pointer-events-auto flex items-center h-10 mt-1">
-          <img 
-            src="/nntype.svg" 
-            alt="nntype" 
-            className="w-28 h-14"
-            style={{ filter: theme === 'dark' ? 'invert(1)' : 'none' }}
-          />
-        </div>
 
         {/* Floating Toolbar - Center */}
         <div className="absolute left-1/2 transform -translate-x-1/2 pointer-events-none flex items-center h-10 mt-2">
